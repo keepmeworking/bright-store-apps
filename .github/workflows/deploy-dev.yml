@@ -1,0 +1,40 @@
+name: Deploy to Dev
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Dev Server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEV_HOST }}
+          username: ${{ secrets.DEV_USER }}
+          key: ${{ secrets.DEV_KEY }}
+          script: |
+            # 1. Update Monorepo Code
+            echo "📥 Updating Monorepo..."
+            cd /home/friday/project/agency-engine/bright-apps
+            git pull origin main
+            
+            # 2. Update Daikcell Client Configuration
+            echo "📥 Updating Clients Repo..."
+            cd /home/friday/project/agency-engine/clients/daikcell
+            git pull origin main 
+            
+            # 3. Rebuild & Restart Daikcell SMTP
+            echo "🚀 Deploying Daikcell SMTP..."
+            cd /home/friday/project/agency-engine
+            docker compose -f clients/daikcell/apps/docker-compose.yml up -d --build --force-recreate
+            
+            # 4. Prune old images to save space
+            echo "🧹 Cleaning up..."
+            docker image prune -f
+            
+            echo "✅ Deployment Complete!"

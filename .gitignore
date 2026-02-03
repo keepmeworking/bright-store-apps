@@ -34,11 +34,8 @@ yarn-error.log*
 
 # env files
 .env
-.env.test
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
 
 # misc
 .saleor-app-auth.json
