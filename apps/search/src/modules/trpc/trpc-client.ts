@@ -3,7 +3,7 @@ import { httpBatchLink } from "@trpc/client";
 import { createTRPCNext } from "@trpc/next";
 
 import { env } from "../../env";
-import { appBridgeInstance } from "../../pages/_app";
+import { appBridgeInstance } from "../../lib/app-bridge-instance";
 import { AppRouter } from "./trpc-app-router";
 
 function getBaseUrl() {
