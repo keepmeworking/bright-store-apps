@@ -27,6 +27,19 @@ ARG APP_DIR
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
+# DUMMY ENV VARS for build-time validation
+# These apps often use zod to validate envs during 'next build'
+ENV SECRET_KEY=placeholder
+ENV DYNAMODB_MAIN_TABLE_NAME=placeholder
+ENV AWS_REGION=us-east-1
+ENV AWS_ACCESS_KEY_ID=placeholder
+ENV AWS_SECRET_ACCESS_KEY=placeholder
+ENV REQUEST_SECRET=placeholder
+ENV APP_API_BASE_URL=https://placeholder.com
+# Some apps might need these
+ENV API_URL=https://placeholder.com/graphql/
+ENV APP_MOUNT_URI=/
+
 # Build the specific app
 RUN npm install -g pnpm@10.2.1
 RUN pnpm --filter ${APP_NAME} build
