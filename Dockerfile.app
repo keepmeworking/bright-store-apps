@@ -2,7 +2,6 @@ FROM node:22-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
-# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -20,13 +19,17 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/ .
 
+# Build arguments for dynamic app selection
+ARG APP_NAME
+ARG APP_DIR
+
 # Disable telemetry during build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
 # Build the specific app
 RUN npm install -g pnpm@10.2.1
-RUN pnpm --filter saleor-app-smtp build
+RUN pnpm --filter ${APP_NAME} build
 
 # Production image, copy all the files and run next
 FROM base AS runner
@@ -38,18 +41,20 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/apps/smtp/public ./apps/smtp/public
+# Build arguments repeat for runner stage
+ARG APP_DIR
+
+COPY --from=builder /app/apps/${APP_DIR}/public ./apps/${APP_DIR}/public
 
 # Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
-COPY --from=builder --chown=nextjs:nodejs /app/apps/smtp/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/smtp/.next/static ./apps/smtp/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/${APP_DIR}/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/${APP_DIR}/.next/static ./apps/${APP_DIR}/.next/static
 
 USER nextjs
 
 EXPOSE 3000
 
 ENV PORT=3000
-# IMPORTANT: This needs to be set to the path of the app inside the standalone folder
-# Usually it structure mirrors the monorepo structure
-CMD ["node", "apps/smtp/server.js"]
+# Set dynamic start command
+ENV APP_DIR_ENV=${APP_DIR}
+CMD node apps/${APP_DIR_ENV}/server.js
