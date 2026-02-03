@@ -24,9 +24,6 @@ on:
           - segment
           - cms
           - stripe
-          - avatax
-          - klaviyo
-          - np-atobarai
 
 env:
   REGISTRY: ghcr.io
@@ -54,9 +51,6 @@ jobs:
             segment: ['apps/segment/**']
             cms: ['apps/cms/**']
             stripe: ['apps/stripe/**']
-            avatax: ['apps/avatax/**']
-            klaviyo: ['apps/klaviyo/**']
-            np-atobarai: ['apps/np-atobarai/**']
             global: ['Dockerfile.app', 'package.json', 'pnpm-lock.yaml', '.github/workflows/docker-build.yml']
 
       - name: Set matrix
@@ -66,7 +60,7 @@ jobs:
           
           # Force build all if input is 'all' or global files changed
           if [[ "${{ github.event.inputs.app }}" == "all" || "${{ steps.filter.outputs.global }}" == "true" ]]; then
-            APPS=("smtp" "search" "products-feed" "segment" "cms" "stripe" "avatax" "klaviyo" "np-atobarai")
+            APPS=("smtp" "search" "products-feed" "segment" "cms" "stripe")
           # Build selected app if input is provided
           elif [[ -n "${{ github.event.inputs.app }}" && "${{ github.event.inputs.app }}" != "" ]]; then
             APPS=("${{ github.event.inputs.app }}")
@@ -78,9 +72,6 @@ jobs:
             if [[ "${{ steps.filter.outputs.segment }}" == "true" ]]; then APPS+=("segment"); fi
             if [[ "${{ steps.filter.outputs.cms }}" == "true" ]]; then APPS+=("cms"); fi
             if [[ "${{ steps.filter.outputs.stripe }}" == "true" ]]; then APPS+=("stripe"); fi
-            if [[ "${{ steps.filter.outputs.avatax }}" == "true" ]]; then APPS+=("avatax"); fi
-            if [[ "${{ steps.filter.outputs.klaviyo }}" == "true" ]]; then APPS+=("klaviyo"); fi
-            if [[ "${{ steps.filter.outputs.np-atobarai }}" == "true" ]]; then APPS+=("np-atobarai"); fi
           fi
 
           if [ ${#APPS[@]} -eq 0 ]; then
@@ -128,9 +119,6 @@ jobs:
             "segment") echo "pkg=saleor-app-segment" >> $GITHUB_OUTPUT ;;
             "cms") echo "pkg=saleor-app-cms" >> $GITHUB_OUTPUT ;;
             "stripe") echo "pkg=saleor-app-payment-stripe" >> $GITHUB_OUTPUT ;;
-            "avatax") echo "pkg=saleor-app-avatax" >> $GITHUB_OUTPUT ;;
-            "klaviyo") echo "pkg=saleor-app-klaviyo" >> $GITHUB_OUTPUT ;;
-            "np-atobarai") echo "pkg=saleor-app-payment-np-atobarai" >> $GITHUB_OUTPUT ;;
           esac
 
       - name: Build and push
