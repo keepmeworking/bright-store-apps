@@ -116,3 +116,4 @@ If you want to use your own database, you can implement your own APL. [Check the
 ## OTEL
 
 Visit `@saleor/apps-otel` [README](../../packages/otel/README.md) to learn how to run app with OTEL locally.
+// Trigger build Tue Feb  3 16:59:34 UTC 2026

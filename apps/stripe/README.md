@@ -81,3 +81,4 @@ pnpm run test:e2e
 ```
 
 Tests are using the Stripe staging app that is already installed on Saleor environments.
+// Trigger build Tue Feb  3 16:59:34 UTC 2026
