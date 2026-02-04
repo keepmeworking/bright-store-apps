@@ -54,7 +54,7 @@ jobs:
             stripe: ['apps/stripe/**']
             dummy-payment: ['apps/dummy-payment/**']
 
-            global: ['Dockerfile.app', 'package.json', 'pnpm-lock.yaml', '.github/workflows/docker-build.yml']
+            global: ['Dockerfile.app', 'package.json', 'pnpm-lock.yaml', 'turbo.json', 'pnpm-workspace.yaml', '.github/workflows/docker-build.yml']
 
       - name: Set matrix
         id: set-matrix
