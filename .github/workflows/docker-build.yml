@@ -65,6 +65,9 @@ jobs:
           ALL_APPS=$(find apps -maxdepth 2 -name package.json | cut -d'/' -f2 | sort -u)
           echo "Discovered apps: $ALL_APPS"
           
+          # Get the list of filters that matched as a JSON array
+          CHANGED_FILTERS='${{ steps.filter.outputs.changes }}'
+          
           APPS=()
           
           # Force build all if input is 'all' or global files changed
@@ -78,7 +81,8 @@ jobs:
           # Build changed apps
           else
             for app in $ALL_APPS; do
-              if [[ "${{ steps.filter.outputs.$app }}" == "true" ]]; then
+              # Check if the app name exists in the changed filters array
+              if echo "$CHANGED_FILTERS" | jq -e ". | contains([\"$app\"])" > /dev/null; then
                 APPS+=("$app")
               fi
             done
