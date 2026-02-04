@@ -8,6 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const nextConfig: NextConfig = {
   output: "standalone",
   reactStrictMode: true,
+  outputFileTracingRoot: path.join(__dirname, "../../"),
   transpilePackages: [
     "@saleor/apps-otel",
     "@saleor/apps-logger",
@@ -18,7 +19,6 @@ const nextConfig: NextConfig = {
   ],
   experimental: {
     optimizePackageImports: ["@sentry/nextjs", "@sentry/node"],
-    outputFileTracingRoot: path.join(__dirname, "../../"),
   },
   bundlePagesRouterDependencies: true,
   serverExternalPackages: [

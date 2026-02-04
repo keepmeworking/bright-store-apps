@@ -1,6 +1,7 @@
 import { useDashboardNotification } from "@saleor/apps-shared/use-dashboard-notification";
 import { Box, Text } from "@saleor/macaw-ui";
-import { NextPage } from "next";
+import type { NextPage } from "next";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/router";
 
 import { BasicLayout } from "../../../components/basic-layout";
@@ -66,7 +67,7 @@ const EditSmtpConfigurationPage: NextPage = () => {
           router.replace(appUrls.configuration());
         }
       },
-    },
+    }
   );
 
   if (isLoading) {
@@ -99,4 +100,7 @@ const EditSmtpConfigurationPage: NextPage = () => {
   );
 };
 
-export default EditSmtpConfigurationPage;
+export default dynamic(async () => ({ default: EditSmtpConfigurationPage }), {
+  ssr: false,
+  loading: () => null,
+});

@@ -8,6 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const nextConfig: NextConfig = {
   output: "standalone",
   reactStrictMode: true,
+  outputFileTracingRoot: path.join(__dirname, "../../"),
   transpilePackages: [
     "@saleor/apps-shared",
     "@saleor/apps-otel",
@@ -27,7 +28,6 @@ const nextConfig: NextConfig = {
       "@trpc/react-query",
       "@trpc/next",
     ],
-    outputFileTracingRoot: path.join(__dirname, "../../"),
   },
   bundlePagesRouterDependencies: true,
   webpack: (config, { isServer }) => {
