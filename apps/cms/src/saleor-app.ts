@@ -37,7 +37,9 @@ switch (aplType) {
     break;
 
   case "file":
-    apl = new FileAPL();
+    apl = new FileAPL({
+      fileName: env.FILE_APL_PATH,
+    });
 
     break;
 
