@@ -16,6 +16,7 @@ const nextConfig = {
   bundlePagesRouterDependencies: true,
   experimental: {
     optimizePackageImports: ["@saleor/macaw-ui"],
+    outputFileTracingRoot: path.join(__dirname, "../../"),
   },
   webpack: (config, { isServer }) => {
     if (isServer) {

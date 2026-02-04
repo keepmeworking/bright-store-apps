@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
   ],
   experimental: {
     optimizePackageImports: ["@sentry/nextjs", "@sentry/node"],
+    outputFileTracingRoot: path.join(__dirname, "../../"),
   },
   bundlePagesRouterDependencies: true,
   serverExternalPackages: [
