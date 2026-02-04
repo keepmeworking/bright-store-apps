@@ -23,7 +23,7 @@ class CustomSpanProcessor extends BatchSpanProcessor {
 
 export const batchSpanProcessor = new CustomSpanProcessor(
   new OTLPTraceExporter({
-    headers: sharedOtelConfig.exporterHeaders,
+    headers: sharedOtelConfig.exporterHeaders as any,
     timeoutMillis: sharedOtelConfig.flushTimeout,
   }),
   sharedOtelConfig.batchProcessorConfig

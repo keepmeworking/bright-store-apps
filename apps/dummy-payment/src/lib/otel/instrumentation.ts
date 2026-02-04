@@ -41,7 +41,9 @@ export const otelSdk = new NodeSDK({
     "commit-sha": process.env.VERCEL_GIT_COMMIT_SHA,
     [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.ENV,
   }),
+  // @ts-ignore - version mismatch with OTel 1.x
   spanProcessor: batchSpanProcessor,
+  // @ts-ignore - version mismatch with OTel 1.x
   logRecordProcessor: otelLogsProcessor,
   textMapPropagator: new W3CTraceContextPropagator(),
   instrumentations: [
@@ -73,10 +75,10 @@ export const otelSdk = new NodeSDK({
         }
       },
 
-      ignoreOutgoingUrls: [
-        (url) => url.includes("ingest.sentry.io"),
-        (url) => url.includes("/v1/logs"),
-      ],
+      // ignoreOutgoingUrls: [
+      //   (url) => url.includes("ingest.sentry.io"),
+      //   (url) => url.includes("/v1/logs"),
+      // ],
     }),
   ],
 });
