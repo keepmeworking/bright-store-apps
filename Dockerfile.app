@@ -73,4 +73,4 @@ EXPOSE 3000
 ENV PORT=3000
 # Set dynamic start command
 ENV APP_DIR_ENV=${APP_DIR}
-CMD node apps/${APP_DIR_ENV}/server.js
+CMD ["sh", "-c", "if [ -f apps/${APP_DIR_ENV}/server.js ]; then node apps/${APP_DIR_ENV}/server.js; else node server.js; fi"]
