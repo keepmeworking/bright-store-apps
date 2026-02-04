@@ -8,10 +8,10 @@ const __dirname = path.dirname(__filename);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  outputFileTracingRoot: path.join(__dirname, "../../"),
   output: "standalone",
   reactStrictMode: true,
   experimental: {
+    outputFileTracingRoot: path.join(__dirname, "../../"),
     optimizePackageImports: [
       "@sentry/nextjs",
       "@sentry/node",
