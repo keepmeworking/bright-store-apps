@@ -45,6 +45,7 @@ const handler = createAppRegisterHandler({
     logger.error("Failed to set APL", {
       saleorApiUrl: context.authData.saleorApiUrl,
       error: context.error,
+      errorMessage: (context.error as Error)?.message,
     });
   },
   onAuthAplSaved: async (_req, context) => {
