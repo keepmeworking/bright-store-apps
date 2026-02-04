@@ -36,7 +36,7 @@ export default wrapWithLoggerContext(
 
       const payloadResult = cancelationRequestedInputSchema.safeParse(payload);
 
-      if (payloadResult.error) {
+      if (!payloadResult.success) {
         logger.warn("Data received from Saleor didn't pass validation", {
           error: payloadResult.error,
         });

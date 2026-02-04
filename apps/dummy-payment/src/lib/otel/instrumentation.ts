@@ -42,7 +42,7 @@ export const otelSdk = new NodeSDK({
     [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.ENV,
   }),
   spanProcessor: batchSpanProcessor,
-  logRecordProcessor: otelLogsProcessor,
+  logRecordProcessor: otelLogsProcessor as any,
   textMapPropagator: new W3CTraceContextPropagator(),
   instrumentations: [
     new HttpInstrumentation({
@@ -73,10 +73,10 @@ export const otelSdk = new NodeSDK({
         }
       },
 
-      ignoreOutgoingUrls: [
-        (url) => url.includes("ingest.sentry.io"),
-        (url) => url.includes("/v1/logs"),
-      ],
+      ignoreOutgoingRequestHook: (req: any) => {
+        const url = req.path || "";
+        return url.includes("ingest.sentry.io") || url.includes("/v1/logs");
+      },
     }),
   ],
 });

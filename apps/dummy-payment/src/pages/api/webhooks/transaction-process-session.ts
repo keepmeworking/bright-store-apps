@@ -37,7 +37,7 @@ export default wrapWithLoggerContext(
       const rawEventData = payload.data;
       const dataResult = dataSchema.safeParse(rawEventData);
 
-      if (dataResult.error) {
+      if (!dataResult.success) {
         logger.warn("Invalid data field received in notification", { error: dataResult.error });
 
         const errorResponse: ResponseType = {

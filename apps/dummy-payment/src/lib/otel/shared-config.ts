@@ -22,6 +22,6 @@ export const sharedOtelConfig = {
      *
      * In case of forked usage, leave this field empty, but protecting collector is recommended.
      */
-    "x-alb-access-token": process.env.OTEL_ACCESS_TOKEN,
+    "x-alb-access-token": process.env.OTEL_ACCESS_TOKEN || "",
   },
 } as const;

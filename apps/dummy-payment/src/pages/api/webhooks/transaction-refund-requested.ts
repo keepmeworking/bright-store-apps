@@ -40,7 +40,7 @@ export default wrapWithLoggerContext(
 
       const payloadResult = refundRequestedInputSchema.safeParse(payload);
 
-      if (payloadResult.error) {
+      if (!payloadResult.success) {
         logger.warn("Data received from Saleor didn't pass validation", {
           error: payloadResult.error,
         });

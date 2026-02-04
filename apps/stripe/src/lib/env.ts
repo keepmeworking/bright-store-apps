@@ -77,4 +77,6 @@ export const env = createEnv({
       cause: issues,
     });
   },
+  // eslint-disable-next-line turbo/no-undeclared-env-vars
+  skipValidation: !!process.env.SKIP_ENV_VALIDATION,
 });
