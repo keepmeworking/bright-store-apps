@@ -65,7 +65,7 @@ jobs:
           
           # Force build all if input is 'all' or global files changed
           if [[ "${{ github.event.inputs.app }}" == "all" || "${{ steps.filter.outputs.global }}" == "true" ]]; then
-            APPS=("smtp" "search" "products-feed" "segment" "cms" "stripe" "dummy-payment")
+            APPS=("smtp" "search" "products-feed" "segment" "cms" "stripe" "dummy-payment" "invoices")
           # Build selected app if input is provided
           elif [[ -n "${{ github.event.inputs.app }}" && "${{ github.event.inputs.app }}" != "" ]]; then
             APPS=("${{ github.event.inputs.app }}")
