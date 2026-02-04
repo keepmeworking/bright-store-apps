@@ -5,14 +5,14 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm@10.28.1
+# Enable corepack to respect packageManager version in package.json
+RUN corepack enable
 
 # Copy source code
 COPY . .
 
 # Install dependencies
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 # Build the project
 FROM base AS builder
@@ -41,7 +41,7 @@ ENV API_URL=https://placeholder.com/graphql/
 ENV APP_MOUNT_URI=/
 
 # Build the specific app
-RUN npm install -g pnpm@10.28.1
+RUN corepack enable
 RUN pnpm --filter ${APP_NAME} build
 
 # Production image, copy all the files and run next
