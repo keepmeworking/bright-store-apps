@@ -1,5 +1,0 @@
-subscription TransactionRefundRequested {
-  event {
-    ...TransactionRefundRequestedEvent
-  }
-}

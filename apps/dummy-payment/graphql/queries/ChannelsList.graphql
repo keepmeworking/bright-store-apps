@@ -1,7 +1,0 @@
-query ChannelsList {
-  channels {
-    id
-    name
-    slug
-  }
-}

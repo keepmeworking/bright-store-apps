@@ -1,5 +1,0 @@
-subscription TransactionInitializeSession {
-  event {
-    ...TransactionInitializeSessionEvent
-  }
-}
