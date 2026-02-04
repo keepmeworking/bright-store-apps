@@ -6,7 +6,7 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Install pnpm
-RUN npm install -g pnpm@10.2.1
+RUN npm install -g pnpm@10.28.1
 
 # Copy source code
 COPY . .
@@ -41,7 +41,7 @@ ENV API_URL=https://placeholder.com/graphql/
 ENV APP_MOUNT_URI=/
 
 # Build the specific app
-RUN npm install -g pnpm@10.2.1
+RUN npm install -g pnpm@10.28.1
 RUN pnpm --filter ${APP_NAME} build
 
 # Production image, copy all the files and run next
