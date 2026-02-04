@@ -20,6 +20,8 @@
   },
   "type": "module",
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.981.0",
+    "@aws-sdk/lib-dynamodb": "3.981.0",
     "@next/bundle-analyzer": "14.2.5",
     "@opentelemetry/api": "1.7.0",
     "@opentelemetry/api-logs": "0.46.0",
@@ -44,6 +46,7 @@
     "@trpc/server": "10.45.3",
     "@urql/exchange-auth": "1.0.0",
     "@vitejs/plugin-react": "4.2.1",
+    "dynamodb-toolbox": "^0.5.2",
     "graphql": "16.8.1",
     "graphql-tag": "2.12.6",
     "jsdom": "20.0.3",
