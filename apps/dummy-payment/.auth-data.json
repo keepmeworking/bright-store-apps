@@ -1,0 +1,7 @@
+{
+  "domain": "store-weycauqo.saleor.cloud",
+  "token": "E2v7YZlpJ5yvuSbz53X1r0LLXVSS1k",
+  "saleorApiUrl": "https://store-weycauqo.saleor.cloud/graphql/",
+  "appId": "QXBwOjQy",
+  "jwks": "{\"keys\": [{\"kty\": \"RSA\", \"key_ops\": [\"verify\"], \"n\": \"mAg81Eg17qLi9WunahkjfrYSJgzURfaDr31FdWC0Jj66F_LvIhH0aNLE6II4BXYRdRhyyC01L6IF7SqgV9szNmUdkhiF6RiLXybWYemtXLg2OoIxx-ZoJKHRi8wT2MhkNx_FS6iVsQRFstCyVF2fY5bzvVxUYwnzHnuT6C7ManHjt_gsHiPuu5qg07mtAMppbv1LtYmSfhNUG5oSZqwJGArUVWFoohu91YBAJuRDZTlgPqtjwqQ8jtU4E_QlPjNR3g6VHqgwPOkmJPKF8qSkrKYBz7rY6TTnCQm5tmcXtuphtrVGkzlEvrNLTDtcaW42aNLH0oRVuTrKlj6hD-KixQ\", \"e\": \"AQAB\", \"use\": \"sig\", \"kid\": \"xrcc76nYCoT0IcfTWnPdbqjAFVQvLDjfisDBp8HJOGw\", \"alg\": \"RS256\"}]}"
+}
