@@ -63,6 +63,9 @@ COPY --from=builder /app/apps/${APP_DIR}/public ./apps/${APP_DIR}/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/${APP_DIR}/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/${APP_DIR}/.next/static ./apps/${APP_DIR}/.next/static
 
+# Pre-create data directory for persistence and set permissions
+RUN mkdir -p /app/.data && chown -R nextjs:nodejs /app/.data
+
 USER nextjs
 
 EXPOSE 3000
