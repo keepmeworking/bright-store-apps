@@ -51,3 +51,4 @@ apps/**/generated
 
 # generated files
 generated/
+dev.log
