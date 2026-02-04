@@ -37,9 +37,13 @@ export default wrapWithLoggerContext(
       const rawEventData = payload.data;
       const dataResult = dataSchema.safeParse(rawEventData);
 
+      const defaultSuccessType = actionType === TransactionFlowStrategyEnum.Charge 
+        ? "CHARGE_SUCCESS" as const 
+        : "AUTHORIZATION_SUCCESS" as const;
+
       const data = dataResult.success 
         ? dataResult.data 
-        : { event: { type: "CHARGE_SUCCESS" as const, includePspReference: true } };
+        : { event: { type: defaultSuccessType, includePspReference: true } };
 
       logger.info("Using transaction data", { data });
 
