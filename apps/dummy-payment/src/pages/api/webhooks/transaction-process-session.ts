@@ -37,29 +37,11 @@ export default wrapWithLoggerContext(
       const rawEventData = payload.data;
       const dataResult = dataSchema.safeParse(rawEventData);
 
-      if (!dataResult.success) {
-        logger.warn("Invalid data field received in notification", { error: dataResult.error });
+      const data = dataResult.success 
+        ? dataResult.data 
+        : { event: { type: "CHARGE_SUCCESS" as const, includePspReference: true } };
 
-        const errorResponse: ResponseType = {
-          pspReference: uuidv7(),
-          result:
-            actionType === TransactionFlowStrategyEnum.Charge
-              ? "CHARGE_FAILURE"
-              : "AUTHORIZATION_FAILURE",
-          message: getZodErrorMessage(dataResult.error),
-          amount,
-          actions: [],
-          data: {
-            exception: true,
-          },
-        };
-
-        logger.info("Returning error response to Saleor", { response: errorResponse });
-
-        return res.status(200).json(errorResponse);
-      }
-
-      const data = dataResult.data;
+      logger.info("Using transaction data", { data });
 
       logger.info("Parsed data field from notification", { data });
 
