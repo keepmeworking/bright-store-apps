@@ -78,7 +78,7 @@ export const AddressForm = (props: Props & InnerFormProps) => {
               props.onCancel();
             }}
           >
-            <Text color={"textNeutralSubdued"}>Cancel</Text>
+            <Text color={"default2"}>Cancel</Text>
           </Button>
           <Button type="submit" variant="primary">
             Save

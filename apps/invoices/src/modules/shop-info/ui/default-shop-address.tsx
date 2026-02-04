@@ -39,7 +39,7 @@ export const DefaultShopAddress = () => {
   if (error) {
     return (
       <Wrapper>
-        <Text marginBottom={1.5} color={"textCriticalDefault"}>
+        <Text marginBottom={1.5} color={"critical1"}>
           Error while fetching shop address
         </Text>
         <Button onClick={() => refetch()}>Fetch again</Button>
@@ -58,13 +58,13 @@ export const DefaultShopAddress = () => {
   if (data && data.companyAddress === null) {
     return (
       <Wrapper>
-        <Text as={"p"} variant={"bodyStrong"}>
+        <Text as={"p"} fontWeight={"bold"}>
           No default address set
         </Text>
-        <Text as={"p"} size={"small"} marginBottom={1.5}>
+        <Text as={"p"} size={3} marginBottom={1.5}>
           Set default shop address or channel overrides
         </Text>
-        <Text as={"p"} color={"textCriticalDefault"}>
+        <Text as={"p"} color={"critical1"}>
           If no address is set, invoices will not be generated
         </Text>
       </Wrapper>
@@ -74,22 +74,22 @@ export const DefaultShopAddress = () => {
   if (data && data.companyAddress) {
     return (
       <Wrapper>
-        <Text as="p" marginBottom={4} variant="caption">
+        <Text as="p" marginBottom={4} size={2}>
           This address will be used if custom address is not set for channel
         </Text>
-        <Text size={"small"} as={"p"}>
+        <Text size={3} as={"p"}>
           {data.companyAddress.companyName}
         </Text>
-        <Text size={"small"} as={"p"}>
+        <Text size={3} as={"p"}>
           {data.companyAddress.streetAddress1}
         </Text>
-        <Text size={"small"} as={"p"}>
+        <Text size={3} as={"p"}>
           {data.companyAddress.streetAddress2}
         </Text>
-        <Text size={"small"}>
+        <Text size={3}>
           {data.companyAddress.postalCode} {data.companyAddress.city}
         </Text>
-        <Text size={"small"} as={"p"}>
+        <Text size={3} as={"p"}>
           {data.companyAddress.country.country}
         </Text>
       </Wrapper>

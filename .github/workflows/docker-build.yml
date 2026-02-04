@@ -25,6 +25,7 @@ on:
           - cms
           - stripe
           - dummy-payment
+          - invoices
 
 env:
   REGISTRY: ghcr.io
@@ -53,6 +54,7 @@ jobs:
             cms: ['apps/cms/**']
             stripe: ['apps/stripe/**']
             dummy-payment: ['apps/dummy-payment/**']
+            invoices: ['apps/invoices/**']
 
             global: ['Dockerfile.app', 'package.json', 'pnpm-lock.yaml', 'turbo.json', 'pnpm-workspace.yaml', '.github/workflows/docker-build.yml']
 
@@ -76,6 +78,7 @@ jobs:
             if [[ "${{ steps.filter.outputs.cms }}" == "true" ]]; then APPS+=("cms"); fi
             if [[ "${{ steps.filter.outputs.stripe }}" == "true" ]]; then APPS+=("stripe"); fi
             if [[ "${{ steps.filter.outputs.dummy-payment }}" == "true" ]]; then APPS+=("dummy-payment"); fi
+            if [[ "${{ steps.filter.outputs.invoices }}" == "true" ]]; then APPS+=("invoices"); fi
 
           fi
 
@@ -125,6 +128,7 @@ jobs:
             "cms") echo "pkg=saleor-app-cms" >> $GITHUB_OUTPUT ;;
             "stripe") echo "pkg=saleor-app-payment-stripe" >> $GITHUB_OUTPUT ;;
             "dummy-payment") echo "pkg=dummy-payment-app" >> $GITHUB_OUTPUT ;;
+            "invoices") echo "pkg=invoices" >> $GITHUB_OUTPUT ;;
 
           esac
 

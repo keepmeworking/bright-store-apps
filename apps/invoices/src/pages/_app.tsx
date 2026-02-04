@@ -13,15 +13,7 @@ import { Box, ThemeProvider } from "@saleor/macaw-ui";
 
 import { NextPage } from "next";
 
-/**
- * Ensure instance is a singleton.
- * TODO: This is React 18 issue, consider hiding this workaround inside app-sdk
- */
-export let appBridgeInstance: AppBridge | undefined;
-
-if (typeof window !== "undefined" && !appBridgeInstance) {
-  appBridgeInstance = new AppBridge();
-}
+import { appBridgeInstance } from "../lib/app-bridge-instance";
 
 /**
  * Implementation of layout pattern
@@ -48,15 +40,15 @@ function NextApp({
 
   return (
     <NoSSRWrapper>
-      <AppBridgeProvider appBridgeInstance={appBridgeInstance}>
-        <ThemeProvider defaultTheme="defaultLight">
+      <ThemeProvider>
+        <AppBridgeProvider appBridgeInstance={appBridgeInstance}>
           <ThemeSynchronizer />
           <RoutePropagator />
-          <Box padding={5} __maxWidth={1440}>
+          <Box padding={5}>
             <Component {...pageProps} />
           </Box>
-        </ThemeProvider>
-      </AppBridgeProvider>
+        </AppBridgeProvider>
+      </ThemeProvider>
     </NoSSRWrapper>
   );
 }

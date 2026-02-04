@@ -5,7 +5,7 @@ import { SkeletonLayout } from "../../../components/SkeletonLayout";
 
 const defaultAddressChip = (
   <Chip __display={"inline-block"} size={"large"}>
-    <Text size={"small"} color={"textNeutralSubdued"}>
+    <Text size={2} color={"default2"}>
       Default
     </Text>
   </Chip>
@@ -37,19 +37,19 @@ export const PerChannelConfigList = () => {
        */
       return (
         <Box>
-          <Text size={"small"} as={"p"}>
+          <Text size={2} as={"p"}>
             {address.companyName}
           </Text>
-          <Text size={"small"} as={"p"}>
+          <Text size={2} as={"p"}>
             {address.streetAddress1}
           </Text>
-          <Text size={"small"} as={"p"}>
+          <Text size={2} as={"p"}>
             {address.streetAddress2}
           </Text>
-          <Text size={"small"}>
+          <Text size={2}>
             {address.postalCode} {address.city}
           </Text>
-          <Text size={"small"} as={"p"}>
+          <Text size={2} as={"p"}>
             {address.country}
           </Text>
         </Box>
@@ -73,7 +73,7 @@ export const PerChannelConfigList = () => {
           push(`/configuration/${slug}`);
         }}
       >
-        <Text color={"textNeutralSubdued"} size={"small"}>
+        <Text color={"default2"} size={2}>
           {overridesDataRecord[slug] ? "Edit" : "Set custom"}
         </Text>
       </Button>
@@ -83,10 +83,10 @@ export const PerChannelConfigList = () => {
   return (
     <Box>
       <Box display={"grid"} gridTemplateColumns={3} marginBottom={5}>
-        <Text color={"textNeutralSubdued"} variant={"caption"} size={"small"}>
+        <Text color={"default2"} size={2}>
           Channel
         </Text>
-        <Text color={"textNeutralSubdued"} variant={"caption"} size={"small"}>
+        <Text color={"default2"} size={2}>
           Address
         </Text>
       </Box>
@@ -98,9 +98,9 @@ export const PerChannelConfigList = () => {
           paddingY={1.5}
           borderBottomStyle={"solid"}
           borderBottomWidth={1}
-          borderColor={"neutralHighlight"}
+          borderColor={"default1"}
         >
-          <Text variant={"bodyStrong"}>{channel.name}</Text>
+          <Text fontWeight={"bold"}>{channel.name}</Text>
           <Box>{renderChannelAddress(channel.slug)}</Box>
           <Box marginLeft={"auto"}>
             {" "}

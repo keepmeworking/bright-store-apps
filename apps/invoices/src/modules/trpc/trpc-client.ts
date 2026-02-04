@@ -1,6 +1,6 @@
 import { createTRPCNext } from "@trpc/next";
 
-import { appBridgeInstance } from "../../pages/_app";
+import { appBridgeInstance } from "../../lib/app-bridge-instance";
 import { AppRouter } from "./trpc-app-router";
 import { httpBatchLink } from "@trpc/client";
 import {

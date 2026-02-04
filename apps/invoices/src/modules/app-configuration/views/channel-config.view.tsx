@@ -22,11 +22,11 @@ export const ChannelConfigView = () => {
   return (
     <Box>
       <Box __marginBottom={"100px"}>
-        <Box marginBottom={5} display={"flex"} alignItems={"center"}>
-          <Text color={"textNeutralSubdued"}>Configuration</Text>
-          <ChevronRightIcon color={"textNeutralSubdued"} />
-          <Text color={"textNeutralSubdued"}>Edit channel</Text>
-          <ChevronRightIcon color={"textNeutralSubdued"} />
+        <Box marginBottom={5} display={"flex"} alignItems={"center"} gap={2}>
+          <Text color={"default2"}>Configuration</Text>
+          <ChevronRightIcon color={"default2"} />
+          <Text color={"default2"}>Edit channel</Text>
+          <ChevronRightIcon color={"default2"} />
           <Text>{channel}</Text>
         </Box>
       </Box>
@@ -37,7 +37,7 @@ export const ChannelConfigView = () => {
           <Box>
             <Text marginBottom={5} as={"p"}>
               Set custom billing address for{" "}
-              <Text variant={"bodyStrong"}>{channel}</Text> channel.
+              <Text fontWeight={"bold"}>{channel}</Text> channel.
             </Text>
             <Button
               variant={"secondary"}

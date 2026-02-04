@@ -9,7 +9,7 @@ export const AppConfigView = () => {
 
   return (
     <Box>
-      <Text as={"h1"} variant={"hero"} marginBottom={5}>
+      <Text as={"h1"} size={9} fontWeight={"bold"} marginBottom={5}>
         Configuration
       </Text>
       <Text as={"p"} marginBottom={1.5}>

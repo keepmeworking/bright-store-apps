@@ -1,42 +1,142 @@
-# Saleor App Example: Invoice
+# Saleor Invoices App
 
-> [!TIP]
-> Questions or issues? Check our [discord](https://discord.gg/H52JTZAtSH) channel for help.
+A Saleor App that generates PDF invoices for orders using a webhook-based workflow.
 
-Note: This repository is an example, which means:
+## Features
 
-* It's not production ready
-* It's not actively maintained by Saleor
-* It should be used as a learning resource
+-   **Auto-generation**: Automatically generates PDF invoices on `INVOICE_REQUESTED` events.
+-   **File Storage**: Uploads generated PDFs to Saleor's file storage.
+-   **Email Notification**: Triggers Saleor to send the invoice via email to the customer.
+-   ** Customizable Template**: Uses `microinvoice` for easy template customization.
 
-### The stack
+## Setup & Installation
 
-Invoice app is based on App Template - you can check it [here](https://github.com/saleor/saleor-app-template)
+This app uses `pnpm` and requires Node.js (v18+ recommended).
 
-### Docs
+### 1. Install Dependencies
 
-You can find docs [here](https://docs.saleor.io/developer/app-store/apps/invoices)
+```bash
+pnpm install
+```
 
-## How to use this project
+> **Note:** This app requires exact versions of some dependencies to work with Next.js 15.
+> - `@saleor/app-sdk`: `0.50.1`
+> - `@vanilla-extract/css`: `catalog:` (Latest)
+> - `pdfkit` fonts are handled via `copy-webpack-plugin`.
 
-### Select your APL
+### 2. Environment Variables
 
-If you want to develop single tenant application - use already configured `FileAPL` for local development.
+Create a `.env` file in the root of `apps/invoices` or use the root `.env` if using a monorepo.
 
-If you need to support multiple tenants application or you want to deploy your application - use `UpstashAPL`.
+```env
+# URL where this app is hosted (e.g. Tunnel URL for local dev)
+APP_IFRAME_BASE_URL=https://your-tunnel-url.com
+APP_API_BASE_URL=https://your-tunnel-url.com
 
-To read more about storing auth data, read the [APL documentation](https://github.com/saleor/saleor-app-sdk/blob/main/docs/apl.md)
+# Saleor Environment (Auto-filled by Saleor CLI / Dashboard)
+SALEOR_API_URL=https://your-saleor-instance.saleor.cloud/graphql/
+```
 
+## Development
 
-### Generated schema and typings
+To run the app locally with tunnelling (required for Webhooks):
 
-Commands `build` and `dev` would generate schema and typed functions using Saleor's GraphQL endpoint. Commit `generated` folder to your repo as they are necessary for queries and keeping track of the schema changes.
+```bash
+# In the apps/invoices directory
+pnpm dev
+# OR from root
+pnpm --filter invoices dev
+```
 
-[Learn more](https://www.graphql-code-generator.com/) about GraphQL code generation.
+The app will start on port `3000`.
 
-### Learn more about Saleor Apps
+### Tunnelling
 
-[Apps guide](https://docs.saleor.io/docs/3.x/developer/extending/apps/key-concepts)
+Since this app relies on webhooks, you must expose your local server to the internet.
 
-[Configuring apps in dashboard](https://docs.saleor.io/docs/3.x/dashboard/apps)
+```bash
+cloudflared tunnel --url http://localhost:3000
+```
 
+Update `APP_IFRAME_BASE_URL` and `APP_API_BASE_URL` with the tunnel URL.
+
+## Configuration
+
+1.  **Install App**: Go to Saleor Dashboard > Apps > Install App. Use your Manifest URL (e.g., `https://<tunnel>/api/manifest`).
+2.  **Permissions**: The app requests `MANAGE_ORDERS` permission.
+3.  **Channel Configuration**:
+    -   Go to App Configuration.
+    -   Select a Channel.
+    -   Set the Shop Address (Seller Details) for that channel.
+
+## Customization
+
+### Editing the Invoice Template
+
+The invoice PDF is generated using `microinvoice` and `pdfkit`. To customize the layout, text, or logo:
+
+**File:** `src/modules/invoices/invoice-generator/microinvoice/microinvoice-invoice-generator.ts`
+
+#### Adding a Logo
+
+Comment out or add the `image` block in the `style.header` section:
+
+```typescript
+style: {
+  header: {
+    image: {
+      path: "./public/logo.png", // Ensure file exists in public/
+      width: 50,
+      height: 19,
+    },
+  },
+},
+```
+
+#### Changing Seller Details
+
+Navigate to the `seller` array in the `data` object. You can hardcode values or map new fields from `companyAddressData`.
+
+```typescript
+seller: [
+  {
+    label: "Seller",
+    value: [
+      "My Custom Shop Name",
+      companyAddressData.streetAddress1,
+      // ...
+    ],
+  },
+],
+```
+
+#### Adding Legal Text / Footer
+
+Add objects to the `legal` array:
+
+```typescript
+legal: [
+  {
+    value: "Thank you for your business!",
+    weight: "bold",
+    color: "primary",
+  },
+],
+```
+
+## Troubleshooting
+
+### "Error generating invoice" (HTTP 500)
+
+-   **Cause**: Missing font files on the server.
+-   **Fix**: Ensure `copy-webpack-plugin` is configured in `next.config.js` to copy `pdfkit` fonts to `.next/server/vendor-chunks/data`.
+
+### Macaw UI Crashes / "SprinklesError"
+
+-   **Cause**: Using deprecated tokens (`neutralPlain`) or invalid props (`size="small"`) from Macaw UI < 1.0.
+-   **Fix**: Use numeric sizes (e.g., `size={2}`) and valid tokens (`default1`, `default2`) compatible with Macaw UI 1.3.1. Ensure `@vanilla-extract/css` is installed.
+
+### Updates Not Visible in Dashboard
+
+-   **Behavior**: Dashboard orders page does not auto-refresh when an invoice is generated via webhook.
+-   **Solution**: Manually refresh the Order page in the Dashboard to see the newly generated invoice link.
