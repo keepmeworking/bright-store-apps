@@ -54,6 +54,12 @@ export default wrapWithLoggerContext(
           return true;
         },
       ],
+      onAplSetFailed: async (_req, context) => {
+        logger.error("Failed to set APL", {
+          saleorApiUrl: context.authData.saleorApiUrl,
+          error: context.error,
+        });
+      },
       async onRequestVerified(req, { authData: { token, saleorApiUrl }, respondWithError }) {
         const logger = createLogger("onRequestVerified");
 
