@@ -40,6 +40,7 @@ function NextApp({ Component, pageProps }: AppProps) {
             <RoutePropagator />
             <Navigation />
             <AppContent>
+              {/* @ts-ignore - React 18 type mismatch with Next.js AppProps */}
               <Component {...pageProps} />
             </AppContent>
           </ThemeProvider>

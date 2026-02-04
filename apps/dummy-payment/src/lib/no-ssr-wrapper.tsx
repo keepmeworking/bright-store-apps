@@ -14,6 +14,7 @@ const Wrapper = (props: PropsWithChildren<{}>) => <React.Fragment>{props.childre
  * You can use this wrapper selectively for some pages or remove it completely.
  * It doesn't affect Saleor communication, but may cause problems with some client-only code.
  */
+// Explicitly cast to React.ComponentType to satisfy strict JSX element checks
 export const NoSSRWrapper = dynamic(() => Promise.resolve(Wrapper), {
   ssr: false,
-});
+}) as React.ComponentType<PropsWithChildren<{}>>;
