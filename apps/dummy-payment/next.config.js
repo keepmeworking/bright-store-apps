@@ -11,6 +11,7 @@ const nextConfig = {
   output: "standalone",
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname, "../../"),
+  transpilePackages: ["@saleor/app-sdk", "@saleor/macaw-ui", "@saleor/apps-shared"],
   experimental: {
     optimizePackageImports: [
       "@sentry/nextjs",

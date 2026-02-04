@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
     "@saleor/apps-ui",
     "@saleor/react-hook-form-macaw",
     "@saleor/macaw-ui",
+    "@saleor/app-sdk",
   ],
   experimental: {
     optimizePackageImports: ["@sentry/nextjs", "@sentry/node"],
