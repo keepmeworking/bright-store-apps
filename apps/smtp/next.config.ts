@@ -1,5 +1,6 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -10,6 +11,7 @@ const nextConfig: NextConfig = {
     "@saleor/apps-shared",
     "@saleor/apps-ui",
     "@saleor/react-hook-form-macaw",
+    "@saleor/macaw-ui",
   ],
   experimental: {
     optimizePackageImports: ["@sentry/nextjs", "@sentry/node"],

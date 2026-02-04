@@ -1,5 +1,6 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -11,6 +12,7 @@ const nextConfig: NextConfig = {
     "@saleor/apps-ui",
     "@saleor/webhook-utils",
     "@saleor/react-hook-form-macaw",
+    "@saleor/macaw-ui",
   ],
   experimental: {
     optimizePackageImports: [
@@ -22,6 +24,7 @@ const nextConfig: NextConfig = {
       "@trpc/react-query",
       "@trpc/next",
     ],
+    outputFileTracingRoot: path.join(__dirname, "../../"),
   },
   bundlePagesRouterDependencies: true,
   webpack: (config, { isServer }) => {
