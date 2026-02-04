@@ -8,7 +8,8 @@ import { TrpcRouter } from "./trpc-router";
 export const trpcClient = createTRPCNext<TrpcRouter>({
   config() {
     return {
-      // @ts-expect-error - SDK version mismatch between packages/shared and stripe, functionally correct
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-expect-error - SDK version mismatch between packages/shared and stripe
       links: [createHttpBatchLink(appBridgeInstance)],
       queryClientConfig: {
         defaultOptions: {
