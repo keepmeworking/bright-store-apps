@@ -61,7 +61,7 @@
     "tslog": "4.9.3",
     "urql": "catalog:",
     "usehooks-ts": "catalog:",
-    "uuid": "catalog:",
+    "uuid": "10.0.0",
     "vite": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
