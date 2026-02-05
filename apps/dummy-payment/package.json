@@ -37,7 +37,7 @@
     "@opentelemetry/sdk-node": "catalog:",
     "@opentelemetry/sdk-trace-node": "catalog:",
     "@opentelemetry/semantic-conventions": "catalog:",
-    "@saleor/app-sdk": "0.50.1",
+    "@saleor/app-sdk": "catalog:",
     "@saleor/apps-shared": "workspace:*",
     "@saleor/macaw-ui": "catalog:",
     "@sentry/nextjs": "catalog:",
