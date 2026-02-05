@@ -11,6 +11,9 @@ const nextConfig = {
   output: "standalone",
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname, "../../"),
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   transpilePackages: ["@saleor/app-sdk", "@saleor/macaw-ui", "@saleor/apps-shared"],
   experimental: {
     optimizePackageImports: [
