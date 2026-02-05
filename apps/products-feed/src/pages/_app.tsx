@@ -15,7 +15,16 @@ import { trpcClient } from "../modules/trpc/trpc-client";
 /**
  * Ensure instance is a singleton.
  */
-export const appBridgeInstance = typeof window !== "undefined" ? new AppBridge() : undefined;
+export const appBridgeInstance =
+  typeof window !== "undefined"
+    ? (() => {
+        try {
+          return new AppBridge();
+        } catch {
+          return undefined;
+        }
+      })()
+    : undefined;
 
 const queryClient = new QueryClient({
   defaultOptions: {
