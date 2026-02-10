@@ -4,7 +4,7 @@ import { createTRPCNext } from "@trpc/next";
 
 import { env } from "../../env";
 import { appBridgeInstance } from "../../lib/app-bridge-instance";
-import { AppRouter } from "./trpc-app-router";
+import type { AppRouter } from "./trpc-app-router";
 
 function getBaseUrl() {
   if (typeof window !== "undefined") return "";
