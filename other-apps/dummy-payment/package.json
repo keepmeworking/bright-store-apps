@@ -89,5 +89,10 @@
     "*.{js,ts,tsx}": "eslint --cache --fix",
     "*.{js,ts,tsx,css,md,json}": "prettier --write"
   },
-  "packageManager": "pnpm@9.15.4"
+  "packageManager": "pnpm@9.15.4",
+  "pnpm": {
+    "overrides": {
+      "@urql/core": "4.3.0"
+    }
+  }
 }
