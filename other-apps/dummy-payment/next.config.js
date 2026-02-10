@@ -10,11 +10,10 @@ const __dirname = path.dirname(__filename);
 const nextConfig = {
   output: "standalone",
   reactStrictMode: true,
-  outputFileTracingRoot: path.join(__dirname, "../../"),
   eslint: {
     ignoreDuringBuilds: true,
   },
-  transpilePackages: ["@saleor/app-sdk", "@saleor/macaw-ui", "@saleor/apps-shared"],
+  transpilePackages: ["@saleor/app-sdk", "@saleor/macaw-ui"],
   experimental: {
     optimizePackageImports: [
       "@sentry/nextjs",
@@ -26,12 +25,10 @@ const nextConfig = {
       "@trpc/react-query",
       "@trpc/next",
       "jotai",
-      "@saleor/apps-shared",
     ],
   },
   /*
    * Ignore opentelemetry warnings - https://github.com/open-telemetry/opentelemetry-js/issues/4173
-   * Remove when https://github.com/open-telemetry/opentelemetry-js/pull/4660 is released
    */
   /** @type {import('next').NextConfig['webpack']} */
   webpack: (config, { isServer }) => {
