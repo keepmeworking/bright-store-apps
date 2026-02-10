@@ -7,6 +7,7 @@ import { Client, gql } from "urql";
 import {
   FetchAppDetailsDocument,
   FetchAppDetailsQuery,
+  RemoveMetadataDocument,
   UpdateAppMetadataDocument,
 } from "../../../generated/graphql";
 
@@ -107,5 +108,32 @@ export const createSettingsManager = (client: SimpleGraphqlClient): SettingsMana
     encryptionKey: process.env.SECRET_KEY!,
     fetchMetadata: () => fetchAllMetadata(client),
     mutateMetadata: (metadata) => mutateMetadata(client, metadata),
+    deleteMetadata: async (keys) => {
+      const { error: idQueryError, data: idQueryData } = await client
+        .query(FetchAppDetailsDocument, {})
+        .toPromise();
+
+      if (idQueryError) {
+        throw new Error("Could not fetch the app id for metadata removal.");
+      }
+
+      const appId = idQueryData?.app?.id;
+
+      if (!appId) {
+        throw new Error("Could not fetch the app ID for metadata removal.");
+      }
+
+      return client
+        .mutation(RemoveMetadataDocument, {
+          id: appId,
+          keys,
+        })
+        .toPromise()
+        .then((r) => {
+          if (r.error) {
+            throw new Error(r.error.message);
+          }
+        });
+    },
   });
 };

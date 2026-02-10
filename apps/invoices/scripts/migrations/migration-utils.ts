@@ -2,6 +2,7 @@
 
 import { createGraphQLClient } from "../../src/lib/create-graphql-client";
 import { createSettingsManager } from "../../src/modules/app-configuration/metadata-manager";
+import { AuthData } from "@saleor/app-sdk/APL";
 // import { RestAPL } from "@saleor/app-sdk/APL";
 
 export const getMetadataManagerForEnv = (apiUrl: string, appToken: string) => {
@@ -35,11 +36,14 @@ export const verifyRequiredEnvs = () => {
   }
 };
 
-// export const fetchCloudAplEnvs = () => {
-//   const saleorAPL = new RestAPL({
-//     token: process.env.SALEOR_CLOUD_TOKEN!,
-//     resourceUrl: process.env.SALEOR_CLOUD_RESOURCE_URL!,
-//   });
-//
-//   return saleorAPL.getAll();
-// };
+export const fetchCloudAplEnvs = async (): Promise<AuthData[]> => {
+  /*
+  const saleorAPL = new RestAPL({
+    token: process.env.SALEOR_CLOUD_TOKEN!,
+    resourceUrl: process.env.SALEOR_CLOUD_RESOURCE_URL!,
+  });
+
+  return saleorAPL.getAll();
+  */
+  return [];
+};

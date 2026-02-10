@@ -96,7 +96,6 @@ export default async function handler(
     // 5. Set APL
     console.log("Setting APL...");
     await saleorApp.apl.set({
-      domain,
       token,
       saleorApiUrl,
       appId,

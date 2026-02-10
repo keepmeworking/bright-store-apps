@@ -35,7 +35,7 @@ const runMigration = async () => {
 
           if (!v1) {
             console.log("🚫 v1 does not exist for ", env.saleorApiUrl);
-
+            // Any AuthData related type fixes if needed in migration scripts
             return new AppConfigV2MetadataManager(metadataManager)
               .set(new AppConfigV2().serialize())
               .then((r) => {
