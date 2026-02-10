@@ -1,7 +1,9 @@
 {
   "name": "invoices",
   "version": "1.19.4",
+  "private": true,
   "license": "BSD-3-Clause",
+  "type": "module",
   "scripts": {
     "build": "pnpm generate && next build",
     "check-types": "tsc --noEmit",
@@ -12,6 +14,9 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.975.0",
+    "@aws-sdk/lib-dynamodb": "3.975.0",
+    "@aws-sdk/util-dynamodb": "3.975.0",
     "@hookform/resolvers": "^3.3.1",
     "@saleor/app-sdk": "1.7.0",
     "@saleor/macaw-ui": "1.3.1",
@@ -25,6 +30,7 @@
     "@vanilla-extract/recipes": "0.5.5",
     "@web-std/file": "^3.0.2",
     "dotenv": "16.3.1",
+    "dynamodb-toolbox": "2.8.0",
     "graphql": "16.7.1",
     "graphql-tag": "2.12.6",
     "microinvoice": "^1.0.6",
@@ -37,11 +43,7 @@
     "tslog": "^4.9.3",
     "urql": "4.0.4",
     "usehooks-ts": "2.9.1",
-    "zod": "3.21.4",
-    "@aws-sdk/client-dynamodb": "3.975.0",
-    "@aws-sdk/lib-dynamodb": "3.975.0",
-    "@aws-sdk/util-dynamodb": "3.975.0",
-    "dynamodb-toolbox": "2.8.0"
+    "zod": "3.21.4"
   },
   "devDependencies": {
     "@graphql-codegen/cli": "5.0.2",
@@ -65,10 +67,13 @@
     "vite": "5.3.3",
     "vitest": "1.6.0"
   },
-  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "pnpm": {
+    "overrides": {
+      "@urql/core": "4.3.0"
+    }
+  },
   "saleor": {
     "schemaVersion": "3.10"
-  },
-  "type": "module",
-  "packageManager": "pnpm@9.15.4"
+  }
 }
