@@ -35,14 +35,14 @@ function NextApp({
   pageProps: { session, ...pageProps },
 }: AppPropsWithLayout) {
   const ComponentToRender = Component as any;
+  const NoSSRWrapperToRender = NoSSRWrapper as any;
 
   if (Component.overwriteLayout) {
     return Component.overwriteLayout(<ComponentToRender {...pageProps} />);
   }
 
   return (
-    // @ts-expect-error React version mismatch in monorepo
-    <NoSSRWrapper>
+    <NoSSRWrapperToRender>
       <ThemeProvider>
         <AppBridgeProvider appBridgeInstance={appBridgeInstance}>
           <ThemeSynchronizer />
@@ -52,7 +52,7 @@ function NextApp({
           </Box>
         </AppBridgeProvider>
       </ThemeProvider>
-    </NoSSRWrapper>
+    </NoSSRWrapperToRender>
   );
 }
 
