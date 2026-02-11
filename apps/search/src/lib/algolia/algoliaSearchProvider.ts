@@ -73,7 +73,7 @@ export class AlgoliaSearchProvider implements SearchProvider {
         const index = this.#algolia.initIndex(indexName);
 
         return this.#traceSaveObjects(
-          () => index.saveObjects(objects, { timeout: env.ALGOLIA_TIMEOUT_MS }),
+          () => index.saveObjects(objects, { timeout: env.NEXT_PUBLIC_ALGOLIA_TIMEOUT_MS }),
           { indexName, objectsCount: objects.length },
         );
       }),
