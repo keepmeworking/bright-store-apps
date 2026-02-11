@@ -31,6 +31,7 @@ ENV NODE_ENV=production
 # These apps often use zod to validate envs during 'next build'
 ENV SECRET_KEY=placeholder
 ENV DYNAMODB_MAIN_TABLE_NAME=placeholder
+ENV DYNAMODB_LOGS_TABLE_NAME=placeholder
 ENV AWS_REGION=us-east-1
 ENV AWS_ACCESS_KEY_ID=placeholder
 ENV AWS_SECRET_ACCESS_KEY=placeholder
