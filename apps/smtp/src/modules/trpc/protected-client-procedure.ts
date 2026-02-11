@@ -21,10 +21,20 @@ const attachAppToken = middleware(async ({ ctx, next }) => {
     });
   }
 
-  const authData = await saleorApp.apl.get(ctx.saleorApiUrl);
+  let authData = await saleorApp.apl.get(ctx.saleorApiUrl);
 
   if (!authData) {
-    logger.warn({ saleorApiUrl: ctx.saleorApiUrl }, "authData not found in APL for given URL");
+    const alternativeUrl = `${ctx.saleorApiUrl}/`;
+
+    logger.debug(
+      { alternativeUrl, originalUrl: ctx.saleorApiUrl },
+      "authData not found in APL for normalized URL, trying with trailing slash",
+    );
+    authData = await saleorApp.apl.get(alternativeUrl);
+  }
+
+  if (!authData) {
+    logger.warn({ saleorApiUrl: ctx.saleorApiUrl }, "authData not found in APL for given URL (tried both formats)");
 
     throw new TRPCError({
       code: "UNAUTHORIZED",
