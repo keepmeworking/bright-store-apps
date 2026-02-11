@@ -24,13 +24,15 @@ const attachAppToken = middleware(async ({ ctx, next }) => {
   const authData = await saleorApp.apl.get(ctx.saleorApiUrl);
 
   if (!authData) {
-    logger.debug("authData not found, throwing 401");
+    logger.warn({ saleorApiUrl: ctx.saleorApiUrl }, "authData not found in APL for given URL");
 
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "Missing auth data",
     });
   }
+
+  logger.debug({ saleorApiUrl: ctx.saleorApiUrl, appId: authData.appId }, "authData found in APL");
 
   return next({
     ctx: {
@@ -86,7 +88,7 @@ const validateClientToken = middleware(async ({ ctx, next, meta }) => {
         ],
       });
     } catch (e) {
-      logger.debug("JWT verification failed, throwing");
+      logger.error({ error: e, saleorApiUrl: ctx.saleorApiUrl, appId: ctx.appId }, "JWT verification failed");
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "JWT verification failed",
