@@ -29,7 +29,7 @@ const nextConfig = {
                                 path.dirname(require.resolve("pdfkit/package.json")),
                                 "js/data"
                             ),
-                            to: path.join(__dirname, ".next/server/vendor-chunks/data"),
+                            to: path.join(__dirname, ".next/server/chunks/data"),
                         },
                     ],
                 })

@@ -19,7 +19,15 @@ export default wrapWithLoggerContext(
         appUrl: iframeBaseUrl,
         author: "Saleor Commerce",
         dataPrivacyUrl: "https://saleor.io/legal/privacy/",
-        extensions: [],
+        extensions: [
+          {
+            label: "Generate Invoice",
+            mount: "ORDER_DETAILS_MORE_ACTIONS",
+            target: "APP_PAGE",
+            permissions: ["MANAGE_ORDERS"],
+            url: "/order-details-action?id={id}",
+          },
+        ],
         homepageUrl: "https://github.com/saleor/apps",
         id: "saleor.app.invoices",
         name: "Invoices",

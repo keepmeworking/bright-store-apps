@@ -47,19 +47,19 @@ export class MicroinvoiceInvoiceGenerator implements InvoiceGenerator {
             },
           ],
 
-          currency: order.total.currency,
+          currency: order.total?.currency ?? "USD",
 
           customer: [
             {
               label: "Customer",
               value: [
-                `${order.billingAddress?.firstName} ${order.billingAddress?.lastName}`,
-                order.billingAddress?.companyName,
-                order.billingAddress?.phone,
-                `${order.billingAddress?.streetAddress1}`,
-                `${order.billingAddress?.streetAddress2}`,
-                `${order.billingAddress?.postalCode} ${order.billingAddress?.city}`,
-                order.billingAddress?.country.country,
+                `${order.billingAddress?.firstName ?? ""} ${order.billingAddress?.lastName ?? ""}`.trim(),
+                order.billingAddress?.companyName ?? "",
+                order.billingAddress?.phone ?? "",
+                `${order.billingAddress?.streetAddress1 ?? ""}`,
+                `${order.billingAddress?.streetAddress2 ?? ""}`,
+                `${order.billingAddress?.postalCode ?? ""} ${order.billingAddress?.city ?? ""}`.trim(),
+                order.billingAddress?.country?.country ?? "",
               ],
             },
             /*
@@ -74,37 +74,18 @@ export class MicroinvoiceInvoiceGenerator implements InvoiceGenerator {
             {
               label: "Seller",
               value: [
-                companyAddressData.companyName,
-                companyAddressData.streetAddress1,
-                companyAddressData.streetAddress2,
-                `${companyAddressData.postalCode} ${companyAddressData.city}`,
-                companyAddressData.cityArea,
-                companyAddressData.country,
-                companyAddressData.countryArea,
+                companyAddressData.companyName ?? "",
+                companyAddressData.streetAddress1 ?? "",
+                companyAddressData.streetAddress2 ?? "",
+                `${companyAddressData.postalCode ?? ""} ${companyAddressData.city ?? ""}`.trim(),
+                companyAddressData.cityArea ?? "",
+                companyAddressData.country ?? "",
+                companyAddressData.countryArea ?? "",
               ],
             },
-            /*
-             * {
-             *   label: "Tax Identifier",
-             *   value: "todo",
-             * },
-             */
           ],
-
-          legal: [
-            /*
-             * {
-             *   value: "Lorem ipsum dolor sit amet, consectetur adipiscing elit",
-             *   weight: "bold",
-             *   color: "primary",
-             * },
-             * {
-             *   value: "sed do eiusmod tempor incididunt ut labore et dolore magna.",
-             *   weight: "bold",
-             *   color: "secondary",
-             * },
-             */
-          ],
+ 
+          legal: [],
 
           details: {
             header: [
@@ -120,7 +101,7 @@ export class MicroinvoiceInvoiceGenerator implements InvoiceGenerator {
             ],
 
             parts: [
-              ...order.lines.map((line) => {
+              ...(order.lines ?? []).map((line) => {
                 return [
                   {
                     value: line.productName,
@@ -129,20 +110,20 @@ export class MicroinvoiceInvoiceGenerator implements InvoiceGenerator {
                     value: line.quantity,
                   },
                   {
-                    value: line.totalPrice.gross.amount,
+                    value: line.totalPrice?.gross?.amount ?? 0,
                     price: true,
                   },
                 ];
               }),
               [
                 {
-                  value: order.shippingMethodName,
+                  value: order.shippingMethodName ?? "Shipping",
                 },
                 {
                   value: "-",
                 },
                 {
-                  value: order.shippingPrice.gross.amount,
+                  value: order.shippingPrice?.gross?.amount ?? 0,
                   price: true,
                 },
               ],
@@ -151,17 +132,17 @@ export class MicroinvoiceInvoiceGenerator implements InvoiceGenerator {
             total: [
               {
                 label: "Total net",
-                value: order.total.net.amount,
+                value: order.total?.net?.amount ?? 0,
                 price: true,
               },
               {
                 label: "Tax value",
-                value: order.total.tax.amount,
+                value: order.total?.tax?.amount ?? 0,
                 price: true,
               },
               {
                 label: "Total with tax",
-                value: order.total.gross.amount,
+                value: order.total?.gross?.amount ?? 0,
                 price: true,
               },
             ],

@@ -17,18 +17,21 @@ const logger = createLogger("resolveTempPdfFileLocation");
 export const resolveTempPdfFileLocation = async (fileName: string) => {
   invariant(fileName.includes(".pdf"), `fileName should include pdf extension`);
 
-  const dirToWrite = getTempPdfStorageDir();
+  let dirToWrite = getTempPdfStorageDir();
 
-  await access(dirToWrite, constants.W_OK).catch((e) => {
-    logger.debug({ dir: dirToWrite }, "Can't access directory, will try to create it");
-
-    return mkdir(dirToWrite).catch((e) => {
-      logger.error(
-        { dir: dirToWrite },
-        "Cant create a directory. Ensure its writable and check TEMP_PDF_STORAGE_DIR env",
+  try {
+    await access(dirToWrite, constants.W_OK);
+  } catch (e) {
+    try {
+      await mkdir(dirToWrite, { recursive: true });
+    } catch (mkdirError) {
+      logger.warn(
+        { dir: dirToWrite, error: mkdirError },
+        "Can't create or access directory, falling back to /tmp",
       );
-    });
-  });
+      dirToWrite = "/tmp";
+    }
+  }
 
   return join(dirToWrite, encodeURIComponent(fileName));
 };

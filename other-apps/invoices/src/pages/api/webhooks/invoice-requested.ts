@@ -7,22 +7,9 @@ import { createGraphQLClient } from "../../../lib/create-graphql-client";
 import { gql } from "urql";
 import {
   InvoiceRequestedPayloadFragment,
-  OrderPayloadFragment,
 } from "../../../../generated/graphql";
-import { AddressV2Shape } from "../../../modules/app-configuration/schema-v2/app-config-schema.v2";
-import { GetAppConfigurationV2Service } from "../../../modules/app-configuration/schema-v2/get-app-configuration.v2.service";
-import { InvoiceCreateNotifier } from "../../../modules/invoices/invoice-create-notifier/invoice-create-notifier";
-import { hashInvoiceFilename } from "../../../modules/invoices/invoice-file-name/hash-invoice-filename";
-import { resolveTempPdfFileLocation } from "../../../modules/invoices/invoice-file-name/resolve-temp-pdf-file-location";
-import { MicroinvoiceInvoiceGenerator } from "../../../modules/invoices/invoice-generator/microinvoice/microinvoice-invoice-generator";
-import {
-  InvoiceNumberGenerationStrategy,
-  InvoiceNumberGenerator,
-} from "../../../modules/invoices/invoice-number-generator/invoice-number-generator";
-import { SaleorInvoiceUploader } from "../../../modules/invoices/invoice-uploader/saleor-invoice-uploader";
-import { ShopInfoFetcher } from "../../../modules/shop-info/shop-info-fetcher";
-import { shopInfoQueryToAddressShape } from "../../../modules/shop-info/shop-info-query-to-address-shape";
 import { saleorApp } from "../../../saleor-app";
+import { GenerateInvoiceService } from "../../../modules/invoices/generate-invoice.service";
 
 import { createLogger } from "../../../logger";
 import { loggerContext, wrapWithLoggerContext } from "../../../logger-context";
@@ -143,9 +130,7 @@ export const invoiceRequestedWebhook =
       logger.error("Error during webhook handling", { error, saleorApiUrl });
     },
   });
-
-const invoiceNumberGenerator = new InvoiceNumberGenerator();
-
+ 
 /**
  * TODO
  * Refactor - extract smaller pieces
@@ -166,90 +151,22 @@ export const handler: NextJsWebhookHandler<
   logger.debug(order, "Order from payload:");
 
   const orderId = order.id;
-  /**
-   * TODO -> should generate from generation date or order date?
-   */
-  const invoiceName = invoiceNumberGenerator.generateFromOrder(
-    order as OrderPayloadFragment,
-    InvoiceNumberGenerationStrategy.localizedDate("en-US"), // todo connect locale -> where from?
-  );
-
-  logger.debug({ invoiceName }, "Generated invoice name");
-
-  try {
+ 
     const client = createGraphQLClient({
       saleorApiUrl: authData.saleorApiUrl,
       token: authData.token,
     });
-
-    const hashedInvoiceName = hashInvoiceFilename(invoiceName, orderId);
-
-    logger.debug({ hashedInvoiceName });
-
-    const hashedInvoiceFileName = `${hashedInvoiceName}.pdf`;
-    const tempPdfLocation = await resolveTempPdfFileLocation(
-      hashedInvoiceFileName,
-    );
-
-    logger.debug(
-      { tempPdfLocation },
-      "Resolved PDF location for temporary files",
-    );
-
-    let appConfigV2 =
-      (await new GetAppConfigurationV2Service({
-        saleorApiUrl: authData.saleorApiUrl,
-        apiClient: client,
-      }).getConfiguration()) ?? new AppConfigV2();
-
-    const address: AddressV2Shape | null =
-      appConfigV2.getChannelsOverrides()[order.channel.slug] ??
-      (await new ShopInfoFetcher(client)
-        .fetchShopInfo()
-        .then(shopInfoQueryToAddressShape));
-
-    if (!address) {
-      // todo disable webhook
-      return res.status(200).end("App not configured");
-    }
-
-    await new MicroinvoiceInvoiceGenerator()
-      .generate({
-        order,
-        invoiceNumber: invoiceName,
-        filename: tempPdfLocation,
-        companyAddressData: address,
-      })
-      .catch((err) => {
-        logger.error(err, "Error generating invoice");
-
-        return res.status(500).json({
-          error: "Error generating invoice",
-        });
+ 
+    try {
+      await new GenerateInvoiceService(client).generate(orderId);
+    } catch (err) {
+      logger.error(err, "Error generating invoice");
+ 
+      return res.status(500).json({
+        error: "Error generating invoice",
+        details: (err as any)?.message,
       });
-
-    const uploader = new SaleorInvoiceUploader(client);
-
-    const uploadedFileUrl = await uploader.upload(
-      tempPdfLocation,
-      `${invoiceName}.pdf`,
-    );
-
-    logger.info("Uploaded file to storage, will notify Saleor now");
-    logger.debug({ uploadedFileUrl });
-
-    await new InvoiceCreateNotifier(client).notifyInvoiceCreated(
-      orderId,
-      invoiceName,
-      uploadedFileUrl,
-    );
-  } catch (e) {
-    logger.error(e);
-
-    return res.status(500).json({
-      error: (e as any)?.message ?? "Error",
-    });
-  }
+    }
 
   logger.info("Success");
 
