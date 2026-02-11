@@ -1,8 +1,7 @@
 import { useDashboardNotification } from "@saleor/apps-shared/use-dashboard-notification";
 import { TextLink } from "@saleor/apps-ui";
 import { Box, Text } from "@saleor/macaw-ui";
-import type { NextPage } from "next";
-import dynamic from "next/dynamic";
+import { NextPage } from "next";
 import { useRouter } from "next/router";
 
 import { BasicLayout } from "../../../../../components/basic-layout";
@@ -65,7 +64,7 @@ const EditSmtpEventPage: NextPage = () => {
           router.replace(appUrls.configuration());
         }
       },
-    }
+    },
   );
 
   // TODO: better error messages
@@ -111,7 +110,4 @@ const EditSmtpEventPage: NextPage = () => {
   );
 };
 
-export default dynamic(async () => ({ default: EditSmtpEventPage }), {
-  ssr: false,
-  loading: () => null,
-});
+export default EditSmtpEventPage;

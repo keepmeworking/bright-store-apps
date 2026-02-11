@@ -1,7 +1,6 @@
 import { actions, useAppBridge } from "@saleor/app-sdk/app-bridge";
 import { Box, Text } from "@saleor/macaw-ui";
-import type { NextPage } from "next";
-import dynamic from "next/dynamic";
+import { NextPage } from "next";
 
 import { BasicLayout } from "../../components/basic-layout";
 import { SectionWithDescription } from "../../components/section-with-description";
@@ -32,7 +31,7 @@ const ConfigurationPage: NextPage = () => {
           actions.Notification({
             title: "Success",
             status: "success",
-          })
+          }),
         );
       },
       onError: (e) => {
@@ -41,7 +40,7 @@ const ConfigurationPage: NextPage = () => {
             title: "Error",
             status: "error",
             text: e.message,
-          })
+          }),
         );
       },
       onSettled: () => {
@@ -108,7 +107,4 @@ const ConfigurationPage: NextPage = () => {
   );
 };
 
-export default dynamic(async () => ({ default: ConfigurationPage }), {
-  ssr: false,
-  loading: () => null,
-});
+export default ConfigurationPage;

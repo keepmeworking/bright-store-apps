@@ -1,14 +1,8 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import { NextConfig } from "next";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
-  output: "standalone",
   reactStrictMode: true,
-  outputFileTracingRoot: path.join(__dirname, "../../"),
   transpilePackages: [
     "@saleor/apps-shared",
     "@saleor/apps-otel",
@@ -16,8 +10,6 @@ const nextConfig: NextConfig = {
     "@saleor/apps-ui",
     "@saleor/webhook-utils",
     "@saleor/react-hook-form-macaw",
-    "@saleor/macaw-ui",
-    "@saleor/app-sdk",
   ],
   experimental: {
     optimizePackageImports: [

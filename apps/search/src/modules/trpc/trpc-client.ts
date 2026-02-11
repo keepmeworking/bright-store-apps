@@ -3,7 +3,7 @@ import { httpBatchLink } from "@trpc/client";
 import { createTRPCNext } from "@trpc/next";
 
 import { env } from "../../env";
-import { appBridgeInstance } from "../../lib/app-bridge-instance";
+import { appBridgeInstance } from "../../pages/_app";
 import type { AppRouter } from "./trpc-app-router";
 
 function getBaseUrl() {
@@ -23,13 +23,7 @@ export const trpcClient = createTRPCNext<AppRouter>({
             const { token, saleorApiUrl } = appBridgeInstance?.getState() || {};
 
             if (!token || !saleorApiUrl) {
-              // eslint-disable-next-line no-console
-              console.error(
-                "Can't initialize tRPC client before establishing the App Bridge connection",
-              );
-
-              // Do not throw, as it crashes the client. Return empty headers/context instead.
-              return {};
+              throw new Error("Token and Saleor API URL unknown");
             }
 
             return {

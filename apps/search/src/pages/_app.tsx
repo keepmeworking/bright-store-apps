@@ -12,14 +12,13 @@ import { Box, ThemeProvider } from "@saleor/macaw-ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppProps } from "next/app";
 
-import { appBridgeInstance } from "../lib/app-bridge-instance";
 import { trpcClient } from "../modules/trpc/trpc-client";
 
 /**
  * Ensure instance is a singleton.
  * TODO: This is React 18 issue, consider hiding this workaround inside app-sdk
  */
-// export const appBridgeInstance = typeof window !== "undefined" ? new AppBridge() : undefined;
+export const appBridgeInstance = typeof window !== "undefined" ? new AppBridge() : undefined;
 
 const queryClient = new QueryClient({
   defaultOptions: {

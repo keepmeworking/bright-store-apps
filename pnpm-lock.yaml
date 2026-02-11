@@ -493,8 +493,8 @@ importers:
         specifier: 'catalog:'
         version: 1.30.0
       '@saleor/app-sdk':
-        specifier: 'catalog:'
-        version: 1.7.0(@aws-sdk/client-dynamodb@3.975.0)(@aws-sdk/lib-dynamodb@3.975.0(@aws-sdk/client-dynamodb@3.975.0))(@aws-sdk/util-dynamodb@3.975.0(@aws-sdk/client-dynamodb@3.975.0))(dynamodb-toolbox@2.8.0(@aws-sdk/client-dynamodb@3.975.0)(@aws-sdk/lib-dynamodb@3.975.0(@aws-sdk/client-dynamodb@3.975.0)))(graphql@16.7.1)(next@15.2.8(@opentelemetry/api@1.9.0)(@playwright/test@1.52.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: link:../../node_modules/@saleor/app-sdk
+        version: link:../../node_modules/@saleor/app-sdk
       '@saleor/apps-logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -707,8 +707,8 @@ importers:
         specifier: 'catalog:'
         version: 1.30.0
       '@saleor/app-sdk':
-        specifier: 'catalog:'
-        version: 1.7.0(@aws-sdk/client-dynamodb@3.975.0)(@aws-sdk/lib-dynamodb@3.975.0(@aws-sdk/client-dynamodb@3.975.0))(@aws-sdk/util-dynamodb@3.975.0(@aws-sdk/client-dynamodb@3.975.0))(dynamodb-toolbox@2.8.0(@aws-sdk/client-dynamodb@3.975.0)(@aws-sdk/lib-dynamodb@3.975.0(@aws-sdk/client-dynamodb@3.975.0)))(graphql@16.7.1)(next@15.2.8(@opentelemetry/api@1.9.0)(@playwright/test@1.52.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: link:../../node_modules/@saleor/app-sdk
+        version: link:../../node_modules/@saleor/app-sdk
       '@saleor/apps-logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -1132,8 +1132,8 @@ importers:
         specifier: 'catalog:'
         version: 1.30.0
       '@saleor/app-sdk':
-        specifier: 'catalog:'
-        version: 1.7.0(@aws-sdk/client-dynamodb@3.975.0)(@aws-sdk/lib-dynamodb@3.975.0(@aws-sdk/client-dynamodb@3.975.0))(@aws-sdk/util-dynamodb@3.975.0(@aws-sdk/client-dynamodb@3.975.0))(dynamodb-toolbox@2.8.0(@aws-sdk/client-dynamodb@3.975.0)(@aws-sdk/lib-dynamodb@3.975.0(@aws-sdk/client-dynamodb@3.975.0)))(graphql@16.7.1)(next@15.2.8(@opentelemetry/api@1.9.0)(@playwright/test@1.52.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: link:../../node_modules/@saleor/app-sdk
+        version: link:../../node_modules/@saleor/app-sdk
       '@saleor/apps-logger':
         specifier: workspace:*
         version: link:../../packages/logger

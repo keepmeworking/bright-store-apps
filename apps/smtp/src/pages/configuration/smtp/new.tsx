@@ -2,8 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useDashboardNotification } from "@saleor/apps-shared/use-dashboard-notification";
 import { Box, Button, Divider, Text } from "@saleor/macaw-ui";
 import { Input } from "@saleor/react-hook-form-macaw";
-import type { NextPage } from "next";
-import dynamic from "next/dynamic";
+import { NextPage } from "next";
 import { useRouter } from "next/router";
 import { useForm } from "react-hook-form";
 
@@ -32,7 +31,7 @@ const NewSmtpConfigurationPage: NextPage = () => {
   });
 
   const { mutate } = trpcClient.smtpConfiguration.createConfiguration.useMutation({
-    onSuccess: async (data) => {
+    onSuccess: async (data, variables) => {
       notifySuccess("Configuration saved");
       router.push(smtpUrls.configuration(data.id));
     },
@@ -60,7 +59,7 @@ const NewSmtpConfigurationPage: NextPage = () => {
       >
         <BoxWithBorder>
           <form
-            onSubmit={handleSubmit((data) => {
+            onSubmit={handleSubmit((data, event) => {
               mutate({
                 ...data,
               });
@@ -127,7 +126,4 @@ const NewSmtpConfigurationPage: NextPage = () => {
   );
 };
 
-export default dynamic(async () => ({ default: NewSmtpConfigurationPage }), {
-  ssr: false,
-  loading: () => null,
-});
+export default NewSmtpConfigurationPage;
