@@ -1,0 +1,11 @@
+mutation CreateOrderLines($orderId: ID!, $input: [OrderLineCreateInput!]!) {
+  orderLinesCreate(id: $orderId, input: $input) {
+    order {
+      ...OrderDetailsFragment
+    }
+    orderLines {
+      id
+      quantity
+    }
+  }
+}

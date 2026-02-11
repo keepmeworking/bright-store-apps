@@ -1,0 +1,45 @@
+fragment CheckoutDetails on Checkout {
+  id
+  lines {
+    id
+    undiscountedTotalPrice {
+      ...Money
+    }
+    undiscountedUnitPrice {
+      ...Money
+    }
+    totalPrice {
+      gross {
+        ...Money
+      }
+      tax {
+        ...Money
+      }
+      net {
+        ...Money
+      }
+    }
+  }
+  shippingPrice {
+    gross {
+      ...Money
+    }
+    tax {
+      ...Money
+    }
+    net {
+      ...Money
+    }
+  }
+  totalPrice {
+    gross {
+      ...Money
+    }
+    tax {
+      ...Money
+    }
+    net {
+      ...Money
+    }
+  }
+}

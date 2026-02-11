@@ -25,7 +25,6 @@ export const env = createEnv({
     VERCEL_ENV: z.string().optional(),
     VERCEL_GIT_COMMIT_SHA: z.string().optional(),
     STRIPE_PARTNER_ID: z.string().optional(),
-    FILE_APL_PATH: z.string().optional(),
     DYNAMODB_MAIN_TABLE_NAME: z.string(),
     DYNAMODB_REQUEST_TIMEOUT_MS: z.coerce.number().default(5_000),
     DYNAMODB_CONNECTION_TIMEOUT_MS: z.coerce.number().default(2_000),
@@ -59,7 +58,6 @@ export const env = createEnv({
     VERCEL_ENV: process.env.VERCEL_ENV,
     VERCEL_GIT_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA,
     STRIPE_PARTNER_ID: process.env.STRIPE_PARTNER_ID,
-    FILE_APL_PATH: process.env.FILE_APL_PATH,
     DYNAMODB_MAIN_TABLE_NAME: process.env.DYNAMODB_MAIN_TABLE_NAME,
     DYNAMODB_REQUEST_TIMEOUT_MS: process.env.DYNAMODB_REQUEST_TIMEOUT_MS,
     DYNAMODB_CONNECTION_TIMEOUT_MS: process.env.DYNAMODB_CONNECTION_TIMEOUT_MS,
@@ -79,6 +77,4 @@ export const env = createEnv({
       cause: issues,
     });
   },
-  // eslint-disable-next-line turbo/no-undeclared-env-vars
-  skipValidation: !!process.env.SKIP_ENV_VALIDATION,
 });

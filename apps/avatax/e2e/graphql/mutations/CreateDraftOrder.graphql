@@ -1,0 +1,8 @@
+mutation CreateDraftOrder($input: DraftOrderCreateInput!) {
+  draftOrderCreate(input: $input) {
+    order {
+      id
+      ...OrderDetailsFragment
+    }
+  }
+}

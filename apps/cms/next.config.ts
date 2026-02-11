@@ -3,7 +3,6 @@ import { NextConfig } from "next";
 
 const nextConfig = (): NextConfig => {
   return {
-    output: "standalone",
     reactStrictMode: true,
     transpilePackages: [
       "@saleor/apps-otel",
@@ -16,6 +15,12 @@ const nextConfig = (): NextConfig => {
       optimizePackageImports: ["@sentry/nextjs", "@sentry/node"],
     },
     bundlePagesRouterDependencies: true,
+    serverExternalPackages: [
+      "@aws-sdk/client-dynamodb",
+      "@aws-sdk/lib-dynamodb",
+      "@aws-sdk/util-dynamodb",
+      "dynamodb-toolbox",
+    ],
     webpack: (config, { isServer }) => {
       if (isServer) {
         // Ignore opentelemetry warnings - https://github.com/open-telemetry/opentelemetry-js/issues/4173

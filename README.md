@@ -140,4 +140,3 @@ Then follow your editor's docs to get started with MCP:
 - [VS Code](https://code.visualstudio.com/docs/copilot/chat/mcp-servers)
 - [Cursor](https://docs.cursor.com/context/model-context-protocol#configuration-locations)
 - [JetBrains IDE](https://www.jetbrains.com/help/ai-assistant/configure-an-mcp-server.html)
- 

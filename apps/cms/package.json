@@ -1,6 +1,6 @@
 {
   "name": "saleor-app-cms",
-  "version": "2.13.7",
+  "version": "2.13.8",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,6 +8,7 @@
     "check-types": "tsc",
     "deploy": "tsx --require dotenv/config ./scripts/deploy.ts",
     "dev": "NODE_OPTIONS='--inspect' next dev",
+    "dev:3004": "NODE_OPTIONS='--inspect=9234' next dev -p 3004",
     "dev:debug": "APP_LOG_LEVEL=debug pnpm dev",
     "fetch-schema": "curl https://raw.githubusercontent.com/saleor/saleor/${npm_package_config_saleor_schemaVersion}/saleor/graphql/schema.graphql > graphql/schema.graphql",
     "generate": "graphql-codegen",
@@ -35,7 +36,7 @@
     "@opentelemetry/sdk-logs": "catalog:",
     "@opentelemetry/sdk-trace-node": "catalog:",
     "@opentelemetry/semantic-conventions": "catalog:",
-    "@saleor/app-sdk": "catalog:",
+    "@saleor/app-sdk": "link:../../node_modules/@saleor/app-sdk",
     "@saleor/apps-logger": "workspace:*",
     "@saleor/apps-otel": "workspace:*",
     "@saleor/apps-shared": "workspace:*",

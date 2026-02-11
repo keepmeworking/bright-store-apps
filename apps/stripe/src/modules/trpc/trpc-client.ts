@@ -3,12 +3,11 @@ import { createTRPCNext } from "@trpc/next";
 
 import { appBridgeInstance } from "@/pages/_app";
 
-import { TrpcRouter } from "./trpc-router";
+import type { TrpcRouter } from "./trpc-router";
 
 export const trpcClient = createTRPCNext<TrpcRouter>({
   config() {
     return {
-      // @ts-expect-error - SDK version mismatch between packages/shared and stripe
       links: [createHttpBatchLink(appBridgeInstance)],
       queryClientConfig: {
         defaultOptions: {
