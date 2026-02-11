@@ -4,6 +4,7 @@ import { NextConfig } from "next";
 const nextConfig = (): NextConfig => {
   return {
     reactStrictMode: true,
+    output: "standalone",
     transpilePackages: [
       "@saleor/apps-otel",
       "@saleor/apps-logger",

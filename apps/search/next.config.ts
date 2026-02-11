@@ -3,6 +3,7 @@ import { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  output: "standalone",
   transpilePackages: [
     "@saleor/apps-shared",
     "@saleor/apps-otel",

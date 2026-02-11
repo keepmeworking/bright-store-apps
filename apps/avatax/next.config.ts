@@ -38,6 +38,7 @@ const nextConfig: NextConfig = {
     ];
   },
   reactStrictMode: true,
+  output: "standalone",
   transpilePackages: [
     "@saleor/apps-otel",
     "@saleor/apps-logger",
