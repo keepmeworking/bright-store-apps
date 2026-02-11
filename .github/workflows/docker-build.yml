@@ -25,6 +25,7 @@ on:
           - segment
           - cms
           - stripe
+          - avatax
           - dummy-payment
           - invoices
 
@@ -56,6 +57,7 @@ jobs:
             segment: ['apps/segment/**']
             cms: ['apps/cms/**']
             stripe: ['apps/stripe/**']
+            avatax: ['apps/avatax/**']
             dummy-payment: ['other-apps/dummy-payment/**']
             invoices: ['other-apps/invoices/**']
             global: ['Dockerfile.app', 'package.json', 'pnpm-lock.yaml', 'turbo.json', 'pnpm-workspace.yaml', '.github/workflows/docker-build.yml']
@@ -64,7 +66,7 @@ jobs:
         id: set-matrix
         run: |
           # Monorepo apps (use shared Dockerfile.app)
-          MONOREPO_APPS_LIST="smtp search products-feed segment cms stripe"
+          MONOREPO_APPS_LIST="smtp search products-feed segment cms stripe avatax"
           # Standalone apps (have their own Dockerfile)
           STANDALONE_APPS_LIST="dummy-payment invoices"
 
@@ -158,6 +160,7 @@ jobs:
             "segment") echo "pkg=saleor-app-segment" >> $GITHUB_OUTPUT ;;
             "cms") echo "pkg=saleor-app-cms" >> $GITHUB_OUTPUT ;;
             "stripe") echo "pkg=saleor-app-payment-stripe" >> $GITHUB_OUTPUT ;;
+            "avatax") echo "pkg=saleor-app-avatax" >> $GITHUB_OUTPUT ;;
           esac
 
       - name: Get Short SHA
