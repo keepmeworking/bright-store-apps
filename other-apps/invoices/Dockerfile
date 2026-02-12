@@ -9,7 +9,7 @@ WORKDIR /app
 RUN corepack enable
 
 # Copy dependency files first (for Docker layer caching)
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
