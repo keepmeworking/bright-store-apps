@@ -34,6 +34,9 @@ ENV APP_API_BASE_URL=https://placeholder.com
 
 RUN corepack enable
 RUN pnpm build
+# Manually copy font metrics into the standalone directory as next.config.mjs CopyPlugin doesn't affect standalone output
+RUN mkdir -p .next/standalone/.next/server/chunks/data && \
+    cp -r .next/server/chunks/data/* .next/standalone/.next/server/chunks/data/
 
 # Production image
 FROM base AS runner
