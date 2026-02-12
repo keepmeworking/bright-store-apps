@@ -41,14 +41,37 @@ export class SaleorInvoiceUploader implements InvoiceUploader {
         })
         .toPromise()
         .then((r) => {
+          this.logger.debug(
+            {
+              fileUpload: r.data?.fileUpload,
+              fileUploadErrors: r.data?.fileUpload?.errors,
+              uploadedFile: r.data?.fileUpload?.uploadedFile,
+              graphqlError: r.error?.message,
+            },
+            "fileUpload mutation response details"
+          );
+
           if (r.data?.fileUpload?.uploadedFile?.url) {
             this.logger.debug({ data: r.data }, "Saleor returned response after uploading blob");
 
             return r.data.fileUpload.uploadedFile.url;
           } else {
-            this.logger.error({ data: r }, "Uploading blob failed");
+            this.logger.error(
+              {
+                fileUploadErrors: r.data?.fileUpload?.errors,
+                uploadedFile: r.data?.fileUpload?.uploadedFile,
+                graphqlError: r.error?.message,
+                hasData: !!r.data,
+                hasFileUpload: !!r.data?.fileUpload,
+              },
+              "Uploading blob failed"
+            );
 
-            throw new Error(r.error?.message);
+            throw new Error(
+              r.data?.fileUpload?.errors?.[0]?.message ||
+              r.error?.message ||
+              "Unknown upload error"
+            );
           }
         });
     });
