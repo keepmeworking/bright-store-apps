@@ -1,7 +1,7 @@
+import { multipartFetchExchange } from "@urql/exchange-multipart-fetch";
 import { authExchange } from "@urql/exchange-auth";
 import {
   cacheExchange,
-  fetchExchange,
   createClient as urqlCreateClient,
 } from "urql";
 
@@ -45,7 +45,7 @@ export const createGraphQLClient = ({
           },
         };
       }),
-      fetchExchange,
+      multipartFetchExchange,
     ],
   });
 };
