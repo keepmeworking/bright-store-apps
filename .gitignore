@@ -13,6 +13,7 @@ coverage/
 .next/
 out/
 build
+temp_invoice
 
 # editors
 .idea/

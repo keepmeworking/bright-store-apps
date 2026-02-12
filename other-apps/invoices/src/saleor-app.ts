@@ -32,33 +32,55 @@ switch (aplType) {
     throw new Error("Invalid APL config, ");
   }
 }
+const appPrefix = process.env.MANIFEST_APP_ID || "invoices";
+
 /**
  * RobustAPL wraps an existing APL and tries to find auth data by toggling the trailing slash
  * if the first attempt fails. This helps with Saleor API URL discrepancies.
+ * 
+ * It also adds an app-specific prefix to the saleorApiUrl key to allow multiple apps 
+ * to share the same DynamoDB table without overwriting each other's registrations.
  */
 class RobustAPL implements APL {
   constructor(private apl: APL) {}
 
+  private getPrefixedUrl(url: string) {
+    return `${appPrefix}:${url}`;
+  }
+
   async get(saleorApiUrl: string) {
-    let authData = await this.apl.get(saleorApiUrl);
+    const prefixedUrl = this.getPrefixedUrl(saleorApiUrl);
+    let authData = await this.apl.get(prefixedUrl);
 
     if (!authData) {
       const alternativeUrl = saleorApiUrl.endsWith("/")
         ? saleorApiUrl.slice(0, -1)
         : `${saleorApiUrl}/`;
 
-      authData = await this.apl.get(alternativeUrl);
+      authData = await this.apl.get(this.getPrefixedUrl(alternativeUrl));
+    }
+
+    // Strip prefix from returned authData to keep Saleor SDK happy
+    if (authData) {
+      return {
+        ...authData,
+        saleorApiUrl: saleorApiUrl,
+      };
     }
 
     return authData;
   }
 
   async set(authData: any) {
-    return this.apl.set(authData);
+    // Store with prefixed URL
+    return this.apl.set({
+      ...authData,
+      saleorApiUrl: this.getPrefixedUrl(authData.saleorApiUrl),
+    });
   }
 
   async delete(saleorApiUrl: string) {
-    return this.apl.delete(saleorApiUrl);
+    return this.apl.delete(this.getPrefixedUrl(saleorApiUrl));
   }
 
   async getAll() {
