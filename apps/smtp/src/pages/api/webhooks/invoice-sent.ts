@@ -94,46 +94,6 @@ const handler: NextJsWebhookHandler<InvoiceSentWebhookPayloadFragment> = async (
 
   const useCase = useCaseFactory.createFromAuthData(authData);
 
-  // Try to download the invoice PDF for attachment
-  const invoiceUrl = payload.invoice?.url;
-  let attachments: Array<{ filename: string; content: Buffer; contentType: string }> | undefined;
-
-  if (invoiceUrl) {
-    try {
-      logger.info("Downloading invoice PDF for attachment", { invoiceUrl });
-      const response = await fetch(invoiceUrl);
-
-      if (response.ok) {
-        const arrayBuffer = await response.arrayBuffer();
-        const pdfBuffer = Buffer.from(arrayBuffer);
-
-        // Extract filename from URL or use a default
-        const urlPath = new URL(invoiceUrl).pathname;
-        const filename = urlPath.split("/").pop() || `invoice-${order.number}.pdf`;
-
-        attachments = [
-          {
-            filename,
-            content: pdfBuffer,
-            contentType: "application/pdf",
-          },
-        ];
-
-        logger.info("Successfully downloaded invoice PDF", { filename, sizeKb: Math.round(pdfBuffer.length / 1024) });
-      } else {
-        logger.warn("Failed to download invoice PDF, sending email without attachment", {
-          status: response.status,
-          invoiceUrl,
-        });
-      }
-    } catch (e) {
-      logger.warn("Error downloading invoice PDF, sending email without attachment", {
-        error: e,
-        invoiceUrl,
-      });
-    }
-  }
-
   try {
     return useCase
       .sendEventMessages({
@@ -142,36 +102,14 @@ const handler: NextJsWebhookHandler<InvoiceSentWebhookPayloadFragment> = async (
         payload: { order: payload.order, invoice: payload.invoice },
         recipientEmail,
         saleorApiUrl: authData.saleorApiUrl,
-        attachments,
       })
       .then((result) =>
         result.match(
-          (r) => {
-            logger.info("Successfully sent email(s)");
-
-            return res.status(200).json({ message: "The event has been handled" });
-          },
+          () => res.status(200).json({ message: "The event has been handled" }),
           (err) => {
-            const errorInstance = err[0];
+            logger.warn("Failed to send event messages", { error: err });
 
-            if (errorInstance instanceof SendEventMessagesUseCase.ServerError) {
-              logger.info("Failed to send email(s) [server error]", { error: err });
-
-              return res.status(400).json({ message: "Failed to send email" });
-            } else if (errorInstance instanceof SendEventMessagesUseCase.ClientError) {
-              logger.info("Failed to send email(s) [client error]", { error: err });
-
-              return res.status(400).json({ message: "Failed to send email" });
-            } else if (errorInstance instanceof SendEventMessagesUseCase.NoOpError) {
-              logger.info("Sending emails aborted [no op]", { error: err });
-
-              return res.status(200).json({ message: "The event has been handled [no op]" });
-            }
-
-            logger.error("Failed to send email(s) [unhandled error]", { error: err });
-            captureException(new Error("Unhandled useCase error", { cause: err }));
-
-            return res.status(500).json({ message: "Failed to send email [unhandled]" });
+            return res.status(500).json({ message: "Failed to send event messages" });
           },
         ),
       );

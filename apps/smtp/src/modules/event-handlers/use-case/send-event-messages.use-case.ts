@@ -68,7 +68,6 @@ export class SendEventMessagesUseCase {
     recipientEmail,
     channelSlug,
     headers,
-    attachments,
   }: {
     config: SmtpConfiguration;
     event: MessageEventTypes;
@@ -76,7 +75,6 @@ export class SendEventMessagesUseCase {
     recipientEmail: string;
     channelSlug: string;
     headers?: Record<string, string>;
-    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
   }) {
     const eventSettings = config.events.find((e) => e.eventType === event);
 
@@ -169,7 +167,7 @@ export class SendEventMessagesUseCase {
 
     return ResultAsync.fromPromise(
       this.deps.emailSender.sendEmailWithSmtp({
-        mailData: { ...preparedEmailResult.value, ...(headers && { headers }), ...(attachments && { attachments }) },
+        mailData: { ...preparedEmailResult.value, ...(headers && { headers }) },
         smtpSettings,
       }),
       (err) => {
@@ -200,14 +198,12 @@ export class SendEventMessagesUseCase {
     recipientEmail,
     channelSlug,
     saleorApiUrl,
-    attachments,
   }: {
     event: MessageEventTypes;
     payload: unknown;
     recipientEmail: string;
     channelSlug: string;
     saleorApiUrl: string;
-    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
   }): Promise<Result<unknown, Array<InstanceType<typeof SendEventMessagesUseCase.BaseError>>>> {
     this.logger.info("No custom configurations found, checking fallback SMTP");
 
@@ -292,7 +288,6 @@ export class SendEventMessagesUseCase {
       recipientEmail,
       channelSlug,
       headers: { "X-SES-TENANT": tenantName },
-      attachments,
     });
 
     if (fallbackResult.isErr()) {
@@ -308,14 +303,12 @@ export class SendEventMessagesUseCase {
     recipientEmail,
     channelSlug,
     saleorApiUrl,
-    attachments,
   }: {
     channelSlug: string;
     payload: unknown;
     recipientEmail: string;
     event: MessageEventTypes;
     saleorApiUrl: string;
-    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
   }): Promise<Result<unknown, Array<InstanceType<typeof SendEventMessagesUseCase.BaseError>>>> {
     this.logger.info("Calling sendEventMessages", { channelSlug, event });
 
@@ -342,7 +335,7 @@ export class SendEventMessagesUseCase {
     }
 
     if (availableSmtpConfigurations.value.length === 0) {
-      return this.sendWithFallback({ event, payload, recipientEmail, channelSlug, saleorApiUrl, attachments });
+      return this.sendWithFallback({ event, payload, recipientEmail, channelSlug, saleorApiUrl });
     }
 
     this.logger.info(
@@ -357,7 +350,6 @@ export class SendEventMessagesUseCase {
           payload,
           recipientEmail,
           channelSlug,
-          attachments,
         }),
       ),
     );
