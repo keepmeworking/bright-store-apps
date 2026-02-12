@@ -22,6 +22,11 @@ export interface SendMailArgs {
     html: string;
     subject: string;
     headers?: Record<string, string>;
+    attachments?: Array<{
+      filename: string;
+      content: Buffer | string;
+      contentType?: string;
+    }>;
   };
 }
 
@@ -33,7 +38,7 @@ export interface ISMTPEmailSender {
  * TODO: Implement errors mapping and neverthrow
  */
 export class SmtpEmailSender implements ISMTPEmailSender {
-  private TIMEOUT = 4000;
+  private TIMEOUT = 15000;
 
   private logger = createLogger("SmtpEmailSender");
 
@@ -98,12 +103,13 @@ export class SmtpEmailSender implements ISMTPEmailSender {
     }
 
     // We don't wrap this in a try-catch because it will be handled in use-case via neverthrow
-    const { headers, ...restMailData } = mailData;
+    const { headers, attachments, ...restMailData } = mailData;
 
     const response = await racePromise({
       promise: transporter.sendMail({
         ...restMailData,
         ...(headers && { headers }),
+        ...(attachments && { attachments }),
       }),
       error: new SmtpEmailSender.SmtpEmailSenderTimeoutError("Sending email timeout"),
       timeout: this.TIMEOUT,
