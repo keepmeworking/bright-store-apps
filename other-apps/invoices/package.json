@@ -69,7 +69,7 @@
     "vite": "5.3.3",
     "vitest": "1.6.0"
   },
-  "packageManager": "pnpm@9.15.4",
+  "packageManager": "pnpm@10.28.1",
   "pnpm": {
     "overrides": {
       "@urql/core": "4.3.0"
