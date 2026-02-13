@@ -1,0 +1,8 @@
+fragment EventMetadata on Event {
+  # Used to verify compatibility with Saleor API version
+  version
+  recipient {
+    # App's ID to be verified against AuthData
+    id
+  }
+}

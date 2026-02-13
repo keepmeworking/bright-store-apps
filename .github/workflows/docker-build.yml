@@ -28,6 +28,7 @@ on:
           - avatax
           - dummy-payment
           - invoices
+          - razorpay-app
 
 env:
   REGISTRY: ghcr.io
@@ -60,6 +61,7 @@ jobs:
             avatax: ['apps/avatax/**']
             dummy-payment: ['other-apps/dummy-payment/**']
             invoices: ['other-apps/invoices/**']
+            razorpay-app: ['other-apps/razorpay-app/**']
             global: ['Dockerfile.app', 'package.json', 'pnpm-lock.yaml', 'turbo.json', 'pnpm-workspace.yaml', '.github/workflows/docker-build.yml']
 
       - name: Set matrix
@@ -68,7 +70,7 @@ jobs:
           # Monorepo apps (use shared Dockerfile.app)
           MONOREPO_APPS_LIST="smtp search products-feed segment cms stripe avatax"
           # Standalone apps (have their own Dockerfile)
-          STANDALONE_APPS_LIST="dummy-payment invoices"
+          STANDALONE_APPS_LIST="dummy-payment invoices razorpay-app"
 
           MONOREPO_APPS=()
           STANDALONE_APPS=()
