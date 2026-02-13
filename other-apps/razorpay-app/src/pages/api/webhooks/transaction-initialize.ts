@@ -1,5 +1,5 @@
 
-import { SaleorAsyncWebhook } from "@saleor/app-sdk/handlers/next";
+import { SaleorSyncWebhook } from "@saleor/app-sdk/handlers/next";
 import {
   TransactionInitializeSessionDocument,
   TransactionInitializeSessionEventFragment,
@@ -14,7 +14,7 @@ import Razorpay from "razorpay";
  * Sync behavior for certain flows.
  */
 
-export const transactionInitializeWebhook = new SaleorAsyncWebhook<
+export const transactionInitializeWebhook = new SaleorSyncWebhook<
   TransactionInitializeSessionEventFragment
 >({
   name: "Transaction Initialize",

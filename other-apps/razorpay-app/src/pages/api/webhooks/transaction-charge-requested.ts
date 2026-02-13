@@ -1,5 +1,5 @@
 
-import { SaleorAsyncWebhook } from "@saleor/app-sdk/handlers/next";
+import { SaleorSyncWebhook } from "@saleor/app-sdk/handlers/next";
 import {
   TransactionChargeRequestedDocument,
   TransactionChargeRequestedEventFragment,
@@ -7,7 +7,7 @@ import {
 import { saleorApp } from "@/saleor-app";
 import Razorpay from "razorpay";
 
-export const transactionChargeRequestedWebhook = new SaleorAsyncWebhook<
+export const transactionChargeRequestedWebhook = new SaleorSyncWebhook<
   TransactionChargeRequestedEventFragment
 >({
   name: "Transaction Charge Requested",
