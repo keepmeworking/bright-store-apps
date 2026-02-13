@@ -5,7 +5,9 @@ import {
   TransactionRefundRequestedEventFragment,
 } from "../../../../generated/graphql";
 import { saleorApp } from "@/saleor-app";
-import Razorpay from "razorpay";
+import { getRazorpayClient } from "@/modules/razorpay-settings";
+import { logTransaction } from "@/modules/transaction-log";
+import { getDocClient } from "@/modules/dynamodb-helpers";
 
 export const transactionRefundRequestedWebhook = new SaleorSyncWebhook<
   TransactionRefundRequestedEventFragment
@@ -17,42 +19,85 @@ export const transactionRefundRequestedWebhook = new SaleorSyncWebhook<
   query: TransactionRefundRequestedDocument,
 });
 
-import { env } from "@/env";
-
-const razorpay = new Razorpay({
-  key_id: env.RAZORPAY_KEY_ID,
-  key_secret: env.RAZORPAY_KEY_SECRET,
-});
-
 export default transactionRefundRequestedWebhook.createHandler(async (req, res, ctx) => {
   const { payload } = ctx;
+  const saleorApiUrl = ctx.authData.saleorApiUrl;
 
   const transactionId = payload.transaction?.id;
   const razorpayPaymentId = payload.transaction?.pspReference;
   const amount = payload.action?.amount || 0;
 
+  const docClient = getDocClient();
+  let mode: "test" | "live" = "test";
+
   if (!razorpayPaymentId) {
     return res.status(400).json({
-      errors: [{ message: "Missing Razorpay Payment ID (externalReference) for refund" }],
+      errors: [{ message: "Missing Razorpay Payment ID (pspReference) for refund" }],
     });
   }
 
   try {
+    if (!docClient) {
+      throw new Error("DynamoDB not configured");
+    }
+
+    const { client, settings } = await getRazorpayClient(docClient, saleorApiUrl);
+    mode = settings.mode;
+
+    if (settings.debugMode) {
+      console.log("[Razorpay Refund] Payment:", razorpayPaymentId, "Amount:", amount);
+    }
+
     // 1. Process Refund via Razorpay
-    await razorpay.payments.refund(razorpayPaymentId, {
+    const refund = await client.payments.refund(razorpayPaymentId, {
       amount: Math.round(amount * 100), // paise
     });
 
-    // 2. Respond to Saleor
-    return res.status(200).json({
-      transactionId,
+    // 2. Log success
+    await logTransaction(docClient, saleorApiUrl, {
+      timestamp: new Date().toISOString(),
+      type: "refund",
+      status: "success",
       amount,
-      status: "SUCCESS",
+      currency: "INR",
+      razorpayPaymentId,
+      saleorTransactionId: transactionId,
+      mode,
+      rawResponse: settings.debugMode
+        ? JSON.stringify(refund)
+        : undefined,
+    });
+
+    // 3. Respond to Saleor
+    return res.status(200).json({
+      pspReference: razorpayPaymentId,
+      result: "REFUND_SUCCESS",
+      amount,
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
     console.error("Razorpay Refund Failed:", error);
-    return res.status(400).json({
-      errors: [{ message: "Failed to refund Razorpay payment" }],
+
+    // Log failure
+    if (docClient) {
+      await logTransaction(docClient, saleorApiUrl, {
+        timestamp: new Date().toISOString(),
+        type: "refund",
+        status: "failed",
+        amount,
+        currency: "INR",
+        razorpayPaymentId,
+        saleorTransactionId: transactionId,
+        error: message,
+        mode,
+      });
+    }
+
+    return res.status(200).json({
+      pspReference: razorpayPaymentId,
+      result: "REFUND_FAILURE",
+      amount: 0,
+      message: `Refund failed: ${message}`,
     });
   }
 });
