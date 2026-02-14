@@ -2,6 +2,7 @@ import { createManifestHandler } from "@saleor/app-sdk/handlers/next";
 import { AppManifest } from "@saleor/app-sdk/types";
 import packageJson from "@/package.json";
 import { transactionInitializeWebhook } from "./webhooks/transaction-initialize";
+import { paymentGatewayInitializeSessionWebhook } from "./webhooks/payment-gateway-initialize-session";
 import { transactionChargeRequestedWebhook } from "./webhooks/transaction-charge-requested";
 import { transactionRefundRequestedWebhook } from "./webhooks/transaction-refund-requested";
 
@@ -27,6 +28,8 @@ export default createManifestHandler({
         transactionInitializeWebhook.getWebhookManifest(apiBaseURL),
         transactionChargeRequestedWebhook.getWebhookManifest(apiBaseURL),
         transactionRefundRequestedWebhook.getWebhookManifest(apiBaseURL),
+        // Modern Session Webhooks (Saleor 3.x)
+        paymentGatewayInitializeSessionWebhook.getWebhookManifest(apiBaseURL),
       ],
       author: "Antigravity",
       brand: {

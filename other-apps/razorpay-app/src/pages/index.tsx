@@ -10,7 +10,7 @@
 import { NextPage } from "next";
 import { useAppBridge } from "@saleor/app-sdk/app-bridge";
 import { useEffect, useState, useCallback } from "react";
-import { Box, Button, Text, Input } from "@saleor/macaw-ui";
+import { Box, Button, Text, Input, Checkbox, Select } from "@saleor/macaw-ui";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -63,275 +63,7 @@ interface ConnectionResult {
 
 type Tab = "settings" | "logs" | "status";
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// STYLES
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const styles = {
-  container: {
-    fontFamily:
-      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    maxWidth: "900px",
-    margin: "0 auto",
-    padding: "24px",
-  } as React.CSSProperties,
-  header: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    marginBottom: "24px",
-    paddingBottom: "16px",
-    borderBottom: "2px solid #e5e7eb",
-  } as React.CSSProperties,
-  logo: {
-    width: "40px",
-    height: "40px",
-    borderRadius: "8px",
-    background: "linear-gradient(135deg, #2563eb, #7c3aed)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "white",
-    fontWeight: "bold",
-    fontSize: "18px",
-  } as React.CSSProperties,
-  tabs: {
-    display: "flex",
-    gap: "4px",
-    marginBottom: "24px",
-    background: "#f3f4f6",
-    padding: "4px",
-    borderRadius: "8px",
-  } as React.CSSProperties,
-  tab: (active: boolean) =>
-    ({
-      padding: "10px 20px",
-      border: "none",
-      borderRadius: "6px",
-      cursor: "pointer",
-      fontWeight: 500,
-      fontSize: "14px",
-      transition: "all 0.2s",
-      background: active ? "white" : "transparent",
-      color: active ? "#1f2937" : "#6b7280",
-      boxShadow: active ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-    }) as React.CSSProperties,
-  card: {
-    border: "1px solid #e5e7eb",
-    borderRadius: "12px",
-    padding: "20px",
-    marginBottom: "16px",
-    background: "white",
-  } as React.CSSProperties,
-  cardTitle: {
-    fontSize: "16px",
-    fontWeight: 600,
-    color: "#1f2937",
-    marginBottom: "16px",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  } as React.CSSProperties,
-  field: {
-    marginBottom: "16px",
-  } as React.CSSProperties,
-  label: {
-    display: "block",
-    fontSize: "13px",
-    fontWeight: 500,
-    color: "#374151",
-    marginBottom: "4px",
-  } as React.CSSProperties,
-  input: {
-    width: "100%",
-    padding: "8px 12px",
-    border: "1px solid #d1d5db",
-    borderRadius: "6px",
-    fontSize: "14px",
-    fontFamily: "monospace",
-    boxSizing: "border-box" as const,
-  } as React.CSSProperties,
-  select: {
-    width: "100%",
-    padding: "8px 12px",
-    border: "1px solid #d1d5db",
-    borderRadius: "6px",
-    fontSize: "14px",
-    background: "white",
-    cursor: "pointer",
-  } as React.CSSProperties,
-  toggle: (active: boolean) =>
-    ({
-      width: "44px",
-      height: "24px",
-      borderRadius: "12px",
-      border: "none",
-      cursor: "pointer",
-      position: "relative" as const,
-      transition: "background 0.2s",
-      background: active ? "#2563eb" : "#d1d5db",
-    }) as React.CSSProperties,
-  toggleDot: (active: boolean) =>
-    ({
-      width: "18px",
-      height: "18px",
-      borderRadius: "50%",
-      background: "white",
-      position: "absolute" as const,
-      top: "3px",
-      left: active ? "23px" : "3px",
-      transition: "left 0.2s",
-      boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-    }) as React.CSSProperties,
-  modeToggle: {
-    display: "flex",
-    borderRadius: "8px",
-    overflow: "hidden",
-    border: "1px solid #d1d5db",
-  } as React.CSSProperties,
-  modeBtn: (active: boolean, isLive: boolean) =>
-    ({
-      flex: 1,
-      padding: "10px 16px",
-      border: "none",
-      cursor: "pointer",
-      fontWeight: 600,
-      fontSize: "14px",
-      transition: "all 0.2s",
-      background: active
-        ? isLive
-          ? "#dc2626"
-          : "#2563eb"
-        : "#f9fafb",
-      color: active ? "white" : "#6b7280",
-    }) as React.CSSProperties,
-  btn: (variant: "primary" | "secondary" | "danger") =>
-    ({
-      padding: "10px 20px",
-      borderRadius: "8px",
-      border:
-        variant === "secondary" ? "1px solid #d1d5db" : "none",
-      cursor: "pointer",
-      fontWeight: 600,
-      fontSize: "14px",
-      transition: "all 0.2s",
-      background:
-        variant === "primary"
-          ? "#2563eb"
-          : variant === "danger"
-            ? "#dc2626"
-            : "white",
-      color:
-        variant === "primary" || variant === "danger"
-          ? "white"
-          : "#374151",
-    }) as React.CSSProperties,
-  badge: (type: string) => {
-    const colors: Record<string, { bg: string; text: string }> = {
-      success: { bg: "#dcfce7", text: "#166534" },
-      failed: { bg: "#fee2e2", text: "#991b1b" },
-      pending: { bg: "#fef9c3", text: "#854d0e" },
-      test: { bg: "#dbeafe", text: "#1e40af" },
-      live: { bg: "#fee2e2", text: "#991b1b" },
-      initialize: { bg: "#e0e7ff", text: "#3730a3" },
-      charge: { bg: "#dcfce7", text: "#166534" },
-      refund: { bg: "#fef3c7", text: "#92400e" },
-      webhook: { bg: "#f3e8ff", text: "#6b21a8" },
-    };
-    const c = colors[type] || { bg: "#f3f4f6", text: "#374151" };
-    return {
-      padding: "2px 8px",
-      borderRadius: "4px",
-      fontSize: "12px",
-      fontWeight: 600,
-      background: c.bg,
-      color: c.text,
-    } as React.CSSProperties;
-  },
-  statusDot: (ok: boolean) =>
-    ({
-      width: "10px",
-      height: "10px",
-      borderRadius: "50%",
-      background: ok ? "#22c55e" : "#ef4444",
-      display: "inline-block",
-    }) as React.CSSProperties,
-  table: {
-    width: "100%",
-    borderCollapse: "collapse" as const,
-    fontSize: "13px",
-  } as React.CSSProperties,
-  th: {
-    textAlign: "left" as const,
-    padding: "10px 8px",
-    borderBottom: "2px solid #e5e7eb",
-    color: "#6b7280",
-    fontWeight: 600,
-    fontSize: "12px",
-    textTransform: "uppercase" as const,
-  } as React.CSSProperties,
-  td: {
-    padding: "10px 8px",
-    borderBottom: "1px solid #f3f4f6",
-    color: "#374151",
-  } as React.CSSProperties,
-  alert: (type: "info" | "warning" | "error" | "success") => {
-    const colors = {
-      info: { bg: "#eff6ff", border: "#bfdbfe", text: "#1e40af" },
-      warning: { bg: "#fffbeb", border: "#fde68a", text: "#92400e" },
-      error: { bg: "#fef2f2", border: "#fecaca", text: "#991b1b" },
-      success: { bg: "#f0fdf4", border: "#bbf7d0", text: "#166534" },
-    };
-    const c = colors[type];
-    return {
-      padding: "12px 16px",
-      borderRadius: "8px",
-      border: `1px solid ${c.border}`,
-      background: c.bg,
-      color: c.text,
-      fontSize: "14px",
-      marginBottom: "16px",
-    } as React.CSSProperties;
-  },
-  row: {
-    display: "flex",
-    gap: "12px",
-    alignItems: "center",
-  } as React.CSSProperties,
-  flexBetween: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  } as React.CSSProperties,
-};
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// HELPER COMPONENTS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function Toggle({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-}) {
-  return (
-    <div style={{ ...styles.flexBetween, marginBottom: "12px" }}>
-      <span style={styles.label}>{label}</span>
-      <button
-        type="button"
-        style={styles.toggle(checked)}
-        onClick={() => onChange(!checked)}
-        aria-label={label}
-      >
-        <div style={styles.toggleDot(checked)} />
-      </button>
-    </div>
-  );
-}
+// Styles removed in favor of Macaw UI props
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
@@ -501,263 +233,185 @@ const IndexPage: NextPage = () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   const renderSettings = () => (
-    <>
+    <Box display="flex" flexDirection="column" gap={6}>
       {/* Master Enable */}
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>⚡ Gateway Status</div>
-        <Toggle
-          label="Enable Razorpay Payment Gateway"
-          checked={editSettings.enabled || false}
-          onChange={(v) => setEditSettings({ ...editSettings, enabled: v })}
-        />
-        <p style={{ fontSize: "12px", color: "#9ca3af", margin: 0 }}>
+      <Box padding={6} backgroundColor="default1" borderRadius={4} borderStyle="solid" borderWidth={1} borderColor="default1">
+        <Text as="h2" size={6} fontWeight="bold" marginBottom={4}>⚡ Gateway Status</Text>
+        <Box display="flex" justifyContent="space-between" alignItems="center" marginBottom={4}>
+          <Text>Enable Razorpay Payment Gateway</Text>
+          <Checkbox
+            checked={editSettings.enabled || false}
+            onCheckedChange={(v) => setEditSettings({ ...editSettings, enabled: !!v })}
+          />
+        </Box>
+        <Text size={2}>
           When disabled, Razorpay will not appear as a payment option.
-        </p>
-      </div>
+        </Text>
+      </Box>
 
       {/* Mode Toggle */}
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>
-          🔄 Payment Mode
-          <span style={styles.badge(editSettings.mode || "test")}>
-            {editSettings.mode?.toUpperCase()}
-          </span>
-        </div>
-        <div style={styles.modeToggle}>
-          <button
-            type="button"
-            style={styles.modeBtn(editSettings.mode === "test", false)}
-            onClick={() =>
-              setEditSettings({ ...editSettings, mode: "test" })
-            }
+      <Box padding={6} backgroundColor="default1" borderRadius={4} borderStyle="solid" borderWidth={1} borderColor="default1">
+        <Box display="flex" justifyContent="space-between" alignItems="center" marginBottom={4}>
+          <Text as="h2" size={6} fontWeight="bold">🔄 Payment Mode</Text>
+          <Box paddingX={2} paddingY={1} backgroundColor={editSettings.mode === "live" ? "critical1" : "info1"} borderRadius={2}>
+            <Text size={1}>
+              {editSettings.mode?.toUpperCase()}
+            </Text>
+          </Box>
+        </Box>
+        <Box display="flex" gap={2} marginBottom={4}>
+          <Button
+            variant={editSettings.mode === "test" ? "primary" : "secondary"}
+            onClick={() => setEditSettings({ ...editSettings, mode: "test" })}
           >
             🧪 Test Mode
-          </button>
-          <button
-            type="button"
-            style={styles.modeBtn(editSettings.mode === "live", true)}
-            onClick={() =>
-              setEditSettings({ ...editSettings, mode: "live" })
-            }
+          </Button>
+          <Button
+            variant={editSettings.mode === "live" ? "tertiary" : "secondary"}
+            onClick={() => setEditSettings({ ...editSettings, mode: "live" })}
           >
             🔴 Live Mode
-          </button>
-        </div>
+          </Button>
+        </Box>
         {editSettings.mode === "live" && (
-          <div style={{ ...styles.alert("warning"), marginTop: "12px" }}>
-            ⚠️ <strong>Live Mode:</strong> Real money will be charged. Make
-            sure your live API keys are correct.
-          </div>
+          <Box padding={4} backgroundColor="warning1" borderRadius={2} borderStyle="solid" borderWidth={1} borderColor="warning1">
+            <Text>
+              ⚠️ <strong>Live Mode:</strong> Real money will be charged. Make
+              sure your live API keys are correct.
+            </Text>
+          </Box>
         )}
-      </div>
+      </Box>
 
       {/* Test API Keys */}
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>
-          🧪 Test Mode API Keys
-          {settings?.hasTestKeys && (
-            <span style={styles.badge("success")}>✓ Configured</span>
-          )}
-        </div>
-        <div style={styles.field}>
-          <label style={styles.label}>Test Key ID</label>
-          <input
-            style={styles.input}
-            placeholder={settings?.testKeyId || "rzp_test_..."}
-            value={newKeys.testKeyId}
-            onChange={(e) =>
-              setNewKeys({ ...newKeys, testKeyId: e.target.value })
-            }
-          />
-        </div>
-        <div style={styles.field}>
-          <label style={styles.label}>Test Key Secret</label>
-          <input
-            style={styles.input}
-            type="password"
-            placeholder={
-              settings?.hasTestKeys
-                ? "••••••••  (leave blank to keep)"
-                : "Enter test key secret"
-            }
-            value={newKeys.testKeySecret}
-            onChange={(e) =>
-              setNewKeys({ ...newKeys, testKeySecret: e.target.value })
-            }
-          />
-        </div>
-        <div style={styles.field}>
-          <label style={styles.label}>Test Webhook Secret</label>
-          <input
-            style={styles.input}
-            type="password"
-            placeholder={
-              settings?.testWebhookSecret
-                ? "••••••••  (leave blank to keep)"
-                : "Enter test webhook secret"
-            }
-            value={newKeys.testWebhookSecret}
-            onChange={(e) =>
-              setNewKeys({ ...newKeys, testWebhookSecret: e.target.value })
-            }
-          />
-        </div>
-      </div>
+      <Box padding={6} backgroundColor="default1" borderRadius={4} borderStyle="solid" borderWidth={1} borderColor="default1">
+        <Text as="h2" size={6} fontWeight="bold" marginBottom={4}>🧪 Test Mode API Keys</Text>
+        <Box display="flex" flexDirection="column" gap={4}>
+          <Box>
+            <Text marginBottom={1}>Test Key ID</Text>
+            <Input
+              placeholder={settings?.testKeyId || "rzp_test_..."}
+              value={newKeys.testKeyId}
+              onChange={(e) => setNewKeys({ ...newKeys, testKeyId: e.target.value })}
+            />
+          </Box>
+          <Box>
+            <Text marginBottom={1}>Test Key Secret</Text>
+            <Input
+              type="password"
+              placeholder={settings?.hasTestKeys ? "••••••••  (leave blank to keep)" : "Enter test key secret"}
+              value={newKeys.testKeySecret}
+              onChange={(e) => setNewKeys({ ...newKeys, testKeySecret: e.target.value })}
+            />
+          </Box>
+          <Box>
+            <Text marginBottom={1}>Test Webhook Secret</Text>
+            <Input
+              type="password"
+              placeholder={settings?.testWebhookSecret ? "••••••••  (leave blank to keep)" : "Enter test webhook secret"}
+              value={newKeys.testWebhookSecret}
+              onChange={(e) => setNewKeys({ ...newKeys, testWebhookSecret: e.target.value })}
+            />
+          </Box>
+        </Box>
+      </Box>
 
       {/* Live API Keys */}
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>
-          🔴 Live Mode API Keys
-          {settings?.hasLiveKeys && (
-            <span style={styles.badge("success")}>✓ Configured</span>
-          )}
-        </div>
-        <div style={styles.field}>
-          <label style={styles.label}>Live Key ID</label>
-          <input
-            style={styles.input}
-            placeholder={settings?.liveKeyId || "rzp_live_..."}
-            value={newKeys.liveKeyId}
-            onChange={(e) =>
-              setNewKeys({ ...newKeys, liveKeyId: e.target.value })
-            }
-          />
-        </div>
-        <div style={styles.field}>
-          <label style={styles.label}>Live Key Secret</label>
-          <input
-            style={styles.input}
-            type="password"
-            placeholder={
-              settings?.hasLiveKeys
-                ? "••••••••  (leave blank to keep)"
-                : "Enter live key secret"
-            }
-            value={newKeys.liveKeySecret}
-            onChange={(e) =>
-              setNewKeys({ ...newKeys, liveKeySecret: e.target.value })
-            }
-          />
-        </div>
-        <div style={styles.field}>
-          <label style={styles.label}>Live Webhook Secret</label>
-          <input
-            style={styles.input}
-            type="password"
-            placeholder={
-              settings?.liveWebhookSecret
-                ? "••••••••  (leave blank to keep)"
-                : "Enter live webhook secret"
-            }
-            value={newKeys.liveWebhookSecret}
-            onChange={(e) =>
-              setNewKeys({ ...newKeys, liveWebhookSecret: e.target.value })
-            }
-          />
-        </div>
-      </div>
+      <Box padding={6} backgroundColor="default1" borderRadius={4} borderStyle="solid" borderWidth={1} borderColor="default1">
+        <Text as="h2" size={6} fontWeight="bold" marginBottom={4}>🔴 Live Mode API Keys</Text>
+        <Box display="flex" flexDirection="column" gap={4}>
+          <Box>
+            <Text marginBottom={1}>Live Key ID</Text>
+            <Input
+              placeholder={settings?.liveKeyId || "rzp_live_..."}
+              value={newKeys.liveKeyId}
+              onChange={(e) => setNewKeys({ ...newKeys, liveKeyId: e.target.value })}
+            />
+          </Box>
+          <Box>
+            <Text marginBottom={1}>Live Key Secret</Text>
+            <Input
+              type="password"
+              placeholder={settings?.hasLiveKeys ? "••••••••  (leave blank to keep)" : "Enter live key secret"}
+              value={newKeys.liveKeySecret}
+              onChange={(e) => setNewKeys({ ...newKeys, liveKeySecret: e.target.value })}
+            />
+          </Box>
+          <Box>
+            <Text marginBottom={1}>Live Webhook Secret</Text>
+            <Input
+              type="password"
+              placeholder={settings?.liveWebhookSecret ? "••••••••  (leave blank to keep)" : "Enter live webhook secret"}
+              value={newKeys.liveWebhookSecret}
+              onChange={(e) => setNewKeys({ ...newKeys, liveWebhookSecret: e.target.value })}
+            />
+          </Box>
+        </Box>
+      </Box>
 
       {/* Payment Options */}
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>💳 Payment Options</div>
+      <Box padding={6} backgroundColor="default1" borderRadius={4} borderStyle="solid" borderWidth={1} borderColor="default1">
+        <Text as="h2" size={6} fontWeight="bold" marginBottom={4}>💳 Payment Options</Text>
+        <Box display="flex" flexDirection="column" gap={4}>
+          <Box>
+            <Text marginBottom={1}>Customer-facing Title</Text>
+            <Input
+              value={editSettings.title || ""}
+              onChange={(e) => setEditSettings({ ...editSettings, title: e.target.value })}
+            />
+          </Box>
+          <Box>
+            <Text marginBottom={1}>Description</Text>
+            <Input
+              value={editSettings.description || ""}
+              onChange={(e) => setEditSettings({ ...editSettings, description: e.target.value })}
+            />
+          </Box>
+          <Box>
+            <Text marginBottom={1}>Payment Action</Text>
+            <select
+              style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
+              value={editSettings.paymentAction || "authorize_capture"}
+              onChange={(e) => setEditSettings({ ...editSettings, paymentAction: e.target.value as any })}
+            >
+              <option value="authorize_capture">Authorize & Capture (Recommended)</option>
+              <option value="authorize">Authorize Only</option>
+            </select>
+          </Box>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Text>Enable Magic Checkout</Text>
+            <Checkbox
+              checked={editSettings.magicCheckout || false}
+              onCheckedChange={(v) => setEditSettings({ ...editSettings, magicCheckout: !!v })}
+            />
+          </Box>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Text>Debug Mode (detailed logging)</Text>
+            <Checkbox
+              checked={editSettings.debugMode || false}
+              onCheckedChange={(v) => setEditSettings({ ...editSettings, debugMode: !!v })}
+            />
+          </Box>
+        </Box>
+      </Box>
 
-        <div style={styles.field}>
-          <label style={styles.label}>Customer-facing Title</label>
-          <input
-            style={styles.input}
-            value={editSettings.title || ""}
-            onChange={(e) =>
-              setEditSettings({ ...editSettings, title: e.target.value })
-            }
-          />
-        </div>
-
-        <div style={styles.field}>
-          <label style={styles.label}>Description</label>
-          <input
-            style={styles.input}
-            value={editSettings.description || ""}
-            onChange={(e) =>
-              setEditSettings({
-                ...editSettings,
-                description: e.target.value,
-              })
-            }
-          />
-        </div>
-
-        <div style={styles.field}>
-          <label style={styles.label}>Payment Action</label>
-          <select
-            style={styles.select}
-            value={editSettings.paymentAction || "authorize_capture"}
-            onChange={(e) =>
-              setEditSettings({
-                ...editSettings,
-                paymentAction: e.target.value as
-                  | "authorize"
-                  | "authorize_capture",
-              })
-            }
-          >
-            <option value="authorize_capture">
-              Authorize & Capture (Recommended)
-            </option>
-            <option value="authorize">Authorize Only</option>
-          </select>
-          <p style={{ fontSize: "12px", color: "#9ca3af", marginTop: "4px" }}>
-            "Authorize Only" holds the payment for manual capture later.
-          </p>
-        </div>
-
-        <Toggle
-          label="Enable Magic Checkout"
-          checked={editSettings.magicCheckout || false}
-          onChange={(v) =>
-            setEditSettings({ ...editSettings, magicCheckout: v })
-          }
-        />
-
-        <Toggle
-          label="Debug Mode (detailed logging)"
-          checked={editSettings.debugMode || false}
-          onChange={(v) =>
-            setEditSettings({ ...editSettings, debugMode: v })
-          }
-        />
-      </div>
-
-      {/* Save */}
+      {/* Save Status & Actions */}
       {saveMsg && (
-        <div
-          style={styles.alert(
-            saveMsg.startsWith("Error") ? "error" : "success"
-          )}
-        >
-          {saveMsg}
-        </div>
+        <Box padding={4} backgroundColor={saveMsg.startsWith("Error") ? "critical1" : "success1"} borderRadius={2}>
+          <Text>
+            {saveMsg}
+          </Text>
+        </Box>
       )}
-      <div style={{ display: "flex", gap: "12px" }}>
-        <button
-          type="button"
-          style={{
-            ...styles.btn("primary"),
-            opacity: saving ? 0.7 : 1,
-          }}
-          onClick={saveSettingsHandler}
-          disabled={saving}
-        >
+      <Box display="flex" gap={4}>
+        <Button variant="primary" onClick={saveSettingsHandler} disabled={saving}>
           {saving ? "💾 Saving..." : "💾 Save Settings"}
-        </button>
-        <button
-          type="button"
-          style={styles.btn("secondary")}
-          onClick={fetchSettings}
-        >
+        </Button>
+        <Button variant="secondary" onClick={fetchSettings}>
           🔄 Reset
-        </button>
-      </div>
-    </>
+        </Button>
+      </Box>
+    </Box>
   );
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -765,312 +419,142 @@ const IndexPage: NextPage = () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   const renderLogs = () => (
-    <>
-      <div style={styles.flexBetween}>
-        <div style={styles.cardTitle}>📋 Transaction History</div>
-        <button
-          type="button"
-          style={styles.btn("secondary")}
+    <Box display="flex" flexDirection="column" gap={4}>
+      <Box display="flex" justifyContent="space-between" alignItems="center">
+        <Text as="h2" size={6} fontWeight="bold">📋 Transaction History</Text>
+        <Button
+          variant="secondary"
           onClick={fetchLogs}
           disabled={logsLoading}
         >
           {logsLoading ? "Loading..." : "🔄 Refresh"}
-        </button>
-      </div>
+        </Button>
+      </Box>
 
       {logs.length === 0 ? (
-        <div
-          style={{
-            ...styles.card,
-            textAlign: "center",
-            padding: "40px",
-            color: "#9ca3af",
-          }}
-        >
-          <p style={{ fontSize: "48px", margin: "0 0 8px" }}>📭</p>
-          <p>No transactions yet</p>
-          <p style={{ fontSize: "13px" }}>
+        <Box padding={10} backgroundColor="default1" borderRadius={4} borderStyle="solid" borderWidth={1} borderColor="default1" textAlign="center">
+          <Text size={10} marginBottom={2}>📭</Text>
+          <Text>No transactions yet</Text>
+          <Text size={2}>
             Transactions will appear here once payments are processed.
-          </p>
-        </div>
+          </Text>
+        </Box>
       ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table style={styles.table}>
+        <Box overflowX="auto">
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr>
-                <th style={styles.th}>Time</th>
-                <th style={styles.th}>Type</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>Amount</th>
-                <th style={styles.th}>Razorpay ID</th>
-                <th style={styles.th}>Mode</th>
-                <th style={styles.th}>Error</th>
+              <tr style={{ borderBottom: "1px solid #eee" }}>
+                <th style={{ textAlign: "left", padding: "12px" }}>Time</th>
+                <th style={{ textAlign: "left", padding: "12px" }}>Type</th>
+                <th style={{ textAlign: "left", padding: "12px" }}>Status</th>
+                <th style={{ textAlign: "left", padding: "12px" }}>Amount</th>
+                <th style={{ textAlign: "left", padding: "12px" }}>Razorpay ID</th>
               </tr>
             </thead>
             <tbody>
               {logs.map((log, i) => (
-                <tr
-                  key={i}
-                  style={{
-                    background: i % 2 === 0 ? "white" : "#f9fafb",
-                  }}
-                >
-                  <td style={styles.td}>
-                    {new Date(log.timestamp).toLocaleString()}
+                <tr key={i} style={{ borderBottom: "1px solid #f9f9f9" }}>
+                  <td style={{ padding: "12px" }}>{new Date(log.timestamp).toLocaleString()}</td>
+                  <td style={{ padding: "12px" }}>
+                    <Box paddingX={2} paddingY={0.5} backgroundColor="info1" borderRadius={2} display="inline-block">
+                      <Text size={1}>{log.type}</Text>
+                    </Box>
                   </td>
-                  <td style={styles.td}>
-                    <span style={styles.badge(log.type)}>{log.type}</span>
+                  <td style={{ padding: "12px" }}>
+                    <Box paddingX={2} paddingY={0.5} backgroundColor={log.status === "success" ? "success1" : "critical1"} borderRadius={2} display="inline-block">
+                      <Text size={1}>{log.status}</Text>
+                    </Box>
                   </td>
-                  <td style={styles.td}>
-                    <span style={styles.badge(log.status)}>
-                      {log.status}
-                    </span>
-                  </td>
-                  <td style={styles.td}>
-                    {log.currency} {log.amount?.toFixed(2)}
-                  </td>
-                  <td
-                    style={{
-                      ...styles.td,
-                      fontFamily: "monospace",
-                      fontSize: "12px",
-                    }}
-                  >
+                  <td style={{ padding: "12px" }}>{log.currency} {log.amount?.toFixed(2)}</td>
+                  <td style={{ padding: "12px", fontFamily: "monospace", fontSize: "12px" }}>
                     {log.razorpayPaymentId || log.razorpayOrderId || "—"}
-                  </td>
-                  <td style={styles.td}>
-                    <span style={styles.badge(log.mode)}>{log.mode}</span>
-                  </td>
-                  <td
-                    style={{
-                      ...styles.td,
-                      color: "#ef4444",
-                      maxWidth: "200px",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {log.error || "—"}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </Box>
       )}
-    </>
+    </Box>
   );
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER: STATUS TAB
-  // ─────────────────────────────────────────────────────────────────────────
 
   const renderStatus = () => (
-    <>
-      {/* Connection Test */}
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>🔌 Connection Test</div>
-        <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "16px" }}>
-          Verify that your Razorpay API keys are correct and the connection is
-          working.
-        </p>
-        <button
-          type="button"
-          style={{
-            ...styles.btn("primary"),
-            opacity: testing ? 0.7 : 1,
-          }}
-          onClick={testConnection}
-          disabled={testing}
-        >
+    <Box display="flex" flexDirection="column" gap={6}>
+      <Box padding={6} backgroundColor="default1" borderRadius={4} borderStyle="solid" borderWidth={1} borderColor="default1">
+        <Text as="h2" size={6} fontWeight="bold" marginBottom={4}>🔌 Connection Test</Text>
+        <Text marginBottom={4}>
+          Verify that your Razorpay API keys are correct and the connection is working.
+        </Text>
+        <Button variant="primary" onClick={testConnection} disabled={testing}>
           {testing ? "⏳ Testing..." : "🔗 Test Connection"}
-        </button>
+        </Button>
 
         {connectionResult && (
-          <div
-            style={{
-              ...styles.alert(connectionResult.success ? "success" : "error"),
-              marginTop: "16px",
-            }}
-          >
-            <strong>{connectionResult.success ? "✅" : "❌"}</strong>{" "}
-            {connectionResult.message}
-            {connectionResult.details && (
-              <div style={{ marginTop: "8px", fontSize: "13px" }}>
-                <div>
-                  Mode:{" "}
-                  <span
-                    style={styles.badge(connectionResult.mode || "test")}
-                  >
-                    {connectionResult.mode}
-                  </span>
-                </div>
-                <div>
-                  Payment Action: {connectionResult.details.paymentAction}
-                </div>
-                <div>
-                  Magic Checkout:{" "}
-                  {connectionResult.details.magicCheckout
-                    ? "Enabled"
-                    : "Disabled"}
-                </div>
-              </div>
-            )}
-          </div>
+          <Box marginTop={4} padding={4} backgroundColor={connectionResult.success ? "success1" : "critical1"} borderRadius={2}>
+            <Text fontWeight="bold">
+              {connectionResult.success ? "✅ Success" : "❌ Error"}
+            </Text>
+            <Text>{connectionResult.message}</Text>
+          </Box>
         )}
-      </div>
+      </Box>
 
-      {/* Webhook Status */}
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>🪝 Registered Webhooks</div>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.th}>Webhook</th>
-              <th style={styles.th}>Path</th>
-              <th style={styles.th}>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              {
-                name: "Transaction Initialize",
-                path: "/api/webhooks/transaction-initialize",
-              },
-              {
-                name: "Transaction Charge",
-                path: "/api/webhooks/transaction-charge-requested",
-              },
-              {
-                name: "Transaction Refund",
-                path: "/api/webhooks/transaction-refund-requested",
-              },
-              {
-                name: "Razorpay Webhook",
-                path: "/api/webhooks/razorpay",
-              },
-            ].map((wh, i) => (
-              <tr key={i}>
-                <td style={styles.td}>{wh.name}</td>
-                <td
-                  style={{
-                    ...styles.td,
-                    fontFamily: "monospace",
-                    fontSize: "12px",
-                  }}
-                >
-                  {wh.path}
-                </td>
-                <td style={styles.td}>
-                  <span style={styles.statusDot(true)} /> Registered
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* App Info */}
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>ℹ️ App Information</div>
-        <div
-          style={{ display: "grid", gap: "8px", fontSize: "13px" }}
-        >
-          <div style={styles.flexBetween}>
-            <span style={{ color: "#6b7280" }}>App ID</span>
-            <code>razorpay.app</code>
-          </div>
-          <div style={styles.flexBetween}>
-            <span style={{ color: "#6b7280" }}>Saleor URL</span>
-            <code>
-              {appBridgeState?.saleorApiUrl || "Not connected"}
-            </code>
-          </div>
-          <div style={styles.flexBetween}>
-            <span style={{ color: "#6b7280" }}>Last Updated</span>
-            <span>
-              {settings?.updatedAt
-                ? new Date(settings.updatedAt).toLocaleString()
-                : "Never"}
-            </span>
-          </div>
-          <div style={styles.flexBetween}>
-            <span style={{ color: "#6b7280" }}>Gateway Mode</span>
-            <span style={styles.badge(settings?.mode || "test")}>
-              {settings?.mode?.toUpperCase() || "TEST"}
-            </span>
-          </div>
-        </div>
-      </div>
-    </>
+      <Box padding={6} backgroundColor="default1" borderRadius={4} borderStyle="solid" borderWidth={1} borderColor="default1">
+        <Text as="h2" size={6} fontWeight="bold" marginBottom={4}>🪝 Active Webhooks</Text>
+        <Box display="flex" flexDirection="column" gap={2}>
+          <Text>The following webhooks are configured in your App Manifest:</Text>
+          <Box paddingX={4} paddingY={2} backgroundColor="info1" borderRadius={2}>
+            <Text size={2}>PAYMENT_GATEWAY_INITIALIZE_SESSION</Text>
+          </Box>
+          <Box paddingX={4} paddingY={2} backgroundColor="info1" borderRadius={2}>
+            <Text size={2}>TRANSACTION_INITIALIZE_SESSION</Text>
+          </Box>
+        </Box>
+      </Box>
+    </Box>
   );
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER: MAIN
-  // ─────────────────────────────────────────────────────────────────────────
-
   return (
-    <div style={styles.container}>
-      {/* Header */}
-      <div style={styles.header}>
-        <div style={styles.logo}>₹</div>
-        <div>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: "20px",
-              color: "#1f2937",
-            }}
-          >
-            Razorpay Payment Gateway
-          </h1>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "13px",
-              color: "#6b7280",
-            }}
-          >
-            Accept payments via Credit Card, Debit Card, UPI, Net Banking & more
-          </p>
-        </div>
-        <div style={{ marginLeft: "auto" }}>
-          <span style={styles.badge(settings?.enabled ? "success" : "failed")}>
-            {settings?.enabled ? "● Active" : "○ Inactive"}
-          </span>
-        </div>
-      </div>
+    <Box padding={8} backgroundColor="default1" style={{ minHeight: "100vh" }}>
+      <Box style={{ maxWidth: "900px" }} marginX="auto">
+        <Box display="flex" alignItems="center" gap={4} marginBottom={8}>
+          <Box width={10} height={10} backgroundColor="accent1" borderRadius={2} display="flex" alignItems="center" justifyContent="center">
+            <Text color="default1" fontWeight="bold">R</Text>
+          </Box>
+          <Box>
+            <Text as="h1" size={8} fontWeight="bold">Razorpay Payment Gateway</Text>
+            <Text size={2}>Accept payments via Credit Card, UPI, Net Banking & more</Text>
+          </Box>
+        </Box>
 
-      {/* Tabs */}
-      <div style={styles.tabs}>
-        <button
-          type="button"
-          style={styles.tab(activeTab === "settings")}
-          onClick={() => setActiveTab("settings")}
-        >
-          ⚙️ Settings
-        </button>
-        <button
-          type="button"
-          style={styles.tab(activeTab === "logs")}
-          onClick={() => setActiveTab("logs")}
-        >
-          📋 Logs
-        </button>
-        <button
-          type="button"
-          style={styles.tab(activeTab === "status")}
-          onClick={() => setActiveTab("status")}
-        >
-          📊 Status
-        </button>
-      </div>
+        <Box display="flex" gap={2} marginBottom={6} backgroundColor="default2" padding={1} borderRadius={4}>
+          <Button
+            variant={activeTab === "settings" ? "primary" : "secondary"}
+            onClick={() => setActiveTab("settings")}
+          >
+            ⚙️ Settings
+          </Button>
+          <Button
+            variant={activeTab === "logs" ? "primary" : "secondary"}
+            onClick={() => setActiveTab("logs")}
+          >
+            📋 Logs
+          </Button>
+          <Button
+            variant={activeTab === "status" ? "primary" : "secondary"}
+            onClick={() => setActiveTab("status")}
+          >
+            🔌 Status
+          </Button>
+        </Box>
 
-      {/* Tab Content */}
-      {activeTab === "settings" && renderSettings()}
-      {activeTab === "logs" && renderLogs()}
-      {activeTab === "status" && renderStatus()}
-    </div>
+        <Box>
+          {activeTab === "settings" && renderSettings()}
+          {activeTab === "logs" && renderLogs()}
+          {activeTab === "status" && renderStatus()}
+        </Box>
+      </Box>
+    </Box>
   );
 };
 
