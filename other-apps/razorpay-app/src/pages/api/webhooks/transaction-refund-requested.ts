@@ -37,10 +37,6 @@ export default transactionRefundRequestedWebhook.createHandler(async (req, res, 
   }
 
   try {
-    if (!docClient) {
-      throw new Error("DynamoDB not configured");
-    }
-
     const { client, settings } = await getRazorpayClient(docClient, saleorApiUrl);
     mode = settings.mode;
 
@@ -53,6 +49,10 @@ export default transactionRefundRequestedWebhook.createHandler(async (req, res, 
       amount: Math.round(amount * 100), // paise
     });
 
+    if (settings.debugMode) {
+      console.log("[Razorpay Refund] Success:", refund.id);
+    }
+
     // 2. Log success
     await logTransaction(docClient, saleorApiUrl, {
       timestamp: new Date().toISOString(),
@@ -63,14 +63,12 @@ export default transactionRefundRequestedWebhook.createHandler(async (req, res, 
       razorpayPaymentId,
       saleorTransactionId: transactionId,
       mode,
-      rawResponse: settings.debugMode
-        ? JSON.stringify(refund)
-        : undefined,
+      rawResponse: JSON.stringify(refund),
     });
 
     // 3. Respond to Saleor
     return res.status(200).json({
-      pspReference: razorpayPaymentId,
+      pspReference: refund.id,
       result: "REFUND_SUCCESS",
       amount,
     });

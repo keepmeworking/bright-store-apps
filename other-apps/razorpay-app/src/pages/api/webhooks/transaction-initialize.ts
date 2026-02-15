@@ -20,6 +20,7 @@ export const transactionInitializeWebhook = new SaleorSyncWebhook<
 });
 
 export default transactionInitializeWebhook.createHandler(async (req, res, ctx) => {
+  console.log("=== [Razorpay Init] Webhook HIT ===");
   const { payload } = ctx;
   const saleorApiUrl = ctx.authData.saleorApiUrl;
 
@@ -31,10 +32,6 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
   let mode: "test" | "live" = "test";
 
   try {
-    if (!docClient) {
-      throw new Error("DynamoDB not configured");
-    }
-
     const { client, settings } = await getRazorpayClient(docClient, saleorApiUrl);
     mode = settings.mode;
 
@@ -42,14 +39,19 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
       throw new Error("Razorpay payment gateway is disabled");
     }
 
-    // Determine capture behavior from settings
-    const paymentCapture = settings.paymentAction === "authorize_capture";
+    // Always capture payment immediately (auto-capture).
+    // Without a TRANSACTION_PROCESS_SESSION webhook, Saleor requires charged
+    // (not just authorized) funds before checkoutComplete will succeed.
+    const paymentCapture = true;
 
     // 1. Create Razorpay Order
+    // Razorpay receipt max length is 40 chars; Saleor IDs are base64 and longer
+    const receipt = (orderId || "").slice(0, 40);
+
     const razorpayOrder = await client.orders.create({
       amount: Math.round(amount * 100), // convert to paise
       currency,
-      receipt: orderId,
+      receipt,
       payment_capture: paymentCapture,
     });
 
@@ -73,16 +75,37 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
     });
 
     // 3. Respond to Saleor with data for the frontend
-    // Include key_id so storefront can open Razorpay modal
-    const keyId = settings.mode === "live" && settings.liveKeyId
-      ? settings.liveKeyId
-      : settings.testKeyId || process.env.RAZORPAY_KEY_ID || "";
+    let keyId = "";
+    if (settings.mode === "live") {
+      if (!settings.liveKeyId) {
+        throw new Error("Razorpay Live Key ID is missing while in Live mode");
+      }
+      keyId = settings.liveKeyId;
+    } else {
+      // Test mode — use test key or fallback to env for local dev
+      keyId = settings.testKeyId || process.env.RAZORPAY_KEY_ID || "";
+    }
+
+    if (!keyId) {
+      throw new Error(`Razorpay Key ID is missing for ${settings.mode} mode`);
+    }
+
+    // Important: Use Number(amount.toFixed(2)) to match Saleor's PositiveDecimal exactly
+    const preciseAmount = Number(amount.toFixed(2));
+
+    // Build Razorpay dashboard URL for this order
+    const externalUrl = `https://dashboard.razorpay.com/app/orders/${razorpayOrder.id}`;
 
     return res.status(200).json({
+      pspReference: razorpayOrder.id,
+      result: "CHARGE_ACTION_REQUIRED",
+      amount: preciseAmount,
+      actions: ["REFUND"],
+      externalUrl,
       data: {
         razorpay_order_id: razorpayOrder.id,
         razorpay_key_id: keyId,
-        amount: Math.round(amount * 100),
+        amount: razorpayOrder.amount, // already in paise from Razorpay
         currency,
         magic_checkout: settings.magicCheckout,
         payment_action: settings.paymentAction,

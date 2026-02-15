@@ -1,7 +1,8 @@
 /**
  * Razorpay Settings Module
  *
- * Manages encrypted API keys and configuration in DynamoDB.
+ * Manages encrypted API keys and configuration.
+ * Supports DynamoDB (production) and file-based (local dev) storage.
  * Supports test/live mode, payment action, and magic checkout settings.
  *
  * Security:
@@ -11,6 +12,8 @@
  */
 
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import Razorpay from "razorpay";
 
@@ -177,6 +180,76 @@ const DEFAULT_SETTINGS: RazorpaySettings = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// FILE-BASED SETTINGS STORAGE (fallback for local dev without DynamoDB)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const SETTINGS_FILE_PATH = path.resolve(process.cwd(), ".data", "razorpay-settings.json");
+
+function getFileSettings(saleorApiUrl: string): RazorpaySettings {
+  try {
+    if (fs.existsSync(SETTINGS_FILE_PATH)) {
+      const data = JSON.parse(fs.readFileSync(SETTINGS_FILE_PATH, "utf-8"));
+      const item = data[saleorApiUrl];
+      if (item) {
+        return {
+          ...DEFAULT_SETTINGS,
+          ...item,
+          // Decrypt stored encrypted fields
+          testKeyId: item.testKeyId ? decrypt(item.testKeyId) : "",
+          testKeySecret: item.testKeySecret ? decrypt(item.testKeySecret) : "",
+          testWebhookSecret: item.testWebhookSecret ? decrypt(item.testWebhookSecret) : "",
+          liveKeyId: item.liveKeyId ? decrypt(item.liveKeyId) : "",
+          liveKeySecret: item.liveKeySecret ? decrypt(item.liveKeySecret) : "",
+          liveWebhookSecret: item.liveWebhookSecret ? decrypt(item.liveWebhookSecret) : "",
+        };
+      }
+    }
+  } catch (error) {
+    console.warn("Failed to read file-based settings:", error);
+  }
+
+  // Return defaults merged with env vars for local dev
+  return {
+    ...DEFAULT_SETTINGS,
+    enabled: true,
+    mode: "test",
+    testKeyId: process.env.RAZORPAY_KEY_ID || "",
+    testKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
+    testWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
+  };
+}
+
+function saveFileSettings(saleorApiUrl: string, settings: RazorpaySettings): void {
+  try {
+    const dir = path.dirname(SETTINGS_FILE_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    let data: Record<string, unknown> = {};
+    if (fs.existsSync(SETTINGS_FILE_PATH)) {
+      data = JSON.parse(fs.readFileSync(SETTINGS_FILE_PATH, "utf-8"));
+    }
+
+    // Encrypt sensitive fields before storing
+    data[saleorApiUrl] = {
+      ...settings,
+      testKeyId: settings.testKeyId ? encrypt(settings.testKeyId) : "",
+      testKeySecret: settings.testKeySecret ? encrypt(settings.testKeySecret) : "",
+      testWebhookSecret: settings.testWebhookSecret ? encrypt(settings.testWebhookSecret) : "",
+      liveKeyId: settings.liveKeyId ? encrypt(settings.liveKeyId) : "",
+      liveKeySecret: settings.liveKeySecret ? encrypt(settings.liveKeySecret) : "",
+      liveWebhookSecret: settings.liveWebhookSecret ? encrypt(settings.liveWebhookSecret) : "",
+    };
+
+    fs.writeFileSync(SETTINGS_FILE_PATH, JSON.stringify(data, null, 2), "utf-8");
+  } catch (error) {
+    console.error("Failed to save file-based settings:", error);
+    throw error;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // DYNAMODB OPERATIONS
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -189,12 +262,17 @@ function getPK(saleorApiUrl: string): string {
 const SK = "SETTINGS";
 
 /**
- * Get settings from DynamoDB
+ * Get settings — uses DynamoDB if available, falls back to file-based storage
  */
 export async function getSettings(
-  docClient: DynamoDBDocumentClient,
+  docClient: DynamoDBDocumentClient | null,
   saleorApiUrl: string
 ): Promise<RazorpaySettings> {
+  // Fallback to file-based storage when DynamoDB is not configured
+  if (!docClient) {
+    return getFileSettings(saleorApiUrl);
+  }
+
   try {
     const result = await docClient.send(
       new GetCommand({
@@ -236,7 +314,7 @@ export async function getSettings(
  * Save settings to DynamoDB (encrypts sensitive fields)
  */
 export async function saveSettings(
-  docClient: DynamoDBDocumentClient,
+  docClient: DynamoDBDocumentClient | null,
   saleorApiUrl: string,
   settings: Partial<RazorpaySettings>
 ): Promise<RazorpaySettings> {
@@ -248,6 +326,12 @@ export async function saveSettings(
     ...settings,
     updatedAt: new Date().toISOString(),
   };
+
+  // Fallback to file-based storage when DynamoDB is not configured
+  if (!docClient) {
+    saveFileSettings(saleorApiUrl, merged);
+    return merged;
+  }
 
   // Encrypt sensitive fields before storing
   const itemToStore = {
@@ -314,7 +398,7 @@ export function maskSettings(settings: RazorpaySettings): MaskedRazorpaySettings
  * Falls back to env vars if no settings are stored in DynamoDB.
  */
 export async function getRazorpayClient(
-  docClient: DynamoDBDocumentClient,
+  docClient: DynamoDBDocumentClient | null,
   saleorApiUrl: string
 ): Promise<{ client: Razorpay; settings: RazorpaySettings }> {
   const settings = await getSettings(docClient, saleorApiUrl);
@@ -353,7 +437,7 @@ export async function getRazorpayClient(
  * Get the webhook secret for the current mode
  */
 export async function getWebhookSecret(
-  docClient: DynamoDBDocumentClient,
+  docClient: DynamoDBDocumentClient | null,
   saleorApiUrl: string
 ): Promise<string> {
   const settings = await getSettings(docClient, saleorApiUrl);

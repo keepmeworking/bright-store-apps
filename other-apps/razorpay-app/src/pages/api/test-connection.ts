@@ -11,6 +11,8 @@ import { saleorApp } from "@/saleor-app";
 import { getRazorpayClient } from "@/modules/razorpay-settings";
 import { getDocClient } from "@/modules/dynamodb-helpers";
 
+import Razorpay from "razorpay";
+
 async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -22,16 +24,25 @@ async function handler(
 
   const saleorApiUrl = ctx.authData.saleorApiUrl;
   const docClient = getDocClient();
-
-  if (!docClient) {
-    return res.status(500).json({
-      success: false,
-      error: "DynamoDB not configured",
-    });
-  }
+  const { keyId, keySecret } = req.body || {};
 
   try {
-    const { client, settings } = await getRazorpayClient(docClient, saleorApiUrl);
+    let client;
+    let mode;
+
+    if (keyId && keySecret) {
+      // Use provided keys for testing
+      client = new Razorpay({
+        key_id: keyId,
+        key_secret: keySecret,
+      });
+      mode = keyId.startsWith("rzp_test") ? "test" : "live";
+    } else {
+      // Fallback to saved settings
+      const result = await getRazorpayClient(docClient, saleorApiUrl);
+      client = result.client;
+      mode = result.settings.mode;
+    }
 
     // Test the connection by fetching a small list of payments
     // This validates the API keys are correct
@@ -41,23 +52,29 @@ async function handler(
 
     return res.status(200).json({
       success: true,
-      mode: settings.mode,
-      message: `Successfully connected to Razorpay (${settings.mode} mode)`,
+      mode: mode,
+      message: `Successfully connected to Razorpay (${mode} mode)`,
       details: {
         totalPayments: payments.count ?? 0,
-        enabled: settings.enabled,
-        paymentAction: settings.paymentAction,
-        magicCheckout: settings.magicCheckout,
+        // actions: keyId ? undefined : settings.paymentAction, 
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     const message = error instanceof Error ? error.message : "Unknown error";
+    // Check for specific Razorpay auth errors
+    if (error.statusCode === 401) {
+       return res.status(200).json({
+        success: false,
+        message: "Authentication failed. Please check your Key ID and Secret.",
+      });
+    }
+
     console.error("Razorpay connection test failed:", error);
 
     return res.status(200).json({
       success: false,
       error: message,
-      message: "Failed to connect to Razorpay. Please check your API keys.",
+      message: error.description || message || "Failed to connect to Razorpay.",
     });
   }
 }

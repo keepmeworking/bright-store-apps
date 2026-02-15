@@ -24,11 +24,6 @@ async function handler(
   const saleorApiUrl = ctx.authData.saleorApiUrl;
   const docClient = getDocClient();
 
-  if (!docClient) {
-    return res.status(500).json({
-      error: "DynamoDB not configured. Please set DynamoDB environment variables.",
-    });
-  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // GET — Return masked settings

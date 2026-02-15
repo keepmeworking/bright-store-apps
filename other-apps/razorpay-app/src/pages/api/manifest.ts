@@ -2,6 +2,7 @@ import { createManifestHandler } from "@saleor/app-sdk/handlers/next";
 import { AppManifest } from "@saleor/app-sdk/types";
 import packageJson from "@/package.json";
 import { transactionInitializeWebhook } from "./webhooks/transaction-initialize";
+import { transactionProcessSessionWebhook } from "./webhooks/transaction-process-session";
 import { paymentGatewayInitializeSessionWebhook } from "./webhooks/payment-gateway-initialize-session";
 import { transactionChargeRequestedWebhook } from "./webhooks/transaction-charge-requested";
 import { transactionRefundRequestedWebhook } from "./webhooks/transaction-refund-requested";
@@ -13,11 +14,13 @@ export default createManifestHandler({
     const apiBaseURL = env.APP_API_BASE_URL ?? appBaseUrl;
     const iframeBaseUrl = env.APP_IFRAME_BASE_URL ?? appBaseUrl;
 
+    const normalizedApiBaseURL = apiBaseURL.replace(/\/$/, "");
+
     const manifest: AppManifest = {
       id: "razorpay.app",
       version: packageJson.version,
-      name: "Razorpay (Daikcell)",
-      tokenTargetUrl: `${apiBaseURL}/api/register`,
+      name: "Razorpay",
+      tokenTargetUrl: `${normalizedApiBaseURL}/api/register`,
       appUrl: iframeBaseUrl,
       permissions: [
         "MANAGE_ORDERS",
@@ -25,16 +28,17 @@ export default createManifestHandler({
         "MANAGE_CHECKOUTS",
       ],
       webhooks: [
-        transactionInitializeWebhook.getWebhookManifest(apiBaseURL),
-        transactionChargeRequestedWebhook.getWebhookManifest(apiBaseURL),
-        transactionRefundRequestedWebhook.getWebhookManifest(apiBaseURL),
+        transactionInitializeWebhook.getWebhookManifest(normalizedApiBaseURL),
+        transactionProcessSessionWebhook.getWebhookManifest(normalizedApiBaseURL),
+        transactionChargeRequestedWebhook.getWebhookManifest(normalizedApiBaseURL),
+        transactionRefundRequestedWebhook.getWebhookManifest(normalizedApiBaseURL),
         // Modern Session Webhooks (Saleor 3.x)
-        paymentGatewayInitializeSessionWebhook.getWebhookManifest(apiBaseURL),
+        paymentGatewayInitializeSessionWebhook.getWebhookManifest(normalizedApiBaseURL),
       ],
-      author: "Antigravity",
+      author: "Brightcode Canvas",
       brand: {
         logo: {
-          default: `${apiBaseURL}/logo.png`,
+          default: `${normalizedApiBaseURL}/razorpay.png`,
         },
       },
     };

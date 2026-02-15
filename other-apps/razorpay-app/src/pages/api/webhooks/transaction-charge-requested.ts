@@ -37,10 +37,6 @@ export default transactionChargeRequestedWebhook.createHandler(async (req, res, 
   }
 
   try {
-    if (!docClient) {
-      throw new Error("DynamoDB not configured");
-    }
-
     const { client, settings } = await getRazorpayClient(docClient, saleorApiUrl);
     mode = settings.mode;
 

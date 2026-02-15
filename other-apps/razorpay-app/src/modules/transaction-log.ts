@@ -5,13 +5,16 @@
  * Captures all Razorpay operations: initialize, charge, refund, webhook.
  */
 
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
 import { DynamoDBDocumentClient, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export type TransactionType = "initialize" | "charge" | "refund" | "webhook";
+export type TransactionType = "initialize" | "process" | "charge" | "refund" | "webhook";
 export type TransactionStatus = "success" | "failed" | "pending";
 
 export interface TransactionLogEntry {
@@ -53,9 +56,53 @@ export interface TransactionLogEntry {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const TABLE_NAME = process.env.DYNAMODB_MAIN_TABLE_NAME || "razorpay-settings";
+const LOGS_FILE_PATH = path.resolve(process.cwd(), ".data", "transaction-logs.json");
 
 function getPK(saleorApiUrl: string): string {
   return `RAZORPAY_LOG#${saleorApiUrl}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FILE-BASED LOGGING (Local Dev Fallback)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function logToFile(saleorApiUrl: string, entry: TransactionLogEntry): Promise<void> {
+  try {
+    const dir = path.dirname(LOGS_FILE_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    let logs: Record<string, TransactionLogEntry[]> = {};
+    if (fs.existsSync(LOGS_FILE_PATH)) {
+      logs = JSON.parse(fs.readFileSync(LOGS_FILE_PATH, "utf-8"));
+    }
+
+    if (!logs[saleorApiUrl]) {
+      logs[saleorApiUrl] = [];
+    }
+
+    logs[saleorApiUrl].unshift(entry); // Newest first
+    
+    // Keep only last 100 logs per store in file
+    logs[saleorApiUrl] = logs[saleorApiUrl].slice(0, 100);
+
+    fs.writeFileSync(LOGS_FILE_PATH, JSON.stringify(logs, null, 2), "utf-8");
+  } catch (error) {
+    console.error("Failed to log to file:", error);
+  }
+}
+
+function getLogsFromFile(saleorApiUrl: string): TransactionLogEntry[] {
+  try {
+    if (fs.existsSync(LOGS_FILE_PATH)) {
+      const logs = JSON.parse(fs.readFileSync(LOGS_FILE_PATH, "utf-8"));
+      return logs[saleorApiUrl] || [];
+    }
+  } catch (error) {
+    console.warn("Failed to read logs from file:", error);
+  }
+  return [];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -66,10 +113,16 @@ function getPK(saleorApiUrl: string): string {
  * Log a transaction event to DynamoDB
  */
 export async function logTransaction(
-  docClient: DynamoDBDocumentClient,
+  docClient: DynamoDBDocumentClient | null,
   saleorApiUrl: string,
   entry: TransactionLogEntry
 ): Promise<void> {
+  if (!docClient) {
+    console.log(`[Transaction Log] ${entry.type} | ${entry.status} | ${entry.amount} ${entry.currency}`);
+    await logToFile(saleorApiUrl, entry);
+    return;
+  }
+
   try {
     // SK = timestamp for natural ordering (latest first with reverse sort)
     const sk = `${entry.timestamp}#${entry.type}#${crypto.randomUUID().slice(0, 8)}`;
@@ -96,7 +149,7 @@ export async function logTransaction(
  * Get paginated transaction logs
  */
 export async function getTransactionLogs(
-  docClient: DynamoDBDocumentClient,
+  docClient: DynamoDBDocumentClient | null,
   saleorApiUrl: string,
   options: {
     limit?: number;
@@ -109,6 +162,14 @@ export async function getTransactionLogs(
   count: number;
 }> {
   const { limit = 25, startKey } = options;
+  
+  if (!docClient) {
+    let logs = getLogsFromFile(saleorApiUrl);
+    if (options.type) {
+      logs = logs.filter((l) => l.type === options.type);
+    }
+    return { logs: logs.slice(0, limit), count: logs.length };
+  }
 
   try {
     const result = await docClient.send(

@@ -1,30 +1,25 @@
 {
   "name": "saleor-app-payment-razorpay",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "license": "(BSD-3-Clause AND CC-BY-4.0)",
   "type": "module",
   "scripts": {
-    "dev": "NODE_OPTIONS='--inspect' next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "fetch-schema": "curl https://raw.githubusercontent.com/saleor/saleor/${npm_package_config_saleor_schemaVersion}/saleor/graphql/schema.graphql > graphql/schema.graphql",
-    "test": "vitest",
     "check-types": "tsc --noEmit",
+    "dev": "NODE_OPTIONS='--inspect' next dev",
+    "fetch-schema": "curl https://raw.githubusercontent.com/saleor/saleor/${npm_package_config_saleor_schemaVersion}/saleor/graphql/schema.graphql > graphql/schema.graphql",
     "generate": "pnpm run /generate:.*/",
     "generate:app-graphql-types": "graphql-codegen",
-    "generate:app-webhooks-types": "tsx ./scripts/generate-app-webhooks-types.ts"
+    "generate:app-webhooks-types": "tsx ./scripts/generate-app-webhooks-types.ts",
+    "lint": "next lint",
+    "start": "next start",
+    "test": "vitest"
   },
   "config": {
     "saleor": {
       "schemaVersion": "3.22"
     }
-  },
-  "engines": {
-    "npm": ">=10.0.0 <11.0.0",
-    "node": ">=22.0.0 <23.0.0",
-    "pnpm": ">=10.0.0 <11.0.0"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.989.0",
@@ -67,5 +62,10 @@
     "vite": "5.2.10",
     "vite-tsconfig-paths": "5.1.4",
     "vitest": "1.5.2"
+  },
+  "engines": {
+    "node": ">=22.0.0 <23.0.0",
+    "npm": ">=10.0.0 <11.0.0",
+    "pnpm": ">=10.0.0 <11.0.0"
   }
 }

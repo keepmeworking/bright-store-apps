@@ -23,8 +23,11 @@ async function handler(
   const docClient = getDocClient();
 
   if (!docClient) {
-    return res.status(500).json({
-      error: "DynamoDB not configured",
+    return res.status(200).json({
+      logs: [],
+      count: 0,
+      nextCursor: null,
+      message: "Transaction logs require DynamoDB. Using file-based storage for settings.",
     });
   }
 

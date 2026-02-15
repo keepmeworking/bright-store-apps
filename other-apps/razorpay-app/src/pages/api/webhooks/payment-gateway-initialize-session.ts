@@ -22,14 +22,13 @@ export default paymentGatewayInitializeSessionWebhook.createHandler(async (req, 
   const docClient = getDocClient();
 
   try {
-    if (!docClient) {
-      throw new Error("DynamoDB not configured");
-    }
-
     const settings = await getSettings(docClient, saleorApiUrl);
 
     if (!settings.enabled) {
-      return res.status(200).json(null); // Gateway disabled
+      // Returning null or empty data often causes Saleor to hide the gateway
+      // but to be safe, we can return null as initially intended. 
+      // If the user says it's still showing, maybe Saleor needs an empty data object.
+      return res.status(200).json(null);
     }
 
     const keyId = settings.mode === "live" && settings.liveKeyId
@@ -39,6 +38,8 @@ export default paymentGatewayInitializeSessionWebhook.createHandler(async (req, 
     return res.status(200).json({
       data: {
         razorpay_key_id: keyId,
+        mode: settings.mode,
+        is_key_missing: !keyId,
       },
     });
   } catch (error) {

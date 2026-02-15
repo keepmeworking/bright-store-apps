@@ -1,0 +1,21 @@
+fragment TransactionProcessSessionEvent on TransactionProcessSession {
+  ...EventMetadata
+  action {
+    amount
+    currency
+    actionType
+  }
+  data
+  transaction {
+    id
+  }
+  sourceObject {
+    ...SourceObject
+  }
+}
+
+subscription TransactionProcessSession {
+  event {
+    ...TransactionProcessSessionEvent
+  }
+}

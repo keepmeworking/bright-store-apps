@@ -48,3 +48,6 @@ yarn-error.log*
 .sentryclirc
 
 .env
+razorpay-dev.log
+razorpay-tunnel.log
+.data/
