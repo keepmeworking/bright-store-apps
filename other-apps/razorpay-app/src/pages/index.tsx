@@ -145,6 +145,23 @@ const IndexPage: NextPage = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
 
+  const generateWebhookSecret = () => {
+    if (typeof window !== "undefined") {
+      const array = new Uint8Array(20);
+      window.crypto.getRandomValues(array);
+      return Array.from(array, (dec) => dec.toString(16).padStart(2, "0")).join("");
+    }
+    return "";
+  };
+
+  const copyToClipboard = (text: string) => {
+    if (typeof navigator !== "undefined") {
+      navigator.clipboard.writeText(text);
+      setSaveMsg("Copied to clipboard");
+      setTimeout(() => setSaveMsg(""), 3000);
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -186,6 +203,21 @@ const IndexPage: NextPage = () => {
         magicCheckout: editSettings.magicCheckout,
         debugMode: editSettings.debugMode,
       };
+
+      // Validation
+      const testKeyIdToCheck = newKeys.testKeyId || settings?.testKeyId || "";
+      if (testKeyIdToCheck && !testKeyIdToCheck.startsWith("rzp_test_")) {
+        setSaveMsg("Error: Test Key ID must start with 'rzp_test_'");
+        setSaving(false);
+        return;
+      }
+
+      const liveKeyIdToCheck = newKeys.liveKeyId || settings?.liveKeyId || "";
+      if (liveKeyIdToCheck && !liveKeyIdToCheck.startsWith("rzp_live_")) {
+        setSaveMsg("Error: Live Key ID must start with 'rzp_live_'");
+        setSaving(false);
+        return;
+      }
 
       // Add keys ONLY if user typed something NEW
       if (newKeys.testKeyId) body.testKeyId = newKeys.testKeyId;
@@ -242,6 +274,30 @@ const IndexPage: NextPage = () => {
   };
 
   const testConnection = async (credentials?: { keyId: string, keySecret: string }) => {
+    // Validate prefixes before sending request
+    if (credentials?.keyId) {
+      const isTestKey = credentials.keyId.startsWith("rzp_test_");
+      const isLiveKey = credentials.keyId.startsWith("rzp_live_");
+
+      if (editModes.test && !isTestKey) {
+        setConnectionResult({
+            success: false,
+            message: "Invalid Key Format",
+            error: "Test Mode requires a key starting with 'rzp_test_'",
+        });
+        return;
+      }
+
+      if (editModes.live && !isLiveKey) {
+        setConnectionResult({
+            success: false,
+            message: "Invalid Key Format",
+            error: "Live Mode requires a key starting with 'rzp_live_'",
+        });
+        return;
+      }
+    }
+
     setTesting(true);
     setConnectionResult(null);
     try {
@@ -387,13 +443,25 @@ const IndexPage: NextPage = () => {
           </Box>
           <Box>
             <Text marginBottom={2} size={2} fontWeight="bold" color="default1">Webhook Secret</Text>
-            <Input
-              type="password"
-              disabled={!editModes.test}
-              placeholder="Enter test webhook secret"
-              value={editModes.test ? newKeys.testWebhookSecret : (settings?.testWebhookSecret ? "••••••••••••" : "")}
-              onChange={(e) => setNewKeys({ ...newKeys, testWebhookSecret: e.target.value })}
-            />
+            <Box display="flex" gap={2}>
+              <Input
+                type="password"
+                disabled={!editModes.test}
+                placeholder="Enter test webhook secret"
+                value={editModes.test ? newKeys.testWebhookSecret : (settings?.testWebhookSecret ? "••••••••••••" : "")}
+                onChange={(e) => setNewKeys({ ...newKeys, testWebhookSecret: e.target.value })}
+              />
+              {editModes.test && (
+                <>
+                  <Button variant="secondary" onClick={() => setNewKeys({ ...newKeys, testWebhookSecret: generateWebhookSecret() })}>
+                    Generate
+                  </Button>
+                  <Button variant="secondary" onClick={() => copyToClipboard(newKeys.testWebhookSecret)}>
+                    Copy
+                  </Button>
+                </>
+              )}
+            </Box>
           </Box>
           {editModes.test && connectionResult && (
              <Box marginTop={2} padding={4} backgroundColor={connectionResult.success ? "default1" : "critical1"} borderRadius={2} style={{ border: connectionResult.success ? "1px solid #16a34a" : "1px solid #dc2626" }}>
@@ -450,13 +518,25 @@ const IndexPage: NextPage = () => {
           </Box>
           <Box>
             <Text marginBottom={2} size={2} fontWeight="bold" color="default1">Webhook Secret</Text>
-            <Input
-              type="password"
-              disabled={!editModes.live}
-              placeholder="Enter live webhook secret"
-              value={editModes.live ? newKeys.liveWebhookSecret : (settings?.liveWebhookSecret ? "••••••••••••" : "")}
-              onChange={(e) => setNewKeys({ ...newKeys, liveWebhookSecret: e.target.value })}
-            />
+            <Box display="flex" gap={2}>
+              <Input
+                type="password"
+                disabled={!editModes.live}
+                placeholder="Enter live webhook secret"
+                value={editModes.live ? newKeys.liveWebhookSecret : (settings?.liveWebhookSecret ? "••••••••••••" : "")}
+                onChange={(e) => setNewKeys({ ...newKeys, liveWebhookSecret: e.target.value })}
+              />
+              {editModes.live && (
+                <>
+                  <Button variant="secondary" onClick={() => setNewKeys({ ...newKeys, liveWebhookSecret: generateWebhookSecret() })}>
+                    Generate
+                  </Button>
+                  <Button variant="secondary" onClick={() => copyToClipboard(newKeys.liveWebhookSecret)}>
+                    Copy
+                  </Button>
+                </>
+              )}
+            </Box>
           </Box>
           {editModes.live && connectionResult && (
              <Box marginTop={2} padding={4} backgroundColor={connectionResult.success ? "default1" : "critical1"} borderRadius={2} style={{ border: connectionResult.success ? "1px solid #16a34a" : "1px solid #dc2626" }}>
