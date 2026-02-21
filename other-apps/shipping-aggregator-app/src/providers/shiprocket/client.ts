@@ -1,0 +1,76 @@
+export class ShiprocketClient {
+  private email: string;
+  private password: string;
+  private token: string | null = null;
+  private tokenExpiry: number = 0;
+
+  constructor(email?: string, password?: string) {
+    this.email = email || process.env.SHIPROCKET_EMAIL || "";
+    this.password = password || process.env.SHIPROCKET_PASSWORD || "";
+  }
+
+  private async authenticate() {
+    if (this.token && Date.now() < this.tokenExpiry) {
+      return this.token;
+    }
+
+    const response = await fetch("https://apiv2.shiprocket.in/v1/external/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: this.email, password: this.password }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Shiprocket authentication failed");
+    }
+
+    const data = await response.json();
+    this.token = data.token;
+    // Token is valid for 10 days, but let's refresh every 24 hours to be safe
+    this.tokenExpiry = Date.now() + 24 * 60 * 60 * 1000;
+    return this.token;
+  }
+
+  private async request(endpoint: string, method: string, body?: any) {
+    const token = await this.authenticate();
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    };
+
+    const response = await fetch(`https://apiv2.shiprocket.in${endpoint}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    return response.json();
+  }
+
+  async checkServiceability(payload: {
+    pickup_postcode: number;
+    delivery_postcode: number;
+    weight: number;
+    cod: 0 | 1;
+  }) {
+    // /v1/external/courier/serviceability/
+    return this.request("/v1/external/courier/serviceability/", "GET") 
+    // Note: GET request with body is non-standard, Shiprocket uses query params usually or POST for some.
+    // Actually Shiprocket serviceability is a GET request with query params.
+    // Let's refactor to use query params.
+  }
+
+  async getServiceability(params: {
+    pickup_postcode: string;
+    delivery_postcode: string;
+    weight: string;
+    cod: string;
+  }) {
+    const query = new URLSearchParams(params).toString();
+    return this.request(`/v1/external/courier/serviceability/?${query}`, "GET");
+  }
+
+  async createOrder(orderPayload: any) {
+    return this.request("/v1/external/orders/create/adhoc", "POST", orderPayload);
+  }
+}

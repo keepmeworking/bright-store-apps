@@ -1,0 +1,209 @@
+fragment PageFragment on Page {
+  id
+  title
+  slug
+  isPublished
+  pageType {
+    id
+    name
+    slug
+  }
+  attributes {
+    attribute {
+      id
+      slug
+      name
+      inputType
+    }
+    values {
+      id
+      name
+      slug
+      value
+      reference
+      file {
+        url
+        contentType
+      }
+      richText
+    }
+  }
+}
+
+query GetWidgetPageTypes {
+  pageTypes(filter: { search: "Widget" }, first: 20) {
+    edges {
+      node {
+        id
+        name
+        slug
+        attributes {
+          id
+          name
+          slug
+          inputType
+        }
+      }
+    }
+  }
+}
+
+query GetReviewPageType {
+  pageTypes(filter: { slugs: ["magiccms-review"] }, first: 1) {
+    edges {
+      node {
+        id
+        name
+        slug
+        attributes {
+          id
+          name
+          slug
+          inputType
+        }
+      }
+    }
+  }
+}
+
+query GetVideoPageType {
+  pageTypes(filter: { slugs: ["magiccms-shoppable-video"] }, first: 1) {
+    edges {
+      node {
+        id
+        name
+        slug
+        attributes {
+          id
+          name
+          slug
+          inputType
+        }
+      }
+    }
+  }
+}
+
+query GetWidgets($pageTypeIds: [ID!], $first: Int!, $after: String, $search: String) {
+  pages(
+    filter: { pageTypes: $pageTypeIds, search: $search }
+    first: $first
+    after: $after
+    sortBy: { field: CREATED_AT, direction: DESC }
+  ) {
+    totalCount
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+    edges {
+      cursor
+      node {
+        ...PageFragment
+      }
+    }
+  }
+}
+
+query GetWidget($id: ID!) {
+  page(id: $id) {
+    ...PageFragment
+    content
+  }
+}
+
+query GetProductsByHandles($slugs: [String!], $first: Int!) {
+  products(filter: { slugs: $slugs }, first: $first) {
+    edges {
+      node {
+        id
+        slug
+        name
+      }
+    }
+  }
+}
+
+query GetPublishedProducts($first: Int!, $after: String, $search: String) {
+  products(
+    filter: { isPublished: true }
+    search: $search
+    first: $first
+    after: $after
+    sortBy: { field: NAME, direction: ASC }
+  ) {
+    totalCount
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+    edges {
+      cursor
+      node {
+        id
+        name
+        slug
+        thumbnail(size: 128) {
+          url
+        }
+      }
+    }
+  }
+}
+
+query GetProductsByIds($ids: [ID!], $first: Int!) {
+  products(filter: { ids: $ids }, first: $first) {
+    edges {
+      node {
+        id
+        name
+        slug
+        thumbnail(size: 128) {
+          url
+        }
+      }
+    }
+  }
+}
+
+mutation CreateWidget($input: PageCreateInput!) {
+  pageCreate(input: $input) {
+    page {
+      ...PageFragment
+    }
+    errors {
+      field
+      message
+      code
+    }
+  }
+}
+
+mutation UpdateWidget($id: ID!, $input: PageInput!) {
+  pageUpdate(id: $id, input: $input) {
+    page {
+      ...PageFragment
+    }
+    errors {
+      field
+      message
+      code
+    }
+  }
+}
+
+mutation DeleteWidget($id: ID!) {
+  pageDelete(id: $id) {
+    page {
+      id
+    }
+    errors {
+      field
+      message
+    }
+  }
+}

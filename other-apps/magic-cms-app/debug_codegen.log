@@ -1,0 +1,24 @@
+
+> saleor-app-magic-cms@1.0.0 generate /home/friday/project/agency-engine/bright-apps/other-apps/magic-cms-app
+> graphql-codegen
+
+[STARTED] Parse Configuration
+[SUCCESS] Parse Configuration
+[STARTED] Generate outputs
+[STARTED] Generate to ./generated/graphql.ts
+[STARTED] Load GraphQL schemas
+[SUCCESS] Load GraphQL schemas
+[STARTED] Load GraphQL documents
+[SUCCESS] Load GraphQL documents
+[STARTED] Generate
+[FAILED] GraphQL Document Validation failed with 3 errors;
+[FAILED]   Error 0: Unknown argument "slug" on field "Query.pageType".
+[FAILED]     at /home/friday/project/agency-engine/bright-apps/other-apps/magic-cms-app/graphql/queries.graphql:10:12
+[FAILED] 
+[FAILED] Error 1: Cannot query field "kind" on type "PageType". Did you mean "id"?
+[FAILED]     at /home/friday/project/agency-engine/bright-apps/other-apps/magic-cms-app/graphql/queries.graphql:13:5
+[FAILED] 
+[FAILED] Error 2: Field "pageType" argument "id" of type "ID!" is required, but it was not provided.
+[FAILED]     at /home/friday/project/agency-engine/bright-apps/other-apps/magic-cms-app/graphql/queries.graphql:10:3
+[SUCCESS] Generate outputs
+ ELIFECYCLE  Command failed with exit code 1.

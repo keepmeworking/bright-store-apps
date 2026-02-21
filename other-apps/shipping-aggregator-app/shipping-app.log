@@ -1,0 +1,19 @@
+  ▲ Next.js 15.0.0
+  - Local:        http://localhost:3001
+  - Environments: .env
+
+ ✓ Starting...
+ ✓ Ready in 3.5s
+ ○ Compiling /api/manifest ...
+ ✓ Compiled /api/manifest in 985ms (133 modules)
+ GET /api/manifest 200 in 1314ms
+ GET /api/manifest 200 in 8ms
+ GET /api/manifest 200 in 5ms
+ ✓ Compiled /api/register in 231ms (144 modules)
+ POST /api/register 200 in 1502ms
+ ○ Compiling / ...
+ ✓ Compiled / in 928ms (516 modules)
+ GET /?domain=api.daikcell.preview.brightcodecanvas.in&saleorApiUrl=https%3A%2F%2Fapi.daikcell.preview.brightcodecanvas.in%2Fgraphql%2F&id=QXBwOjEyMw%3D%3D&featureFlags%5Bnew_order_ui%5D%5Benabled%5D=false&featureFlags%5Bnew_order_ui%5D%5Bpayload%5D=default&theme=light 200 in 1124ms
+ ✓ Compiled /api/settings in 99ms (149 modules)
+ GET /api/settings 200 in 293ms
+ GET /api/settings 304 in 41ms

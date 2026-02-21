@@ -717,22 +717,6 @@ const IndexPage: NextPage = () => {
   return (
     <Box padding={8} backgroundColor="default1" style={{ minHeight: "100vh" }}>
       <div style={{ margin: "0 auto" }}>
-        
-        {/* Header */}
-        <Box display="flex" alignItems="center" justifyContent="space-between" marginBottom={10}>
-          <Box display="flex" alignItems="center" gap={4}>
-            <img 
-               src="/razorpay.png" 
-               alt="Razorpay" 
-               style={{ height: "42px", width: "auto", objectFit: "contain" }} 
-            />
-            <Box>
-              <Text as="h1" size={9} fontWeight="bold">Razorpay</Text>
-              <Text color="default2" size={3}>by Brightcode Canvas</Text>
-            </Box>
-          </Box>
-        </Box>
-
         {/* Navigation Tabs */}
         <Box 
           display="flex" 

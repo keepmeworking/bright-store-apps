@@ -38,7 +38,7 @@ export default createManifestHandler({
       author: "Brightcode Canvas",
       brand: {
         logo: {
-          default: `${normalizedApiBaseURL}/razorpay.png`,
+          default: `${normalizedApiBaseURL}/logo.png`,
         },
       },
     };

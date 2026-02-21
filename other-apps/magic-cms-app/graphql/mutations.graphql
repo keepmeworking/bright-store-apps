@@ -1,0 +1,44 @@
+mutation AttributeCreate($input: AttributeCreateInput!) {
+  attributeCreate(input: $input) {
+    attribute {
+      id
+      slug
+    }
+    errors {
+      field
+      message
+      code
+    }
+  }
+}
+
+mutation PageTypeCreate($input: PageTypeCreateInput!) {
+  pageTypeCreate(input: $input) {
+    pageType {
+      id
+      slug
+    }
+    errors {
+      field
+      message
+      code
+    }
+  }
+}
+
+mutation PageTypeUpdate($id: ID!, $input: PageTypeUpdateInput!) {
+  pageTypeUpdate(id: $id, input: $input) {
+    pageType {
+      id
+      slug
+      attributes {
+        id
+        slug
+      }
+    }
+    errors {
+      field
+      message
+    }
+  }
+}

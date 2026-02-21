@@ -1,0 +1,238 @@
+query GetDashboardAnalytics($createdAfter: Date, $createdBefore: Date, $channels: [ID!]) {
+  orders(filter: { created: { gte: $createdAfter, lte: $createdBefore }, channels: $channels }, first: 100) {
+    totalCount
+    edges {
+      node {
+        id
+        created
+        total {
+          gross {
+            amount
+            currency
+          }
+        }
+        lines {
+          id
+          productName
+          productVariantId
+          quantity
+          variant {
+            id
+            product {
+              id
+              name
+              slug
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# Note: Checkouts query might be restricted or return only own checkouts depending on permission/app type.
+# We will try to fetch somecheckout data if possible, or fallback.
+# Usually 'checkouts' query exists.
+query GetCheckoutsStats(
+  $createdAfter: Date
+  $createdBefore: Date
+  $channels: [ID!]
+  $first: Int = 100
+  $after: String
+  $search: String
+  $chargeStatus: [CheckoutChargeStatusEnum!]
+  $authorizeStatus: [CheckoutAuthorizeStatusEnum!]
+) {
+  checkouts(
+    first: $first
+    after: $after
+    sortBy: { field: CREATION_DATE, direction: DESC }
+    filter: {
+      created: { gte: $createdAfter, lte: $createdBefore }
+      channels: $channels
+      search: $search
+      chargeStatus: $chargeStatus
+      authorizeStatus: $authorizeStatus
+    }
+  ) {
+    totalCount
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+    edges {
+      node {
+        id
+        token
+        created
+        updatedAt
+        email
+        quantity
+        customerNote
+        chargeStatus
+        authorizeStatus
+        user {
+          id
+          firstName
+          lastName
+          email
+        }
+        billingAddress {
+          firstName
+          lastName
+          phone
+          streetAddress1
+          streetAddress2
+          city
+          postalCode
+          country {
+            country
+            code
+          }
+        }
+        shippingAddress {
+          firstName
+          lastName
+          phone
+          streetAddress1
+          streetAddress2
+          city
+          postalCode
+          country {
+            country
+            code
+          }
+        }
+        lines {
+          id
+          quantity
+          variant {
+            id
+            name
+            sku
+            product {
+              id
+              name
+              slug
+            }
+          }
+        }
+        subtotalPrice {
+          gross {
+            amount
+            currency
+          }
+        }
+        shippingPrice {
+          gross {
+            amount
+            currency
+          }
+        }
+        totalPrice {
+          gross {
+            amount
+            currency
+          }
+        }
+      }
+    }
+  }
+}
+
+query GetCheckoutDetails($id: ID!) {
+  checkout(id: $id) {
+    id
+    token
+    created
+    updatedAt
+    email
+    quantity
+    customerNote
+    chargeStatus
+    authorizeStatus
+    channel {
+      id
+      name
+      slug
+    }
+    user {
+      id
+      firstName
+      lastName
+      email
+    }
+    billingAddress {
+      firstName
+      lastName
+      phone
+      streetAddress1
+      streetAddress2
+      city
+      postalCode
+      country {
+        country
+        code
+      }
+    }
+    shippingAddress {
+      firstName
+      lastName
+      phone
+      streetAddress1
+      streetAddress2
+      city
+      postalCode
+      country {
+        country
+        code
+      }
+    }
+    subtotalPrice {
+      gross {
+        amount
+        currency
+      }
+    }
+    shippingPrice {
+      gross {
+        amount
+        currency
+      }
+    }
+    totalPrice {
+      gross {
+        amount
+        currency
+      }
+    }
+    lines {
+      id
+      quantity
+      unitPrice {
+        gross {
+          amount
+          currency
+        }
+      }
+      totalPrice {
+        gross {
+          amount
+          currency
+        }
+      }
+      variant {
+        id
+        name
+        sku
+        product {
+          id
+          name
+          slug
+        }
+      }
+    }
+  }
+}

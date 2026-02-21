@@ -1,0 +1,35 @@
+query GetAttributes($slugs: [String!]) {
+  attributes(filter: { slugs: $slugs }, first: 20) {
+    edges {
+      node {
+        id
+        slug
+        inputType
+      }
+    }
+  }
+}
+
+query GetPageTypes($slug: String!) {
+  pageTypes(filter: { slugs: [$slug] }, first: 1) {
+    edges {
+      node {
+        id
+        slug
+        attributes {
+          id
+          slug
+        }
+      }
+    }
+  }
+}
+
+query GetChannels {
+  channels {
+    id
+    name
+    slug
+    currencyCode
+  }
+}
