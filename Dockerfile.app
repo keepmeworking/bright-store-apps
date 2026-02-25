@@ -5,17 +5,14 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Build argument for dynamic app selection
-ARG APP_NAME
-
 # Enable corepack to respect packageManager version in package.json
 RUN corepack enable
 
 # Copy source code
 COPY . .
 
-# Install only selected app + its workspace deps to avoid pulling unrelated packages
-RUN test -n "${APP_NAME}" && pnpm install --frozen-lockfile --filter ${APP_NAME}...
+# Install dependencies
+RUN pnpm install --frozen-lockfile
 
 # Build the project
 FROM base AS builder
