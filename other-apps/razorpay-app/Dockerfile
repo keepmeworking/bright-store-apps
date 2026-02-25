@@ -15,9 +15,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # Build the project
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+# Reuse deps stage so pnpm/corepack state and installed deps are available
+FROM deps AS builder
 COPY . .
 
 # Disable telemetry during build
@@ -32,7 +31,6 @@ ENV RAZORPAY_WEBHOOK_SECRET=placeholder
 ENV APP_API_BASE_URL=https://placeholder.com
 ENV APP_IFRAME_BASE_URL=https://placeholder.com
 
-RUN corepack enable
 RUN pnpm build
 
 # Production image
