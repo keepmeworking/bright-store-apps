@@ -5,7 +5,7 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 
 # Copy dependency files first (for Docker layer caching)
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -29,8 +29,7 @@ ENV SECRET_KEY=placeholder
 ENV APP_API_BASE_URL=https://placeholder.local
 ENV APP_IFRAME_BASE_URL=https://placeholder.local
 
-RUN corepack enable
-RUN pnpm build
+RUN ./node_modules/.bin/next build
 
 # Production image
 FROM base AS runner
