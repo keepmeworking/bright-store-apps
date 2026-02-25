@@ -18,6 +18,8 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# `public` can be absent in this app; ensure it exists for runner COPY step.
+RUN mkdir -p /app/public
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
