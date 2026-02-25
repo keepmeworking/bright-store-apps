@@ -62,6 +62,7 @@ type PageAttributeNode = {
   values?: Array<{
     plainText?: string | null;
     name?: string | null;
+    richText?: string | null;
   } | null> | null;
 };
 
@@ -100,12 +101,28 @@ const defaultFormState = (): SettingsFormState => ({
   extraFields: [],
 });
 
+function extractRichTextText(raw?: string | null): string {
+  if (!raw) {
+    return "";
+  }
+  try {
+    const parsed = JSON.parse(raw) as { blocks?: Array<{ data?: { text?: string } }> };
+    const parts = (parsed.blocks || [])
+      .map((block) => block?.data?.text || "")
+      .map((text) => text.replace(/<[^>]+>/g, " ").trim())
+      .filter(Boolean);
+    return parts.join("\n").trim();
+  } catch {
+    return raw.trim();
+  }
+}
+
 function attrFirstText(attr?: PageAttributeNode): string {
   const value = attr?.values?.[0];
   if (!value) {
     return "";
   }
-  return (value.plainText || value.name || "").trim();
+  return (value.plainText || value.name || extractRichTextText(value.richText) || "").trim();
 }
 
 function toStringArray(raw: unknown): string[] {
@@ -207,7 +224,8 @@ function serializeExtraFields(fields: ExtraFieldDraft[]) {
 export default function SettingsPage() {
   const client = useClient();
   const [loading, setLoading] = useState(true);
-  const [savingHeaderFooter, setSavingHeaderFooter] = useState(false);
+  const [savingHeaderCode, setSavingHeaderCode] = useState(false);
+  const [savingFooterCode, setSavingFooterCode] = useState(false);
   const [savingExtraFields, setSavingExtraFields] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -222,8 +240,8 @@ export default function SettingsPage() {
   const [form, setForm] = useState<SettingsFormState>(defaultFormState);
 
   const canSave = useMemo(() => {
-    return Boolean(pageTypeId) && !savingHeaderFooter && !savingExtraFields && !loading;
-  }, [loading, pageTypeId, savingExtraFields, savingHeaderFooter]);
+    return Boolean(pageTypeId) && !loading;
+  }, [loading, pageTypeId]);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -259,6 +277,7 @@ export default function SettingsPage() {
                   values {
                     plainText
                     name
+                    richText
                   }
                 }
               }
@@ -404,9 +423,11 @@ export default function SettingsPage() {
     }));
   };
 
-  const saveSettings = async (section: "headerFooter" | "extraFields") => {
-    if (section === "headerFooter") {
-      setSavingHeaderFooter(true);
+  const saveSettings = async (section: "headerCode" | "footerCode" | "extraFields") => {
+    if (section === "headerCode") {
+      setSavingHeaderCode(true);
+    } else if (section === "footerCode") {
+      setSavingFooterCode(true);
     } else {
       setSavingExtraFields(true);
     }
@@ -415,12 +436,11 @@ export default function SettingsPage() {
 
     try {
       const sectionAttributes =
-        section === "headerFooter"
-          ? [
-              { slug: ATTRIBUTE_SLUGS.headerCode, value: form.headerCode },
-              { slug: ATTRIBUTE_SLUGS.footerCode, value: form.footerCode },
-            ]
-          : [{ slug: ATTRIBUTE_SLUGS.extraFields, value: JSON.stringify(serializeExtraFields(form.extraFields)) }];
+        section === "headerCode"
+          ? [{ slug: ATTRIBUTE_SLUGS.headerCode, value: form.headerCode }]
+          : section === "footerCode"
+            ? [{ slug: ATTRIBUTE_SLUGS.footerCode, value: form.footerCode }]
+            : [{ slug: ATTRIBUTE_SLUGS.extraFields, value: JSON.stringify(serializeExtraFields(form.extraFields)) }];
 
       const attributes = sectionAttributes
         .map((entry) => ({
@@ -518,13 +538,21 @@ export default function SettingsPage() {
         }
       }
 
-      setSuccess(section === "headerFooter" ? "Header/Footer settings saved." : "Magic Extra Fields saved.");
+      setSuccess(
+        section === "headerCode"
+          ? "Header code saved."
+          : section === "footerCode"
+            ? "Footer code saved."
+            : "Magic Extra Fields saved."
+      );
       await loadSettings();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to save settings.");
     } finally {
-      if (section === "headerFooter") {
-        setSavingHeaderFooter(false);
+      if (section === "headerCode") {
+        setSavingHeaderCode(false);
+      } else if (section === "footerCode") {
+        setSavingFooterCode(false);
       } else {
         setSavingExtraFields(false);
       }
@@ -586,13 +614,20 @@ export default function SettingsPage() {
                   Save global script snippets independently from extra fields.
                 </Text>
               </Box>
-              <Box style={{ marginLeft: "auto" }}>
+              <Box display="flex" gap={2} style={{ marginLeft: "auto", flexWrap: "wrap" }}>
                 <Button
                   variant="primary"
-                  disabled={!canSave || savingHeaderFooter}
-                  onClick={() => void saveSettings("headerFooter")}
+                  disabled={!canSave || savingHeaderCode}
+                  onClick={() => void saveSettings("headerCode")}
                 >
-                  <Save size={14} /> {savingHeaderFooter ? "Saving..." : "Save Header/Footer"}
+                  <Save size={14} /> {savingHeaderCode ? "Saving..." : "Save Header"}
+                </Button>
+                <Button
+                  variant="primary"
+                  disabled={!canSave || savingFooterCode}
+                  onClick={() => void saveSettings("footerCode")}
+                >
+                  <Save size={14} /> {savingFooterCode ? "Saving..." : "Save Footer"}
                 </Button>
               </Box>
             </Box>
@@ -870,7 +905,7 @@ export default function SettingsPage() {
           <Box display="flex" justifyContent="flex-end" gap={3}>
             <Button
               variant="tertiary"
-              disabled={loading || savingHeaderFooter || savingExtraFields}
+              disabled={loading || savingHeaderCode || savingFooterCode || savingExtraFields}
               onClick={() => void loadSettings()}
             >
               Reload
