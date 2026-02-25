@@ -8,8 +8,8 @@ WORKDIR /app
 # Build argument for dynamic app selection
 ARG APP_NAME
 
-# Install pinned pnpm directly to avoid Corepack registry lookups on restricted runners
-RUN npm install -g pnpm@10.28.1
+# Enable corepack to respect packageManager version in package.json
+RUN corepack enable
 
 # Copy source code
 COPY . .
