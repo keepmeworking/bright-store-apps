@@ -241,11 +241,12 @@ export default function EditVideoPage() {
   }, [normalizedProductSearch]);
 
   const addProduct = (productId: string) => {
-    if (!productId || products.includes(productId)) return;
-    setProducts((prev) => [...prev, productId]);
+    if (!productId) return;
+    setProducts((prev) => (prev.includes(productId) ? prev : [...prev, productId]));
   };
 
   const removeProduct = (value: string) => {
+    if (!value) return;
     setProducts((prev) => prev.filter((item) => item !== value));
   };
 

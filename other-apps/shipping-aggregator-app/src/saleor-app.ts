@@ -2,12 +2,16 @@ import { APL } from "@saleor/app-sdk/APL";
 import { SaleorApp } from "@saleor/app-sdk/saleor-app";
 import { FileAPL } from "@saleor/app-sdk/APL/file";
 import { DynamoAPL } from "@saleor/app-sdk/APL/dynamodb";
+import { UpstashAPL } from "@saleor/app-sdk/APL/upstash";
 import { env } from "@/env";
 import { dynamoMainTable } from "@/modules/dynamodb/dynamo-main-table";
 
 export let apl: APL;
 
 switch (env.APL) {
+  case "upstash":
+    apl = new UpstashAPL();
+    break;
   case "dynamodb":
     if (dynamoMainTable) {
         apl = DynamoAPL.create({

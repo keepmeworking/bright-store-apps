@@ -3,7 +3,7 @@ import { z } from "zod";
 
 export const env = createEnv({
   server: {
-    APL: z.enum(["file", "dynamodb"]).default("file"),
+    APL: z.enum(["file", "dynamodb", "upstash"]).default("file"),
     APP_API_BASE_URL: z.string().optional(),
     APP_IFRAME_BASE_URL: z.string().optional(),
     FILE_APL_PATH: z.string().default(".data/apl.json"),

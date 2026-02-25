@@ -54,10 +54,18 @@ export default function IndexPage() {
   >(null);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
   const [expandedJobIds, setExpandedJobIds] = useState<string[]>([]);
+  const [restoreSnapshotJobId, setRestoreSnapshotJobId] = useState("");
 
   const hasRunningOpsJob = useMemo(
     () => opsJobs.some((job) => job.status === "queued" || job.status === "running"),
     [opsJobs]
+  );
+  const backupJobs = useMemo(
+    () =>
+      opsJobs
+        .filter((job) => job.type === "backup" && job.status === "completed" && job.snapshotAvailable)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [opsJobs],
   );
 
   const fetchSetupOpsJobs = useCallback(async () => {
@@ -105,7 +113,10 @@ export default function IndexPage() {
   }, [appBridgeState?.saleorApiUrl, appBridgeState?.token]);
 
   const createSetupOpsJob = useCallback(
-    async (input: { type: SetupOpsJobType; dryRun?: boolean }, actionLabel: typeof opsAction) => {
+    async (
+      input: { type: SetupOpsJobType; dryRun?: boolean; snapshotJobId?: string },
+      actionLabel: typeof opsAction,
+    ) => {
       if (!appBridgeState?.token || !appBridgeState?.saleorApiUrl) return;
       setOpsError("");
       setOpsAction(actionLabel);
@@ -120,6 +131,7 @@ export default function IndexPage() {
             saleorApiUrl: appBridgeState.saleorApiUrl,
             type: input.type,
             dryRun: Boolean(input.dryRun),
+            snapshotJobId: input.snapshotJobId,
           }),
         });
         const payload = await res.json().catch(() => ({}));
@@ -139,6 +151,14 @@ export default function IndexPage() {
     },
     [appBridgeState?.saleorApiUrl, appBridgeState?.token, fetchSetupOpsJobs, opsAction]
   );
+
+  useEffect(() => {
+    if (!backupJobs.length) {
+      setRestoreSnapshotJobId("");
+      return;
+    }
+    setRestoreSnapshotJobId((current) => (current ? current : backupJobs[0].id));
+  }, [backupJobs]);
 
   const toggleJobLog = (jobId: string) => {
     setExpandedJobIds((current) =>
@@ -349,10 +369,12 @@ export default function IndexPage() {
           </Button>
           <Button
             variant="secondary"
-            disabled={Boolean(opsAction)}
-            onClick={() => void createSetupOpsJob({ type: "restore" }, "restore")}
+            disabled={Boolean(opsAction) || backupJobs.length === 0}
+            onClick={() =>
+              void createSetupOpsJob({ type: "restore", snapshotJobId: restoreSnapshotJobId }, "restore")
+            }
           >
-            {opsAction === "restore" ? "Starting Restore..." : "Restore Latest Backup"}
+            {opsAction === "restore" ? "Starting Restore..." : "Restore Selected Backup"}
           </Button>
           <Button
             variant="secondary"
@@ -383,6 +405,30 @@ export default function IndexPage() {
               Cancel
             </Button>
           )}
+        </Box>
+        <Box display="flex" flexDirection="column" gap={2}>
+          <Text as="p" size={2} fontWeight="bold">
+            Restore Source Backup
+          </Text>
+          <select
+            value={restoreSnapshotJobId}
+            onChange={(event) => setRestoreSnapshotJobId(event.target.value)}
+            disabled={backupJobs.length === 0 || Boolean(opsAction)}
+            style={{ border: "1px solid #d5d7da", borderRadius: 8, padding: "9px 10px", minWidth: 320 }}
+          >
+            {backupJobs.length === 0 ? (
+              <option value="">No completed backup snapshot available</option>
+            ) : (
+              backupJobs.map((job) => (
+                <option key={job.id} value={job.id}>
+                  {job.id} • {job.createdAt}
+                </option>
+              ))
+            )}
+          </select>
+          <Text as="p" size={1} color="default2">
+            Restore uses the selected backup snapshot. Run backup first if list is empty.
+          </Text>
         </Box>
         {opsError && (
           <Text color="critical1" size={2}>

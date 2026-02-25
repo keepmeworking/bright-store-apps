@@ -67,7 +67,7 @@ export default function CreateWidgetModelPage() {
     const result = await client
       .query(
         `query LoadAttrBySlug($search: String!) {
-          attributes(filter: { search: $search }, first: 20) {
+          attributes(filter: { search: $search }, first: 100) {
             edges {
               node {
                 id

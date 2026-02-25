@@ -14,6 +14,7 @@ export type CmsAttributeDefinition = {
   name: string;
   type: CmsAttributeType;
   entity?: CmsAttributeEntity;
+  scope?: "PAGE_TYPE" | "PRODUCT_TYPE";
   referencePageTypeSlugs?: string[];
 };
 
@@ -104,6 +105,46 @@ export const CMS_ATTRIBUTES: CmsAttributeDefinition[] = [
     type: "REFERENCE",
     entity: "PAGE",
     referencePageTypeSlugs: [...MAGIC_WIDGET_REFERENCE_PAGE_TYPE_SLUGS],
+  },
+  { slug: "magic-settings-header-code", name: "Magic Settings Header Code", type: "PLAIN_TEXT" },
+  { slug: "magic-settings-footer-code", name: "Magic Settings Footer Code", type: "PLAIN_TEXT" },
+  { slug: "magic-settings-extra-fields", name: "Magic Settings Extra Fields", type: "PLAIN_TEXT" },
+  {
+    slug: "magic-product-short-description",
+    name: "Magic Product Short Description",
+    type: "RICH_TEXT",
+    scope: "PRODUCT_TYPE",
+  },
+  {
+    slug: "magic-product-tabs",
+    name: "Magic Product Tabs",
+    type: "RICH_TEXT",
+    scope: "PRODUCT_TYPE",
+  },
+  {
+    slug: "magic-product-video",
+    name: "Magic Product Video",
+    type: "RICH_TEXT",
+    scope: "PRODUCT_TYPE",
+  },
+  {
+    slug: "magic-product-images",
+    name: "Magic Product Images",
+    type: "RICH_TEXT",
+    scope: "PRODUCT_TYPE",
+  },
+  {
+    slug: "magic-product-faqs",
+    name: "Magic Product FAQs",
+    type: "RICH_TEXT",
+    scope: "PRODUCT_TYPE",
+  },
+  {
+    slug: "magic-product-cross-selling-products",
+    name: "Magic Product Cross Selling Products",
+    type: "REFERENCE",
+    entity: "PRODUCT",
+    scope: "PRODUCT_TYPE",
   },
 ];
 
@@ -222,6 +263,15 @@ export const CMS_PAGE_TYPES: CmsPageTypeDefinition[] = [
     name: "MagicCMS: Module Type Policy",
     attributes: ["magic-ref-widget"],
   },
+  {
+    slug: "magiccms-storefront-settings",
+    name: "MagicCMS: Storefront Settings",
+    attributes: [
+      "magic-settings-header-code",
+      "magic-settings-footer-code",
+      "magic-settings-extra-fields",
+    ],
+  },
 ];
 
 export const CMS_DEFAULT_PAGES: CmsDefaultPageDefinition[] = [
@@ -283,6 +333,12 @@ export const CMS_DEFAULT_PAGES: CmsDefaultPageDefinition[] = [
     slug: "return-refund",
     pageTypeSlug: "magiccms-module-ty-policy",
     isPublished: true,
+  },
+  {
+    title: "Magic Storefront Settings",
+    slug: "magic-settings",
+    pageTypeSlug: "magiccms-storefront-settings",
+    isPublished: false,
   },
 ];
 

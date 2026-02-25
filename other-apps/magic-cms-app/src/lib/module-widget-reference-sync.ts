@@ -1,7 +1,7 @@
 import { type Client } from "urql";
 import { UpdateWidgetDocument } from "../../generated/graphql";
+import { MODULE_PAGE_TYPE_PREFIX } from "./widget-models";
 
-const MODULE_PAGE_TYPE_PREFIX = "magiccms-module-ty-";
 const MAGIC_REF_WIDGET_SLUG = "magic-ref-widget";
 
 type ModulePageTypeNode = {

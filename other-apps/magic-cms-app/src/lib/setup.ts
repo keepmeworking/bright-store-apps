@@ -46,6 +46,7 @@ type SetupOptions = {
 type ManagedAttribute = {
   id: string;
   slug: string;
+  type?: string | null;
   inputType?: string | null;
   entityType?: string | null;
 };
@@ -55,6 +56,13 @@ type ManagedPageType = {
   slug: string;
   name?: string | null;
   attributes: Array<{ id: string; slug?: string | null }>;
+};
+
+type ManagedProductType = {
+  id: string;
+  slug: string;
+  name?: string | null;
+  productAttributes: Array<{ id: string; slug?: string | null }>;
 };
 
 type SetupCounts = {
@@ -129,6 +137,7 @@ export type SetupBackupAttribute = {
   name: string;
   type: string;
   entity?: string | null;
+  scope?: "PAGE_TYPE" | "PRODUCT_TYPE";
   referencePageTypeSlugs?: string[];
 };
 
@@ -236,6 +245,7 @@ const loadManagedAttributes = async (client: Client, errors: string[]) => {
             node {
               id
               slug
+              type
               inputType
               entityType
             }
@@ -255,6 +265,160 @@ const loadManagedAttributes = async (client: Client, errors: string[]) => {
 
   return list;
 };
+
+const loadAllProductTypes = async (client: Client, errors: string[]) => {
+  const allNodes: ManagedProductType[] = [];
+  let after: string | null = null;
+  let hasNextPage = true;
+  let safety = 0;
+
+  while (hasNextPage && safety < 30) {
+    safety += 1;
+    const result: any = await client
+      .query(
+        `query LoadAllProductTypes($first: Int!, $after: String) {
+          productTypes(first: $first, after: $after) {
+            edges {
+              node {
+                id
+                slug
+                name
+                productAttributes {
+                  id
+                  slug
+                }
+              }
+            }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+          }
+        }`,
+        { first: 100, after }
+      )
+      .toPromise();
+
+    const transportMessage = getOperationErrorMessage(result.error);
+    if (transportMessage) {
+      if (hasProductTypePermissionError(transportMessage)) {
+        return { items: allNodes, missingPermission: true };
+      }
+      errors.push(`Load product types failed: ${transportMessage}`);
+      return { items: allNodes, missingPermission: false };
+    }
+
+    const connection: any = result.data?.productTypes;
+    const edges = connection?.edges || [];
+    for (const edge of edges) {
+      const node = edge?.node;
+      if (node?.id && node?.slug) {
+        allNodes.push({
+          id: node.id,
+          slug: node.slug,
+          name: node.name,
+          productAttributes: (node.productAttributes || []).filter((attribute: any) => Boolean(attribute?.id)),
+        });
+      }
+    }
+
+    hasNextPage = Boolean(connection?.pageInfo?.hasNextPage);
+    after = connection?.pageInfo?.endCursor || null;
+  }
+
+  return { items: allNodes, missingPermission: false };
+};
+
+const resolveAttributeScope = (scope?: string | null) =>
+  scope === "PRODUCT_TYPE" ? AttributeTypeEnum.ProductType : AttributeTypeEnum.PageType;
+
+async function syncProductTypeAttributeLinks(args: {
+  client: Client;
+  dryRun: boolean;
+  steps: string[];
+  errors: string[];
+  attrIdsBySlug: Record<string, string>;
+}) {
+  const { client, dryRun, steps, errors, attrIdsBySlug } = args;
+  const productAttributeDefs = CMS_ATTRIBUTES.filter((attribute) => attribute.scope === "PRODUCT_TYPE");
+  if (productAttributeDefs.length === 0) {
+    return;
+  }
+
+  const desiredAttrIds = productAttributeDefs.map((attribute) => attrIdsBySlug[attribute.slug]).filter(Boolean);
+  if (desiredAttrIds.length === 0) {
+    return;
+  }
+
+  const productTypesResult = await loadAllProductTypes(client, errors);
+  if (productTypesResult.missingPermission) {
+    steps.push("Skipped product-type attribute sync: missing MANAGE_PRODUCT_TYPES_AND_ATTRIBUTES permission");
+    return;
+  }
+
+  for (const productType of productTypesResult.items) {
+    const existingAttrIds = new Set((productType.productAttributes || []).map((attribute) => attribute.id));
+    const mergedAttrIds = Array.from(new Set([...existingAttrIds, ...desiredAttrIds]));
+    if (mergedAttrIds.length === existingAttrIds.size) {
+      continue;
+    }
+
+    if (dryRun) {
+      steps.push(
+        `[Plan] Update product type ${productType.slug} with ${mergedAttrIds.length - existingAttrIds.size} missing attribute(s)`
+      );
+      continue;
+    }
+
+    const updateRes = await client
+      .mutation(
+        `mutation UpdateProductTypeAttributes($id: ID!, $input: ProductTypeInput!) {
+          productTypeUpdate(id: $id, input: $input) {
+            productType {
+              id
+              slug
+            }
+            errors {
+              field
+              message
+              code
+            }
+          }
+        }`,
+        {
+          id: productType.id,
+          input: {
+            productAttributes: mergedAttrIds,
+          },
+        }
+      )
+      .toPromise();
+
+    const transportMessage = getOperationErrorMessage(updateRes.error);
+    if (transportMessage) {
+      if (hasProductTypePermissionError(transportMessage)) {
+        steps.push(`Skipped product type ${productType.slug} sync: missing MANAGE_PRODUCT_TYPES_AND_ATTRIBUTES`);
+      } else {
+        errors.push(`Update product type ${productType.slug} failed: ${transportMessage}`);
+      }
+      continue;
+    }
+
+    const gqlErrors = updateRes.data?.productTypeUpdate?.errors || [];
+    const normalized = normalizeErrors(gqlErrors as any);
+    if (normalized.length > 0) {
+      const joined = normalized.join("; ");
+      if (hasProductTypePermissionError(joined)) {
+        steps.push(`Skipped product type ${productType.slug} sync: missing MANAGE_PRODUCT_TYPES_AND_ATTRIBUTES`);
+      } else {
+        errors.push(`Update product type ${productType.slug}: ${joined}`);
+      }
+      continue;
+    }
+
+    steps.push(`Updated product type ${productType.slug} (+${mergedAttrIds.length - existingAttrIds.size} attributes)`);
+  }
+}
 
 const loadManagedPageTypes = async (client: Client, errors: string[]) => {
   const allNodes: ManagedPageType[] = [];
@@ -838,7 +1002,7 @@ export async function performSetup(client: Client, options: SetupOptions = {}): 
         input: {
           name: attrDef.name,
           slug: attrDef.slug,
-          type: AttributeTypeEnum.PageType,
+          type: resolveAttributeScope(attrDef.scope),
           inputType: INPUT_TYPE_MAP[attrDef.type],
           entityType: attrDef.entity ? ENTITY_TYPE_MAP[attrDef.entity] : undefined,
         },
@@ -886,7 +1050,15 @@ export async function performSetup(client: Client, options: SetupOptions = {}): 
   for (const pageTypeDef of CMS_PAGE_TYPES) {
     const desiredAttributeIds = pageTypeDef.attributes
       .map((slug) => attrIdsBySlug[slug])
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter((attributeId) => {
+        const attrSlug = pageTypeDef.attributes.find((slug) => attrIdsBySlug[slug] === attributeId);
+        if (!attrSlug) {
+          return false;
+        }
+        const attrDef = CMS_ATTRIBUTES.find((attribute) => attribute.slug === attrSlug);
+        return attrDef?.scope !== "PRODUCT_TYPE";
+      });
 
     const existingPageType = pageTypeBySlug.get(pageTypeDef.slug);
     if (!existingPageType) {
@@ -918,6 +1090,7 @@ export async function performSetup(client: Client, options: SetupOptions = {}): 
         const refreshedPageTypeList = await loadManagedPageTypes(client, errors);
         const refreshed = refreshedPageTypeList.find((pageType) => pageType.slug === pageTypeDef.slug);
         if (refreshed?.id) {
+          pageTypeBySlug.set(pageTypeDef.slug, refreshed);
           counts.skippedPageTypes += 1;
           steps.push(`Page type ${pageTypeDef.slug} already exists (linked after retry)`);
         } else {
@@ -926,6 +1099,17 @@ export async function performSetup(client: Client, options: SetupOptions = {}): 
         continue;
       }
 
+      const createdPageTypeId = createRes.data?.pageTypeCreate?.pageType?.id || "";
+      if (!createdPageTypeId) {
+        errors.push(`Create page type ${pageTypeDef.slug}: created but ID missing.`);
+        continue;
+      }
+      pageTypeBySlug.set(pageTypeDef.slug, {
+        id: createdPageTypeId,
+        slug: pageTypeDef.slug,
+        name: pageTypeDef.name,
+        attributes: desiredAttributeIds.map((id) => ({ id })),
+      });
       counts.createdPageTypes += 1;
       steps.push(`Created page type ${pageTypeDef.slug}`);
       continue;
@@ -966,6 +1150,14 @@ export async function performSetup(client: Client, options: SetupOptions = {}): 
     counts.updatedPageTypes += 1;
     steps.push(`Updated page type ${pageTypeDef.slug} (+${missingAttributeIds.length} attributes)`);
   }
+
+  await syncProductTypeAttributeLinks({
+    client,
+    dryRun,
+    steps,
+    errors,
+    attrIdsBySlug,
+  });
 
   for (const attrDef of CMS_ATTRIBUTES) {
     if (!attrDef.referencePageTypeSlugs || attrDef.referencePageTypeSlugs.length === 0) {
@@ -1558,6 +1750,7 @@ export async function createManagedBackupSnapshot(client: Client): Promise<{
       name: attributeNameMap.get(attribute.slug) || attribute.slug,
       type: attribute.inputType || "PLAIN_TEXT",
       entity: attribute.entityType || null,
+      scope: attribute.type === AttributeTypeEnum.ProductType ? "PRODUCT_TYPE" : "PAGE_TYPE",
       referencePageTypeSlugs: attributeReferenceMap.get(attribute.slug) || [],
     })),
     pageTypes: pageTypes.map((pageType) => ({
@@ -1641,7 +1834,7 @@ export async function restoreManagedBackupSnapshot(
         input: {
           name: attrDef.name,
           slug: attrDef.slug,
-          type: AttributeTypeEnum.PageType,
+          type: resolveAttributeScope(attrDef.scope),
           inputType: INPUT_TYPE_MAP[attrDef.type] || AttributeInputTypeEnum.PlainText,
           entityType: attrDef.entity ? ENTITY_TYPE_MAP[attrDef.entity] : undefined,
         },
@@ -1687,7 +1880,15 @@ export async function restoreManagedBackupSnapshot(
   for (const pageTypeDef of snapshot.pageTypes || []) {
     const desiredAttributeIds = (pageTypeDef.attributes || [])
       .map((slug) => attrIdsBySlug[slug])
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter((attributeId) => {
+        const attrSlug = (pageTypeDef.attributes || []).find((slug) => attrIdsBySlug[slug] === attributeId);
+        if (!attrSlug) {
+          return false;
+        }
+        const attrSnapshot = (snapshot.attributes || []).find((attribute) => attribute.slug === attrSlug);
+        return attrSnapshot?.scope !== "PRODUCT_TYPE";
+      });
     const existing = pageTypeBySlug.get(pageTypeDef.slug);
 
     if (!existing) {
@@ -1750,6 +1951,14 @@ export async function restoreManagedBackupSnapshot(
     }
     steps.push(`Restored page type links for ${pageTypeDef.slug} (+${missingAttributeIds.length})`);
   }
+
+  await syncProductTypeAttributeLinks({
+    client,
+    dryRun,
+    steps,
+    errors,
+    attrIdsBySlug,
+  });
 
   const refreshedPageTypes = dryRun ? existingPageTypes : await loadManagedPageTypes(client, errors);
   const refreshedPageTypeBySlug = new Map(refreshedPageTypes.map((pageType) => [pageType.slug, pageType]));

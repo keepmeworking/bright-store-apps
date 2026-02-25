@@ -118,13 +118,13 @@ export default function WidgetsPage() {
   const [deleteError, setDeleteError] = useState("");
   const [deleteSuccess, setDeleteSuccess] = useState("");
 
-  const activeTab = router.query.tab === "widgets" ? "widgets" : "modules";
+  const activeTab = router.query.tab === "widgets" ? "widgets" : "models";
   const syncWarning = typeof router.query.syncWarning === "string" ? router.query.syncWarning : "";
 
-  const setTab = (tab: "modules" | "widgets") => {
+  const setTab = (tab: "models" | "widgets") => {
     setPendingDeleteModelId(null);
     router.replace(
-      { pathname: "/widgets", query: tab === "modules" ? {} : { tab } },
+      { pathname: "/widgets", query: tab === "models" ? {} : { tab } },
       undefined,
       { shallow: true }
     );
@@ -316,7 +316,7 @@ export default function WidgetsPage() {
           Widgets
         </Text>
         <Box display="flex" gap={2}>
-          {activeTab === "modules" ? (
+          {activeTab === "models" ? (
             <Button
               variant="secondary"
               onClick={() => router.push("/widgets/create")}
@@ -374,15 +374,15 @@ export default function WidgetsPage() {
       <Box marginBottom={5} display="flex" gap={4} style={{ borderBottom: "1px solid #E6E6E6", flexWrap: "wrap" }}>
         <Button
           variant="tertiary"
-          onClick={() => setTab("modules")}
+          onClick={() => setTab("models")}
           style={{
-            borderBottom: activeTab === "modules" ? "2px solid #28234A" : "none",
+            borderBottom: activeTab === "models" ? "2px solid #28234A" : "none",
             borderRadius: 0,
             paddingBottom: 12,
             textTransform: "none",
           }}
         >
-          Modules
+          Models
         </Button>
         <Button
           variant="tertiary"
@@ -398,7 +398,7 @@ export default function WidgetsPage() {
         </Button>
       </Box>
 
-      {activeTab === "modules" ? (
+      {activeTab === "models" ? (
         <Box>
           <Box marginBottom={4}>
             <Text as="h3" size={6} fontWeight="bold">
@@ -451,58 +451,6 @@ export default function WidgetsPage() {
         </Box>
       ) : (
         <Box>
-          <Box marginBottom={4}>
-            <Text as="h3" size={6} fontWeight="bold">
-              Widget Models ({widgetModelTypes.length})
-            </Text>
-          </Box>
-
-          {fetchingModels ? (
-            <Box
-              borderStyle="solid"
-              borderWidth={1}
-              borderColor="default1"
-              borderRadius={4}
-              padding={6}
-              display="flex"
-              justifyContent="center"
-              marginBottom={4}
-            >
-              <Spinner />
-            </Box>
-          ) : widgetModelTypes.length === 0 ? (
-            <Box borderStyle="solid" borderWidth={1} borderColor="default1" borderRadius={4} padding={5} marginBottom={4}>
-              <Text as="p" size={2} color="default2">
-                No widget model found. Create one first, then create widget entries from it.
-              </Text>
-              <Box marginTop={3}>
-                <Button variant="secondary" onClick={() => router.push("/widgets/create")}>
-                  Create Model
-                </Button>
-              </Box>
-            </Box>
-          ) : (
-            <Box display="grid" gap={4} __gridTemplateColumns="repeat(auto-fill, minmax(280px, 1fr))" marginBottom={5}>
-              {widgetModelTypes.map((model) => (
-                <WidgetModelCard
-                  key={model.id}
-                  model={model}
-                  onCreateWidget={goCreateWidget}
-                  onOpenModeling={() => window.location.assign("/models/")}
-                  onDeleteModel={handleDeleteModel}
-                  isDeleteConfirm={pendingDeleteModelId === model.id}
-                  isDeleting={deletingModelId === model.id}
-                />
-              ))}
-            </Box>
-          )}
-
-          <Box marginBottom={3}>
-            <Text as="h3" size={6} fontWeight="bold">
-              Widget Entries
-            </Text>
-          </Box>
-
           <Box borderStyle="solid" borderWidth={1} borderColor="default1" borderRadius={4} padding={4} marginBottom={4}>
             <Box display="grid" gap={3} __gridTemplateColumns="minmax(220px, 1fr) minmax(220px, 280px)">
               <Input

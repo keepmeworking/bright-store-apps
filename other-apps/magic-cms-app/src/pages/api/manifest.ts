@@ -5,9 +5,39 @@ import { env } from "@/env";
 
 export default createManifestHandler({
   async manifestFactory({ appBaseUrl }) {
-    const apiBaseURL = env.APP_API_BASE_URL ?? appBaseUrl;
-    const iframeBaseUrl = env.APP_IFRAME_BASE_URL ?? appBaseUrl;
-    const normalizedApiBaseURL = apiBaseURL.replace(/\/$/, "");
+    const normalizeUrl = (value: string) => value.replace(/\/$/, "");
+    const isTryCloudflareHost = (value: string) => {
+      try {
+        return new URL(value).hostname.endsWith(".trycloudflare.com");
+      } catch {
+        return false;
+      }
+    };
+
+    const resolveBaseUrl = (configured: string | undefined, fallback: string) => {
+      if (!configured) {
+        return normalizeUrl(fallback);
+      }
+
+      const configuredUrl = normalizeUrl(configured);
+      const fallbackUrl = normalizeUrl(fallback);
+
+      // Quick tunnels rotate frequently. If env points to an older quick-tunnel
+      // and request is coming from a new quick-tunnel host, trust request host.
+      if (
+        isTryCloudflareHost(configuredUrl) &&
+        isTryCloudflareHost(fallbackUrl) &&
+        configuredUrl !== fallbackUrl
+      ) {
+        return fallbackUrl;
+      }
+
+      return configuredUrl;
+    };
+
+    const apiBaseURL = resolveBaseUrl(env.APP_API_BASE_URL, appBaseUrl);
+    const iframeBaseUrl = resolveBaseUrl(env.APP_IFRAME_BASE_URL, appBaseUrl);
+    const normalizedApiBaseURL = normalizeUrl(apiBaseURL);
 
     const manifest: AppManifest = {
       id: "magic-cms.app",

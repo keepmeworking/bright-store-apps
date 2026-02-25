@@ -29,6 +29,8 @@ on:
           - dummy-payment
           - invoices
           - razorpay-app
+          - shipping-aggregator-app
+          - magic-cms-app
 
 env:
   REGISTRY: ghcr.io
@@ -62,6 +64,8 @@ jobs:
             dummy-payment: ['other-apps/dummy-payment/**']
             invoices: ['other-apps/invoices/**']
             razorpay-app: ['other-apps/razorpay-app/**']
+            shipping-aggregator-app: ['other-apps/shipping-aggregator-app/**']
+            magic-cms-app: ['other-apps/magic-cms-app/**']
             global: ['Dockerfile.app', 'package.json', 'pnpm-lock.yaml', 'turbo.json', 'pnpm-workspace.yaml', '.github/workflows/docker-build.yml']
 
       - name: Set matrix
@@ -70,7 +74,7 @@ jobs:
           # Monorepo apps (use shared Dockerfile.app)
           MONOREPO_APPS_LIST="smtp search products-feed segment cms stripe avatax"
           # Standalone apps (have their own Dockerfile)
-          STANDALONE_APPS_LIST="dummy-payment invoices razorpay-app"
+          STANDALONE_APPS_LIST="dummy-payment invoices razorpay-app shipping-aggregator-app magic-cms-app"
 
           MONOREPO_APPS=()
           STANDALONE_APPS=()
