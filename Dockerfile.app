@@ -18,8 +18,9 @@ COPY . .
 RUN test -n "${APP_NAME}" && pnpm install --frozen-lockfile --filter ${APP_NAME}...
 
 # Build the project
-# Reuse deps stage so pnpm/corepack state and installed deps are already available.
-FROM deps AS builder
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/ .
 
 # Build arguments for dynamic app selection
 ARG APP_NAME
@@ -44,7 +45,8 @@ ENV API_URL=https://placeholder.com/graphql/
 ENV APP_MOUNT_URI=/
 
 # Build the specific app
-RUN test -n "${APP_NAME}" && pnpm --filter ${APP_NAME} build
+RUN corepack enable
+RUN pnpm --filter ${APP_NAME} build
 
 # Production image, copy all the files and run next
 FROM base AS runner
