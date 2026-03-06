@@ -1,8 +1,9 @@
+import { useAppBridge } from "@saleor/app-sdk/app-bridge";
 import { Box, Button, Input, Spinner, Text } from "@saleor/macaw-ui";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Upload, X, FileImage, FileText } from "lucide-react";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useState } from "react";
-import { useClient } from "urql";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { uploadFileToSaleor } from "@/lib/shoppable-video-upload";
 import {
   AttributeInputTypeEnum,
   type GetWidgetQuery,
@@ -10,12 +11,263 @@ import {
   useGetWidgetQuery,
   useUpdateWidgetMutation,
 } from "../../../generated/graphql";
-import { syncMagicRefWidgetOnModulePages } from "@/lib/module-widget-reference-sync";
 import { buildAttributeUpdateInput, readAttributeValue } from "@/lib/page-attribute-utils";
-import { isRepeaterDataAttributeSlug } from "@/lib/widget-models";
+import {
+  isRepeaterDataAttributeSlug,
+  isRepeaterSettingAttributeSlug,
+  isWidgetModelPageType,
+} from "@/lib/widget-models";
 
 type WidgetAttributeNode = NonNullable<NonNullable<GetWidgetQuery["page"]>["attributes"]>[number];
 type RepeaterRow = Record<string, string>;
+
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+
+const isImageUrl = (url: string) => /\.(jpg|jpeg|png|gif|webp|svg|avif|bmp|ico)(\?.*)?$/i.test(url);
+
+const FileUploadField = ({
+  value,
+  onChange,
+  disabled,
+  slug,
+}: {
+  value: string;
+  onChange: (url: string) => void;
+  disabled?: boolean;
+  slug: string;
+}) => {
+  const { appBridge, appBridgeState } = useAppBridge();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  const doUpload = useCallback(
+    async (file: File) => {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setUploadError(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max 10 MB.`);
+        return;
+      }
+
+      const token = appBridge?.getState().token || appBridgeState?.token || "";
+      const saleorApiUrl = appBridgeState?.saleorApiUrl || "";
+      if (!token || !saleorApiUrl) {
+        setUploadError("Missing Saleor auth context. Please reopen app.");
+        return;
+      }
+
+      setUploading(true);
+      setUploadError("");
+      try {
+        const uploaded = await uploadFileToSaleor({ saleorApiUrl, token, file });
+        onChange(uploaded.url);
+      } catch (err) {
+        setUploadError(err instanceof Error ? err.message : "Upload failed.");
+      } finally {
+        setUploading(false);
+      }
+    },
+    [appBridge, appBridgeState, onChange]
+  );
+
+  const handleFileInput = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (file) {
+        void doUpload(file);
+      }
+      event.target.value = "";
+    },
+    [doUpload]
+  );
+
+  const handleDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      setDragOver(false);
+      const file = event.dataTransfer.files?.[0];
+      if (file) {
+        void doUpload(file);
+      }
+    },
+    [doUpload]
+  );
+
+  if (uploading) {
+    return (
+      <Box
+        display="flex"
+        alignItems="center"
+        gap={3}
+        padding={4}
+        borderRadius={4}
+        style={{ background: "#F8FAFC", border: "1px solid #CBD4E1" }}
+      >
+        <Spinner />
+        <Text size={2} color="default2">Uploading…</Text>
+      </Box>
+    );
+  }
+
+  if (value) {
+    const isImg = isImageUrl(value);
+    return (
+      <Box>
+        <Box
+          display="flex"
+          alignItems="center"
+          gap={3}
+          padding={3}
+          borderRadius={4}
+          style={{ background: "#F8FAFC", border: "1px solid #CBD4E1" }}
+        >
+          {isImg ? (
+            <img
+              src={value}
+              alt="uploaded"
+              style={{
+                width: 56,
+                height: 56,
+                objectFit: "cover",
+                borderRadius: 6,
+                border: "1px solid #E2E8F0",
+                flexShrink: 0,
+              }}
+            />
+          ) : (
+            <Box
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 6,
+                background: "#EEF2FF",
+                border: "1px solid #C7D2FE",
+                flexShrink: 0,
+              }}
+            >
+              <FileText size={22} color="#6366F1" />
+            </Box>
+          )}
+          <Box style={{ flex: 1, minWidth: 0 }}>
+            <Text
+              size={2}
+              color="default2"
+              style={{
+                wordBreak: "break-all",
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical" as const,
+                overflow: "hidden",
+                fontSize: 12,
+              }}
+            >
+              {value}
+            </Text>
+          </Box>
+          <Box display="flex" gap={1} style={{ flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={disabled}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 30,
+                height: 30,
+                borderRadius: 6,
+                border: "1px solid #CBD4E1",
+                background: "white",
+                cursor: disabled ? "default" : "pointer",
+                opacity: disabled ? 0.5 : 1,
+              }}
+              title="Replace file"
+            >
+              <Upload size={14} color="#64748B" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange("")}
+              disabled={disabled}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 30,
+                height: 30,
+                borderRadius: 6,
+                border: "1px solid #FECACA",
+                background: "#FEF2F2",
+                cursor: disabled ? "default" : "pointer",
+                opacity: disabled ? 0.5 : 1,
+              }}
+              title="Remove file"
+            >
+              <X size={14} color="#DC2626" />
+            </button>
+          </Box>
+        </Box>
+        <input ref={inputRef} type="file" hidden onChange={handleFileInput} />
+        {uploadError ? (
+          <Text color="critical1" size={1} marginTop={1}>{uploadError}</Text>
+        ) : null}
+      </Box>
+    );
+  }
+
+  return (
+    <Box>
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+        onClick={() => !disabled && inputRef.current?.click()}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+          padding: "20px 16px",
+          borderRadius: 8,
+          border: `2px dashed ${dragOver ? "#E85D2F" : "#CBD4E1"}`,
+          background: dragOver ? "#FEF3EE" : "#FAFBFC",
+          cursor: disabled ? "default" : "pointer",
+          transition: "border-color 0.15s, background 0.15s",
+          opacity: disabled ? 0.5 : 1,
+        }}
+      >
+        <Box
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 10,
+            background: dragOver ? "#FDEAD7" : "#F1F5F9",
+          }}
+        >
+          <FileImage size={20} color={dragOver ? "#E85D2F" : "#94A3B8"} />
+        </Box>
+        <Text size={2} color="default2" style={{ textAlign: "center" }}>
+          <span style={{ fontWeight: 600, color: dragOver ? "#E85D2F" : "#334155" }}>
+            Click to browse
+          </span>{" "}
+          or drag &amp; drop
+        </Text>
+        <Text size={1} color="default2" style={{ opacity: 0.6 }}>Max 10 MB</Text>
+      </div>
+      <input ref={inputRef} type="file" hidden onChange={handleFileInput} />
+      {uploadError ? (
+        <Text color="critical1" size={1} marginTop={1}>{uploadError}</Text>
+      ) : null}
+    </Box>
+  );
+};
 
 const slugToVariableName = (slug: string) =>
   slug
@@ -218,7 +470,6 @@ function safeJsonParse<T>(raw: string | undefined, fallback: T): T {
 
 export default function EditWidgetPage() {
   const router = useRouter();
-  const client = useClient();
   const widgetId = typeof router.query.id === "string" ? router.query.id : "";
 
   const [{ data, fetching, error }, reexecuteWidget] = useGetWidgetQuery({
@@ -268,15 +519,33 @@ export default function EditWidgetPage() {
   const repeaterSchemaAttributes = useMemo(
     () =>
       sortedAttributes.filter(
-        (attribute) => (attribute.attribute.slug || "") && !isRepeaterDataAttributeSlug(attribute.attribute.slug || "")
+        (attribute) =>
+          (attribute.attribute.slug || "") &&
+          !isRepeaterDataAttributeSlug(attribute.attribute.slug || "") &&
+          !isRepeaterSettingAttributeSlug(attribute.attribute.slug || "")
+      ),
+    [sortedAttributes]
+  );
+
+  const repeaterSettingAttributes = useMemo(
+    () =>
+      sortedAttributes.filter(
+        (attribute) =>
+          (attribute.attribute.slug || "") &&
+          !isRepeaterDataAttributeSlug(attribute.attribute.slug || "") &&
+          isRepeaterSettingAttributeSlug(attribute.attribute.slug || "")
       ),
     [sortedAttributes]
   );
 
   const singleWidgetAttributes = useMemo(
     () =>
-      sortedAttributes.filter((attribute) => !isRepeaterDataAttributeSlug(attribute.attribute.slug || "")),
-    [sortedAttributes]
+      isRepeaterWidget
+        ? []
+        : sortedAttributes.filter(
+            (attribute) => !isRepeaterDataAttributeSlug(attribute.attribute.slug || "")
+          ),
+    [isRepeaterWidget, sortedAttributes]
   );
 
   const repeaterJsonPreview = useMemo(
@@ -290,7 +559,7 @@ export default function EditWidgetPage() {
     }
 
     const singleFieldSlugs = isRepeaterWidget
-      ? []
+      ? repeaterSettingAttributes.map((attribute) => attribute.attribute.slug || "").filter(Boolean)
       : singleWidgetAttributes.map((attribute) => attribute.attribute.slug || "").filter(Boolean);
     const repeaterFieldSlugs = repeaterSchemaAttributes
       .map((attribute) => attribute.attribute.slug || "")
@@ -303,7 +572,15 @@ export default function EditWidgetPage() {
       repeaterDataSlug: isRepeaterWidget ? repeaterDataSlug : undefined,
       repeaterFieldSlugs,
     });
-  }, [data?.page, isRepeaterWidget, repeaterDataSlug, repeaterSchemaAttributes, singleWidgetAttributes]);
+  }, [
+    data?.page,
+    isRepeaterWidget,
+    repeaterDataSlug,
+    repeaterSchemaAttributes,
+    repeaterSettingAttributes,
+    singleWidgetAttributes,
+  ]);
+  const isWidgetModuleEntity = isWidgetModelPageType(data?.page?.pageType.slug || "");
 
   useEffect(() => {
     if (!data?.page) {
@@ -321,7 +598,10 @@ export default function EditWidgetPage() {
     setFormData(nextForm);
 
     const schemaAttributes = data.page.attributes.filter(
-      (attribute) => (attribute.attribute.slug || "") && !isRepeaterDataAttributeSlug(attribute.attribute.slug || "")
+      (attribute) =>
+        (attribute.attribute.slug || "") &&
+        !isRepeaterDataAttributeSlug(attribute.attribute.slug || "") &&
+        !isRepeaterSettingAttributeSlug(attribute.attribute.slug || "")
     );
     const repeaterAttribute = data.page.attributes.find((attribute) =>
       isRepeaterDataAttributeSlug(attribute.attribute.slug || "")
@@ -378,6 +658,10 @@ export default function EditWidgetPage() {
     if (!data?.page) {
       return;
     }
+    if (!isWidgetModuleEntity) {
+      setErrorMessage("This page does not belong to widget module. Edit blocked to prevent cross-module impact.");
+      return;
+    }
 
     setIsSaving(true);
     setNotice("");
@@ -393,7 +677,10 @@ export default function EditWidgetPage() {
           if (slug === repeaterDataSlug) {
             return buildAttributeUpdateInput(attribute, repeaterPayload);
           }
-          return { id: attribute.attribute.id, values: [] };
+          if (isRepeaterSettingAttributeSlug(slug)) {
+            return buildAttributeUpdateInput(attribute, formData[slug] || "");
+          }
+          return buildAttributeUpdateInput(attribute, "");
         }
         const value = formData[slug] || "";
         return buildAttributeUpdateInput(attribute, value);
@@ -431,6 +718,10 @@ export default function EditWidgetPage() {
     if (!data?.page) {
       return;
     }
+    if (!isWidgetModuleEntity) {
+      setErrorMessage("This page does not belong to widget module. Delete blocked to prevent cross-module impact.");
+      return;
+    }
     if (!deleteConfirming) {
       setDeleteConfirming(true);
       setNotice('Press "Confirm Delete" to permanently remove this widget.');
@@ -452,16 +743,7 @@ export default function EditWidgetPage() {
         return;
       }
 
-      const syncResult = await syncMagicRefWidgetOnModulePages(client, data.page.id, "remove");
-      const syncWarning =
-        syncResult.errors[0] ||
-        (syncResult.errors.length > 0
-          ? "Widget deleted, but magic-ref-widget cleanup failed for one or more module pages."
-          : "");
-      const target = syncWarning
-        ? `/widgets?tab=widgets&syncWarning=${encodeURIComponent(syncWarning)}`
-        : "/widgets?tab=widgets";
-      router.push(target);
+      router.push("/widgets?tab=widgets");
     } finally {
       setIsDeleting(false);
     }
@@ -505,7 +787,7 @@ export default function EditWidgetPage() {
           <Button
             variant={deleteConfirming ? "secondary" : "tertiary"}
             onClick={handleDelete}
-            disabled={isDeleting || isSaving}
+            disabled={isDeleting || isSaving || !isWidgetModuleEntity}
             style={{ color: "#D61F1F" }}
           >
             {deleteConfirming ? "Confirm Delete" : "Delete"}
@@ -525,7 +807,7 @@ export default function EditWidgetPage() {
           <Button variant="secondary" onClick={() => router.push("/widgets")} disabled={isSaving || isDeleting}>
             Back
           </Button>
-          <Button variant="primary" onClick={handleSave} disabled={isSaving || isDeleting}>
+          <Button variant="primary" onClick={handleSave} disabled={isSaving || isDeleting || !isWidgetModuleEntity}>
             {isSaving ? "Saving..." : "Save"}
           </Button>
         </Box>
@@ -539,6 +821,14 @@ export default function EditWidgetPage() {
       {errorMessage ? (
         <Box marginBottom={3}>
           <Text color="critical1">{errorMessage}</Text>
+        </Box>
+      ) : null}
+
+      {!isWidgetModuleEntity ? (
+        <Box marginBottom={4} borderStyle="solid" borderWidth={1} borderColor="critical1" borderRadius={4} padding={3}>
+          <Text color="critical1" size={2}>
+            This page is not under widget module scope. View-only mode enabled.
+          </Text>
         </Box>
       ) : null}
 
@@ -649,6 +939,12 @@ export default function EditWidgetPage() {
                                   fontFamily: "inherit",
                                 }}
                               />
+                            ) : inputType === AttributeInputTypeEnum.File ? (
+                              <FileUploadField
+                                value={cellValue}
+                                onChange={(url) => updateRepeaterCell(rowIndex, slug, url)}
+                                slug={slug}
+                              />
                             ) : (
                               <Input
                                 value={cellValue}
@@ -656,9 +952,7 @@ export default function EditWidgetPage() {
                                 placeholder={
                                   inputType === AttributeInputTypeEnum.Reference
                                     ? "Global ID(s), comma separated"
-                                    : inputType === AttributeInputTypeEnum.File
-                                      ? "File URL"
-                                      : undefined
+                                    : undefined
                                 }
                               />
                             )}
@@ -674,6 +968,108 @@ export default function EditWidgetPage() {
               ))}
             </Box>
           )}
+
+          {repeaterSettingAttributes.length > 0 ? (
+            <Box marginBottom={4}>
+              <Text as="h3" size={5} fontWeight="bold" marginBottom={2}>
+                Widget settings
+              </Text>
+              <Text as="p" size={2} color="default2" marginBottom={3}>
+                Settings are stored as normal widget attributes and can be read directly in storefront.
+              </Text>
+              <Box display="grid" gap={3}>
+                {repeaterSettingAttributes.map((attribute) => {
+                  const slug = attribute.attribute.slug || "";
+                  const inputType = attribute.attribute.inputType;
+                  const value = formData[slug] || "";
+
+                  return (
+                    <Box
+                      key={attribute.attribute.id}
+                      borderStyle="solid"
+                      borderWidth={1}
+                      borderColor="default1"
+                      borderRadius={4}
+                      padding={3}
+                    >
+                      <Box display="flex" justifyContent="space-between" alignItems="center" marginBottom={2}>
+                        <Text as="span" size={2} fontWeight="bold">
+                          {attribute.attribute.name}
+                        </Text>
+                        <Text as="span" size={1} color="default2" textTransform="uppercase">
+                          {inputType || "N/A"}
+                        </Text>
+                      </Box>
+                      {inputType === AttributeInputTypeEnum.Boolean ? (
+                        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="checkbox"
+                            checked={value === "true" || value === "1" || value.toLowerCase() === "yes"}
+                            onChange={(event) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                [slug]: event.target.checked ? "true" : "false",
+                              }))
+                            }
+                          />
+                          <Text size={2}>Enabled</Text>
+                        </label>
+                      ) : inputType === AttributeInputTypeEnum.RichText ? (
+                        <textarea
+                          value={value}
+                          onChange={(event) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              [slug]: event.target.value,
+                            }))
+                          }
+                          placeholder="Rich text content"
+                          style={{
+                            width: "100%",
+                            minHeight: 120,
+                            border: "1px solid #CBD4E1",
+                            borderRadius: 8,
+                            padding: 12,
+                            fontSize: 14,
+                            fontFamily: "inherit",
+                          }}
+                        />
+                      ) : inputType === AttributeInputTypeEnum.File ? (
+                        <FileUploadField
+                          value={value}
+                          onChange={(url) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              [slug]: url,
+                            }))
+                          }
+                          slug={slug}
+                        />
+                      ) : (
+                        <Input
+                          value={value}
+                          onChange={(event) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              [slug]: event.target.value,
+                            }))
+                          }
+                          placeholder={
+                            inputType === AttributeInputTypeEnum.Reference
+                              ? "Global ID(s), comma separated"
+                              : undefined
+                          }
+                        />
+                      )}
+                      <Text as="p" size={1} color="default2" marginTop={1}>
+                        Slug: {slug}
+                      </Text>
+                    </Box>
+                  );
+                })}
+              </Box>
+            </Box>
+          ) : null}
 
           <Box
             borderStyle="solid"
@@ -749,6 +1145,18 @@ export default function EditWidgetPage() {
                       fontSize: 14,
                       fontFamily: "inherit",
                     }}
+                  />
+                ) : inputType === AttributeInputTypeEnum.File ? (
+                  <FileUploadField
+                    value={value}
+                    onChange={(url) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        [slug]: url,
+                      }))
+                    }
+                    slug={slug}
+                    disabled={!isWidgetModuleEntity}
                   />
                 ) : (
                   <Input
