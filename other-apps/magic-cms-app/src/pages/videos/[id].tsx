@@ -33,6 +33,21 @@ const multilineClampStyle: CSSProperties = {
 };
 
 const PRODUCTS_TAB_PANEL_HEIGHT = 640;
+const PRODUCT_FETCH_PAGE_SIZE = 100;
+
+const normalizeSearchText = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gi, " ")
+    .trim();
+
+const tokenizeSearch = (value: string) => normalizeSearchText(value).split(" ").filter(Boolean);
+
+const matchesSearchTokens = (source: string, tokens: string[]) => {
+  if (tokens.length === 0) return true;
+  const haystack = normalizeSearchText(source);
+  return tokens.every((token) => haystack.includes(token));
+};
 
 const getFileNameFromUrl = (url: string) => {
   const value = url.trim();
@@ -88,21 +103,27 @@ export default function EditVideoPage() {
   const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [products, setProducts] = useState<string[]>([]);
   const [productSearch, setProductSearch] = useState("");
-  const [productCursorStack, setProductCursorStack] = useState<string[]>([]);
+  const [allPublishedProducts, setAllPublishedProducts] = useState<
+    Array<{ id: string; name: string; slug: string; thumbnailUrl: string }>
+  >([]);
+  const [productFetchCursor, setProductFetchCursor] = useState<string | undefined>(undefined);
+  const [hasFetchedAllProducts, setHasFetchedAllProducts] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saveNotice, setSaveNotice] = useState("");
   const [saveError, setSaveError] = useState("");
   const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>("video");
   const initializedPageIdRef = useRef<string | null>(null);
+  const seenPublishedCursorRef = useRef<Set<string>>(new Set());
   const normalizedProductSearch = productSearch.trim();
+  const productSearchTokens = useMemo(() => tokenizeSearch(normalizedProductSearch), [normalizedProductSearch]);
 
   const [{ data: publishedProductsData, fetching: fetchingPublishedProducts }] = useGetPublishedProductsQuery({
     variables: {
-      first: 20,
-      after: productCursorStack[productCursorStack.length - 1] || undefined,
-      search: normalizedProductSearch || undefined,
+      first: PRODUCT_FETCH_PAGE_SIZE,
+      after: productFetchCursor,
     },
+    pause: hasFetchedAllProducts,
   });
 
   const [{ data: selectedProductsData }] = useGetProductsByIdsQuery({
@@ -154,17 +175,13 @@ export default function EditVideoPage() {
   }, [fileInfo, thumbnailUrl, videoUrl]);
 
   const publishedProducts = useMemo(() => {
-    const unique = new Map<
-      string,
-      NonNullable<NonNullable<typeof publishedProductsData>["products"]>["edges"][number]["node"]
-    >();
-    for (const edge of publishedProductsData?.products?.edges || []) {
-      unique.set(edge.node.id, edge.node);
+    if (productSearchTokens.length === 0) {
+      return allPublishedProducts;
     }
-    return Array.from(unique.values());
-  }, [publishedProductsData]);
-
-  const publishedPageInfo = publishedProductsData?.products?.pageInfo;
+    return allPublishedProducts.filter((product) =>
+      matchesSearchTokens(`${product.name} ${product.slug}`, productSearchTokens)
+    );
+  }, [allPublishedProducts, productSearchTokens]);
 
   const selectedProductLookup = useMemo(() => {
     const lookup = new Map<
@@ -184,18 +201,18 @@ export default function EditVideoPage() {
         thumbnailUrl: edge.node.thumbnail?.url || "",
       });
     }
-    for (const edge of publishedProductsData?.products?.edges || []) {
-      if (!lookup.has(edge.node.id)) {
-        lookup.set(edge.node.id, {
-          id: edge.node.id,
-          name: edge.node.name,
-          slug: edge.node.slug,
-          thumbnailUrl: edge.node.thumbnail?.url || "",
+    for (const product of allPublishedProducts) {
+      if (!lookup.has(product.id)) {
+        lookup.set(product.id, {
+          id: product.id,
+          name: product.name,
+          slug: product.slug,
+          thumbnailUrl: product.thumbnailUrl,
         });
       }
     }
     return lookup;
-  }, [publishedProductsData, selectedProductsData]);
+  }, [allPublishedProducts, selectedProductsData]);
 
   useEffect(() => {
     if (!data?.page || !pageId) return;
@@ -237,8 +254,40 @@ export default function EditVideoPage() {
   }, [pageId]);
 
   useEffect(() => {
-    setProductCursorStack([]);
-  }, [normalizedProductSearch]);
+    seenPublishedCursorRef.current = new Set();
+    setAllPublishedProducts([]);
+    setProductFetchCursor(undefined);
+    setHasFetchedAllProducts(false);
+  }, [pageId]);
+
+  useEffect(() => {
+    const edges = publishedProductsData?.products?.edges || [];
+    if (edges.length > 0) {
+      setAllPublishedProducts((previous) => {
+        const next = new Map(previous.map((item) => [item.id, item]));
+        for (const edge of edges) {
+          next.set(edge.node.id, {
+            id: edge.node.id,
+            name: edge.node.name,
+            slug: edge.node.slug,
+            thumbnailUrl: edge.node.thumbnail?.url || "",
+          });
+        }
+        return Array.from(next.values());
+      });
+    }
+
+    const pageInfo = publishedProductsData?.products?.pageInfo;
+    const nextCursor = pageInfo?.endCursor || undefined;
+    if (pageInfo?.hasNextPage && nextCursor && !seenPublishedCursorRef.current.has(nextCursor)) {
+      seenPublishedCursorRef.current.add(nextCursor);
+      setProductFetchCursor(nextCursor);
+      return;
+    }
+    if (pageInfo) {
+      setHasFetchedAllProducts(true);
+    }
+  }, [publishedProductsData]);
 
   const addProduct = (productId: string) => {
     if (!productId) return;
@@ -248,16 +297,6 @@ export default function EditVideoPage() {
   const removeProduct = (value: string) => {
     if (!value) return;
     setProducts((prev) => prev.filter((item) => item !== value));
-  };
-
-  const goToPreviousProductPage = () => {
-    setProductCursorStack((prev) => (prev.length > 0 ? prev.slice(0, -1) : prev));
-  };
-
-  const goToNextProductPage = () => {
-    const nextCursor = publishedPageInfo?.endCursor;
-    if (!publishedPageInfo?.hasNextPage || !nextCursor) return;
-    setProductCursorStack((prev) => [...prev, nextCursor]);
   };
 
   const unlinkCurrentVideoFromWidgets = useCallback(async () => {
@@ -726,12 +765,16 @@ export default function EditVideoPage() {
             style={{ gridTemplateRows: "auto auto 1fr auto", gap: 12, minHeight: PRODUCTS_TAB_PANEL_HEIGHT, maxHeight: PRODUCTS_TAB_PANEL_HEIGHT }}
           >
             <Text as="h3" size={4} fontWeight="bold">
-              Published products ({publishedProductsData?.products?.totalCount || 0})
+              Published products (
+              {normalizedProductSearch
+                ? `${publishedProducts.length}/${allPublishedProducts.length}`
+                : allPublishedProducts.length}
+              )
             </Text>
             <Input
               value={productSearch}
               onChange={(event) => setProductSearch(event.target.value)}
-              placeholder="Search published products by name or slug"
+              placeholder="Search published products (word-by-word, name/slug)"
             />
 
             {fetchingPublishedProducts ? (
@@ -779,21 +822,11 @@ export default function EditVideoPage() {
 
             <Box display="flex" justifyContent="space-between" alignItems="center">
               <Text size={1} color="default2">
-                Page {productCursorStack.length + 1} • 20 per page
+                {hasFetchedAllProducts
+                  ? `Loaded all products • ${allPublishedProducts.length} total`
+                  : `Loading product catalog... ${allPublishedProducts.length} loaded`}
               </Text>
-              <Box display="flex" gap={2}>
-                <Button size="small" variant="secondary" onClick={goToPreviousProductPage} disabled={productCursorStack.length === 0}>
-                  Previous
-                </Button>
-                <Button
-                  size="small"
-                  variant="secondary"
-                  onClick={goToNextProductPage}
-                  disabled={!publishedPageInfo?.hasNextPage || !publishedPageInfo?.endCursor}
-                >
-                  Next
-                </Button>
-              </Box>
+              {fetchingPublishedProducts && !hasFetchedAllProducts ? <Spinner /> : null}
             </Box>
           </Box>
         </Box>

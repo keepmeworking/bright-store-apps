@@ -13,6 +13,7 @@ const INPUT_TYPE_MAP: Record<string, AttributeInputTypeEnum> = {
   NUMERIC: AttributeInputTypeEnum.Numeric,
   PLAIN_TEXT: AttributeInputTypeEnum.PlainText,
   BOOLEAN: AttributeInputTypeEnum.Boolean,
+  DATE: AttributeInputTypeEnum.Date,
   DROPDOWN: AttributeInputTypeEnum.Dropdown,
   REFERENCE: AttributeInputTypeEnum.Reference,
   FILE: AttributeInputTypeEnum.File,
@@ -49,6 +50,9 @@ type ManagedAttribute = {
   type?: string | null;
   inputType?: string | null;
   entityType?: string | null;
+  valueRequired?: boolean | null;
+  visibleInStorefront?: boolean | null;
+  filterableInDashboard?: boolean | null;
 };
 
 type ManagedPageType = {
@@ -152,6 +156,7 @@ export type SetupBackupPageAttribute = {
   inputType?: string | null;
   plainText?: string;
   richText?: string;
+  date?: string;
   numeric?: string;
   boolean?: boolean;
   file?: string;
@@ -248,6 +253,9 @@ const loadManagedAttributes = async (client: Client, errors: string[]) => {
               type
               inputType
               entityType
+              valueRequired
+              visibleInStorefront
+              filterableInDashboard
             }
           }
         }
@@ -331,6 +339,68 @@ const loadAllProductTypes = async (client: Client, errors: string[]) => {
 
 const resolveAttributeScope = (scope?: string | null) =>
   scope === "PRODUCT_TYPE" ? AttributeTypeEnum.ProductType : AttributeTypeEnum.PageType;
+
+const getAttributeCreateConfigInput = (attribute: {
+  [key: string]: unknown;
+  valueRequired?: boolean;
+  visibleInStorefront?: boolean;
+  filterableInDashboard?: boolean;
+}) => {
+  const config: {
+    valueRequired?: boolean;
+    visibleInStorefront?: boolean;
+    filterableInDashboard?: boolean;
+  } = {};
+
+  if (typeof attribute.valueRequired === "boolean") {
+    config.valueRequired = attribute.valueRequired;
+  }
+  if (typeof attribute.visibleInStorefront === "boolean") {
+    config.visibleInStorefront = attribute.visibleInStorefront;
+  }
+  if (typeof attribute.filterableInDashboard === "boolean") {
+    config.filterableInDashboard = attribute.filterableInDashboard;
+  }
+
+  return config;
+};
+
+const getAttributeUpdateConfigInput = (
+  attribute: {
+    valueRequired?: boolean;
+    visibleInStorefront?: boolean;
+    filterableInDashboard?: boolean;
+  },
+  existing?: ManagedAttribute
+) => {
+  if (!existing) {
+    return null;
+  }
+
+  const input: {
+    valueRequired?: boolean;
+    visibleInStorefront?: boolean;
+    filterableInDashboard?: boolean;
+  } = {};
+
+  if (typeof attribute.valueRequired === "boolean" && existing.valueRequired !== attribute.valueRequired) {
+    input.valueRequired = attribute.valueRequired;
+  }
+  if (
+    typeof attribute.visibleInStorefront === "boolean" &&
+    existing.visibleInStorefront !== attribute.visibleInStorefront
+  ) {
+    input.visibleInStorefront = attribute.visibleInStorefront;
+  }
+  if (
+    typeof attribute.filterableInDashboard === "boolean" &&
+    existing.filterableInDashboard !== attribute.filterableInDashboard
+  ) {
+    input.filterableInDashboard = attribute.filterableInDashboard;
+  }
+
+  return Object.keys(input).length > 0 ? input : null;
+};
 
 async function syncProductTypeAttributeLinks(args: {
   client: Client;
@@ -949,6 +1019,7 @@ export async function performSetup(client: Client, options: SetupOptions = {}): 
   counts.stalePageTypes = stalePageTypes.length;
 
   let missingLinks = 0;
+  const mismatchedAttributes = new Map<string, ManagedAttribute>();
   for (const pageTypeDef of CMS_PAGE_TYPES) {
     const existingPageType = existingPageTypeBySlug.get(pageTypeDef.slug);
     if (!existingPageType) {
@@ -964,18 +1035,6 @@ export async function performSetup(client: Client, options: SetupOptions = {}): 
   }
   counts.missingPageTypeAttributeLinks = missingLinks;
 
-  const hasAnyManagedState = existingAttributes.length > 0 || existingPageTypes.length > 0 || existingMenus.length > 0;
-  const hasPendingChanges =
-    counts.missingAttributes > 0 ||
-    counts.missingPageTypes > 0 ||
-    counts.missingPages > 0 ||
-    counts.missingMenus > 0 ||
-    counts.missingPageTypeAttributeLinks > 0 ||
-    counts.missingMenuItems > 0 ||
-    (cleanup && (counts.staleAttributes > 0 || counts.stalePageTypes > 0));
-
-  const mode: SetupMode = hasPendingChanges ? (hasAnyManagedState ? "update" : "initialize") : "already_initialized";
-
   const attrIdsBySlug: Record<string, string> = {};
   for (const attrDef of CMS_ATTRIBUTES) {
     const existing = existingAttributeBySlug.get(attrDef.slug);
@@ -984,9 +1043,231 @@ export async function performSetup(client: Client, options: SetupOptions = {}): 
     }
   }
 
+  const hasAnyManagedState = existingAttributes.length > 0 || existingPageTypes.length > 0 || existingMenus.length > 0;
+  const hasPendingChanges =
+    counts.missingAttributes > 0 ||
+    counts.missingPageTypes > 0 ||
+    counts.missingPages > 0 ||
+    counts.missingMenus > 0 ||
+    counts.missingPageTypeAttributeLinks > 0 ||
+    counts.missingMenuItems > 0 ||
+    mismatchedAttributes.size > 0 ||
+    (cleanup && (counts.staleAttributes > 0 || counts.stalePageTypes > 0));
+
+  const mode: SetupMode = hasPendingChanges ? (hasAnyManagedState ? "update" : "initialize") : "already_initialized";
+
+  // Validate managed attribute shapes: Saleor does not support changing `inputType` after creation.
+  // Treat these as non-blocking action warnings so setup can continue for unaffected modules.
   for (const attrDef of CMS_ATTRIBUTES) {
     const existing = existingAttributeBySlug.get(attrDef.slug);
+    if (!existing) continue;
+    const desiredInputType = INPUT_TYPE_MAP[attrDef.type];
+    const existingInputType = (existing.inputType || "").toUpperCase();
+    if (desiredInputType && existingInputType && existingInputType !== String(desiredInputType)) {
+      mismatchedAttributes.set(attrDef.slug, existing);
+      const extraHint =
+        attrDef.slug === "magic-product-images"
+          ? " This field must be FILE type (image URLs) for PDP image blocks."
+          : "";
+      if (dryRun) {
+        steps.push(
+          `[Plan] Recreate attribute ${attrDef.slug} due to inputType mismatch: expected ${desiredInputType}, got ${existing.inputType}.${extraHint}`
+        );
+      } else {
+        steps.push(
+          `[Auto-Fix] Attribute ${attrDef.slug} inputType mismatch: expected ${desiredInputType}, got ${existing.inputType}. Recreate flow will run.${extraHint}`
+        );
+      }
+    }
+  }
+
+  for (const attrDef of CMS_ATTRIBUTES) {
+    const mismatch = mismatchedAttributes.get(attrDef.slug);
+    let existing = existingAttributeBySlug.get(attrDef.slug);
+
+    if (mismatch && existing?.id) {
+      if (dryRun) {
+        continue;
+      }
+      const existingAttrId = existing.id;
+
+      if (attrDef.scope === "PRODUCT_TYPE") {
+        const productTypesResult = await loadAllProductTypes(client, errors);
+        if (productTypesResult.missingPermission) {
+          steps.push(
+            `Skipped mismatch auto-fix for ${attrDef.slug}: missing MANAGE_PRODUCT_TYPES_AND_ATTRIBUTES`
+          );
+          continue;
+        }
+
+        for (const productType of productTypesResult.items) {
+          const currentAttrIds = (productType.productAttributes || []).map((attribute) => attribute.id);
+          if (!currentAttrIds.includes(existingAttrId)) continue;
+
+          const nextAttrIds = currentAttrIds.filter((attributeId) => attributeId !== existingAttrId);
+          const updateRes = await client
+            .mutation(
+              `mutation UpdateProductTypeAttributes($id: ID!, $input: ProductTypeInput!) {
+                productTypeUpdate(id: $id, input: $input) {
+                  errors {
+                    field
+                    message
+                    code
+                  }
+                }
+              }`,
+              {
+                id: productType.id,
+                input: {
+                  productAttributes: nextAttrIds,
+                },
+              }
+            )
+            .toPromise();
+
+          const updateTransportMessage = getOperationErrorMessage(updateRes.error);
+          if (updateTransportMessage) {
+            errors.push(
+              `Unassign mismatched attribute ${attrDef.slug} from product type ${productType.slug} failed: ${updateTransportMessage}`
+            );
+            continue;
+          }
+
+          const updateErrors = updateRes.data?.productTypeUpdate?.errors || [];
+          const normalizedUpdateErrors = normalizeErrors(updateErrors as any);
+          if (normalizedUpdateErrors.length > 0) {
+            errors.push(
+              `Unassign mismatched attribute ${attrDef.slug} from product type ${productType.slug}: ${normalizedUpdateErrors.join("; ")}`
+            );
+            continue;
+          }
+
+          steps.push(`Unassigned mismatched attribute ${attrDef.slug} from product type ${productType.slug}`);
+        }
+      } else {
+        const pageTypes = await loadManagedPageTypes(client, errors);
+        const linkedPageTypes = pageTypes.filter((pageType) =>
+          (pageType.attributes || []).some((pageTypeAttribute) => pageTypeAttribute.id === existingAttrId)
+        );
+        for (const pageType of linkedPageTypes) {
+          const unassignRes = await client
+            .mutation(
+              `mutation UnassignAttributeFromPageType($pageTypeId: ID!, $attributeIds: [ID!]!) {
+                pageAttributeUnassign(pageTypeId: $pageTypeId, attributeIds: $attributeIds) {
+                  errors {
+                    field
+                    message
+                    code
+                  }
+                }
+              }`,
+              {
+                pageTypeId: pageType.id,
+                attributeIds: [existingAttrId],
+              }
+            )
+            .toPromise();
+
+          const unassignTransportMessage = getOperationErrorMessage(unassignRes.error);
+          if (unassignTransportMessage) {
+            errors.push(
+              `Unassign mismatched attribute ${attrDef.slug} from page type ${pageType.slug} failed: ${unassignTransportMessage}`
+            );
+            continue;
+          }
+
+          const unassignErrors = unassignRes.data?.pageAttributeUnassign?.errors || [];
+          const normalizedUnassignErrors = normalizeErrors(unassignErrors as any);
+          if (normalizedUnassignErrors.length > 0) {
+            errors.push(
+              `Unassign mismatched attribute ${attrDef.slug} from page type ${pageType.slug}: ${normalizedUnassignErrors.join("; ")}`
+            );
+            continue;
+          }
+
+          steps.push(`Unassigned mismatched attribute ${attrDef.slug} from page type ${pageType.slug}`);
+        }
+      }
+
+      const deleteRes = await client
+        .mutation(
+          `mutation DeleteAttribute($id: ID!) {
+            attributeDelete(id: $id) {
+              errors {
+                field
+                message
+                code
+              }
+            }
+          }`,
+          { id: existing.id }
+        )
+        .toPromise();
+
+      const deleteTransportMessage = getOperationErrorMessage(deleteRes.error);
+      if (deleteTransportMessage) {
+        if (hasProductTypePermissionError(deleteTransportMessage)) {
+          steps.push(
+            `Skipped mismatch auto-fix for ${attrDef.slug}: missing MANAGE_PRODUCT_TYPES_AND_ATTRIBUTES`
+          );
+        } else {
+          errors.push(`Delete mismatched attribute ${attrDef.slug} failed: ${deleteTransportMessage}`);
+        }
+      } else {
+        const deleteErrors = deleteRes.data?.attributeDelete?.errors || [];
+        const normalizedDeleteErrors = normalizeErrors(deleteErrors as any);
+        if (normalizedDeleteErrors.length > 0) {
+          const joined = normalizedDeleteErrors.join("; ");
+          if (hasProductTypePermissionError(joined)) {
+            steps.push(
+              `Skipped mismatch auto-fix for ${attrDef.slug}: missing MANAGE_PRODUCT_TYPES_AND_ATTRIBUTES`
+            );
+          } else {
+            errors.push(`Delete mismatched attribute ${attrDef.slug}: ${joined}`);
+          }
+        } else {
+          steps.push(`Removed mismatched attribute ${attrDef.slug}`);
+          counts.removedAttributes += 1;
+          existingAttributeBySlug.delete(attrDef.slug);
+          delete attrIdsBySlug[attrDef.slug];
+          existing = undefined;
+        }
+      }
+    }
+
     if (existing) {
+      if (!dryRun) {
+        const updateInput = getAttributeUpdateConfigInput(attrDef, existing);
+        if (updateInput) {
+          const updateRes = await client
+            .mutation(
+              `mutation UpdateAttributeConfig($id: ID!, $input: AttributeUpdateInput!) {
+                attributeUpdate(id: $id, input: $input) {
+                  errors {
+                    field
+                    message
+                    code
+                  }
+                }
+              }`,
+              { id: existing.id, input: updateInput }
+            )
+            .toPromise();
+
+          const updateTransportMessage = getOperationErrorMessage(updateRes.error);
+          if (updateTransportMessage) {
+            errors.push(`Update attribute ${attrDef.slug} config failed: ${updateTransportMessage}`);
+          } else {
+            const updateErrors = updateRes.data?.attributeUpdate?.errors || [];
+            const normalizedUpdateErrors = normalizeErrors(updateErrors as any);
+            if (normalizedUpdateErrors.length > 0) {
+              errors.push(`Update attribute ${attrDef.slug} config: ${normalizedUpdateErrors.join("; ")}`);
+            } else {
+              steps.push(`Updated attribute ${attrDef.slug} config`);
+            }
+          }
+        }
+      }
       counts.skippedAttributes += 1;
       steps.push(`Attribute ${attrDef.slug} already exists (skipped)`);
       continue;
@@ -1005,6 +1286,7 @@ export async function performSetup(client: Client, options: SetupOptions = {}): 
           type: resolveAttributeScope(attrDef.scope),
           inputType: INPUT_TYPE_MAP[attrDef.type],
           entityType: attrDef.entity ? ENTITY_TYPE_MAP[attrDef.entity] : undefined,
+          ...getAttributeCreateConfigInput(attrDef),
         },
       })
       .toPromise();
@@ -1612,9 +1894,21 @@ export async function performSetup(client: Client, options: SetupOptions = {}): 
     }
   }
 
+  const normalizedErrors: string[] = [];
+  for (const entry of errors) {
+    if (entry.toLowerCase().includes("inputtype mismatch")) {
+      const actionNote = entry.startsWith("[Action Required]") ? entry : `[Action Required] ${entry}`;
+      if (!steps.includes(actionNote)) {
+        steps.push(actionNote);
+      }
+      continue;
+    }
+    normalizedErrors.push(entry);
+  }
+
   return {
     steps,
-    errors,
+    errors: normalizedErrors,
     mode,
     dryRun,
     hasPendingChanges,
@@ -1648,13 +1942,20 @@ const toBackupMenuItems = (items: ManagedMenuItem[]): SetupBackupMenuItem[] =>
 
 const serializePageAttributeForBackup = (
   inputType: string | null | undefined,
-  values: Array<{ value?: string | null; reference?: string | null; richText?: string | null; file?: { url?: string | null } | null }>
+  values: Array<{
+    value?: string | null;
+    reference?: string | null;
+    richText?: string | null;
+    file?: { url?: string | null } | null;
+    date?: string | null;
+  }>
 ): Omit<SetupBackupPageAttribute, "slug" | "inputType"> => {
   const references = Array.from(new Set(values.map((entry) => entry.reference || "").filter(Boolean)));
   const first = values[0];
   const firstValue = first?.value || "";
   const firstRichText = first?.richText || "";
   const firstFile = first?.file?.url || "";
+  const firstDate = first?.date || "";
 
   switch (inputType) {
     case "REFERENCE":
@@ -1667,6 +1968,8 @@ const serializePageAttributeForBackup = (
       return firstFile ? { file: firstFile } : {};
     case "RICH_TEXT":
       return firstRichText ? { richText: firstRichText } : firstValue ? { richText: firstValue } : {};
+    case "DATE":
+      return firstDate ? { date: firstDate } : firstValue ? { date: firstValue } : {};
     case "NUMERIC":
       return firstValue ? { numeric: firstValue } : {};
     case "BOOLEAN":
@@ -1695,6 +1998,9 @@ const toAttributeValueInputFromSnapshot = (
   }
   if (attribute.richText) {
     return { ...base, richText: attribute.richText };
+  }
+  if (attribute.date) {
+    return { ...base, date: attribute.date };
   }
   if (attribute.numeric) {
     return { ...base, numeric: attribute.numeric };
@@ -1837,6 +2143,7 @@ export async function restoreManagedBackupSnapshot(
           type: resolveAttributeScope(attrDef.scope),
           inputType: INPUT_TYPE_MAP[attrDef.type] || AttributeInputTypeEnum.PlainText,
           entityType: attrDef.entity ? ENTITY_TYPE_MAP[attrDef.entity] : undefined,
+          ...getAttributeCreateConfigInput(attrDef),
         },
       })
       .toPromise();

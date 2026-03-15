@@ -5,6 +5,9 @@ import {
 } from "../../generated/graphql";
 
 type PageAttribute = NonNullable<NonNullable<GetWidgetQuery["page"]>["attributes"]>[number];
+type PageAttributeValue = PageAttribute["values"][number] & {
+  date?: string | null;
+};
 
 const createEditorJsDocument = (text: string) =>
   JSON.stringify({
@@ -62,7 +65,7 @@ const extractRichText = (value: string) => {
 };
 
 export const readAttributeValue = (attribute: PageAttribute) => {
-  const firstValue = attribute.values[0];
+  const firstValue = attribute.values[0] as PageAttributeValue | undefined;
 
   if (!firstValue) {
     return "";
@@ -74,6 +77,10 @@ export const readAttributeValue = (attribute: PageAttribute) => {
 
   if (firstValue.reference) {
     return firstValue.reference;
+  }
+
+  if (firstValue.date) {
+    return firstValue.date;
   }
 
   if (firstValue.richText) {
@@ -106,6 +113,8 @@ export const buildAttributeUpdateInput = (
       };
     case AttributeInputTypeEnum.Numeric:
       return { id: attributeId, numeric: trimmedValue };
+    case AttributeInputTypeEnum.Date:
+      return { id: attributeId, date: trimmedValue };
     case AttributeInputTypeEnum.File:
       return { id: attributeId, file: trimmedValue };
     case AttributeInputTypeEnum.RichText:

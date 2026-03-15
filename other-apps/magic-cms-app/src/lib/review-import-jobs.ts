@@ -333,7 +333,7 @@ const processReviewImportJob = async (summary: ReviewImportJobSummary) => {
       attributes.push({ id: payload.reviewAttrIds.statusAttrId, dropdown: { value: "approved" } });
     }
     if (payload.reviewAttrIds.linkedProductsAttrId && resolvedProductId) {
-      attributes.push({ id: payload.reviewAttrIds.linkedProductsAttrId, reference: resolvedProductId });
+      attributes.push({ id: payload.reviewAttrIds.linkedProductsAttrId, references: [resolvedProductId] });
     }
     if (payload.reviewAttrIds.mediaAttrId && row.pictureUrls?.[0]) {
       attributes.push({ id: payload.reviewAttrIds.mediaAttrId, file: row.pictureUrls[0] });

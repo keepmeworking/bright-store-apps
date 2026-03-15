@@ -2,6 +2,7 @@ export type CmsAttributeType =
   | "NUMERIC"
   | "PLAIN_TEXT"
   | "BOOLEAN"
+  | "DATE"
   | "DROPDOWN"
   | "REFERENCE"
   | "FILE"
@@ -77,7 +78,14 @@ export const CMS_ATTRIBUTES: CmsAttributeDefinition[] = [
   { slug: "magic-module-attr-content", name: "Magic Module Attr Content", type: "RICH_TEXT" },
   { slug: "magic-module-attr-excerpt", name: "Magic Module Excerpt", type: "PLAIN_TEXT" },
   { slug: "magic-module-attr-badge", name: "Magic Module Badge", type: "PLAIN_TEXT" },
-  { slug: "magic-module-attr-author", name: "Magic Module Author", type: "PLAIN_TEXT" },
+  { slug: "magic-module-attr-published-at", name: "Magic Module Published At", type: "DATE" },
+  {
+    slug: "magic-module-attr-author",
+    name: "Magic Module Author",
+    type: "REFERENCE",
+    entity: "PAGE",
+    referencePageTypeSlugs: ["magiccms-module-ty-author"],
+  },
   { slug: "magic-module-attr-categories", name: "Magic Module Categories", type: "PLAIN_TEXT" },
   { slug: "magic-module-attr-link", name: "Magic Module Attr Link", type: "PLAIN_TEXT" },
   { slug: "magic-module-attr-link-text", name: "Magic Module Attr Link Text", type: "PLAIN_TEXT" },
@@ -112,12 +120,19 @@ export const CMS_ATTRIBUTES: CmsAttributeDefinition[] = [
   { slug: "magic-settings-header-code", name: "Magic Settings Header Code", type: "PLAIN_TEXT" },
   { slug: "magic-settings-body-code", name: "Magic Settings Body Code", type: "PLAIN_TEXT" },
   { slug: "magic-settings-footer-code", name: "Magic Settings Footer Code", type: "PLAIN_TEXT" },
-  { slug: "magic-settings-extra-fields", name: "Magic Settings Extra Fields", type: "PLAIN_TEXT" },
   {
     slug: "magic-product-short-description",
     name: "Magic Product Short Description",
     type: "RICH_TEXT",
     scope: "PRODUCT_TYPE",
+  },
+  {
+    slug: "magic-product-installation",
+    name: "Magic Product Installation",
+    type: "BOOLEAN",
+    scope: "PRODUCT_TYPE",
+    visibleInStorefront: false,
+    filterableInDashboard: true,
   },
   {
     slug: "magic-product-tabs",
@@ -247,10 +262,25 @@ export const CMS_PAGE_TYPES: CmsPageTypeDefinition[] = [
     ],
   },
   {
+    slug: "magiccms-module-ty-author",
+    name: "MagicCMS: Module Type Author",
+    attributes: [
+      "magic-module-attr-image",
+      "magic-module-attr-excerpt",
+      "magic-module-attr-social-facebook",
+      "magic-module-attr-social-instagram",
+      "magic-module-attr-social-twitter",
+      "magic-module-attr-social-youtube",
+      "magic-module-attr-social-whatsapp",
+      "magic-ref-widget",
+    ],
+  },
+  {
     slug: "magiccms-module-ty-blog",
     name: "MagicCMS: Module Type Blog",
     attributes: [
       "magic-module-attr-featured-image",
+      "magic-module-attr-published-at",
       "magic-module-attr-author",
       "magic-module-attr-categories",
       "magic-ref-widget",
@@ -262,13 +292,27 @@ export const CMS_PAGE_TYPES: CmsPageTypeDefinition[] = [
     attributes: ["magic-ref-widget"],
   },
   {
+    slug: "magiccms-module-ty-default",
+    name: "MagicCMS: Module Type Default",
+    attributes: ["magic-ref-widget"],
+  },
+  {
+    slug: "magiccms-module-ty-buying-guide",
+    name: "MagicCMS: Module Type Buying Guide",
+    attributes: ["magic-ref-widget"],
+  },
+  {
+    slug: "magiccms-module-ty-distribution",
+    name: "MagicCMS: Module Type Distribution",
+    attributes: ["magic-ref-widget"],
+  },
+  {
     slug: "magiccms-storefront-settings",
     name: "MagicCMS: Storefront Settings",
     attributes: [
       "magic-settings-header-code",
       "magic-settings-body-code",
       "magic-settings-footer-code",
-      "magic-settings-extra-fields",
     ],
   },
 ];
@@ -278,12 +322,6 @@ export const CMS_DEFAULT_PAGES: CmsDefaultPageDefinition[] = [
     title: "Home",
     slug: "home",
     pageTypeSlug: "magiccms-module-ty-home",
-    isPublished: true,
-  },
-  {
-    title: "About Us",
-    slug: "about-us",
-    pageTypeSlug: "magiccms-module-ty-about",
     isPublished: true,
   },
   {
@@ -308,6 +346,142 @@ export const CMS_DEFAULT_PAGES: CmsDefaultPageDefinition[] = [
       "magic-module-attr-map-embed":
         "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d112085.32405538032!2d77.28131779726559!3d28.609783800000017!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390ce56269c425c9%3A0x62ad22ea71db25d!2sDaikcell%20India%20Private%20Limited!5e0!3m2!1sen!2sin!4v1769743929138!5m2!1sen!2sin",
     },
+  },
+  {
+    title: "Buying Guide",
+    slug: "buying-guide",
+    pageTypeSlug: "magiccms-module-ty-buying-guide",
+    isPublished: true,
+    content: JSON.stringify({
+      blocks: [
+        {
+          type: "header",
+          data: {
+            text: "What is a Mainline Stabilizer?",
+            level: 2,
+          },
+        },
+        {
+          type: "paragraph",
+          data: {
+            text: "A mainline stabilizer regulates the incoming voltage for your home, office, or shop before it reaches connected appliances. It is designed for multi-load protection, not just a single device.",
+          },
+        },
+        {
+          type: "header",
+          data: {
+            text: "Can an AC stabilizer replace a mainline stabilizer?",
+            level: 2,
+          },
+        },
+        {
+          type: "paragraph",
+          data: {
+            text: "No. An AC stabilizer is tuned for one air conditioner, while a mainline stabilizer is sized to manage the combined load of lights, fans, refrigerators, air conditioners, and other circuits together.",
+          },
+        },
+        {
+          type: "header",
+          data: {
+            text: "Can I run air conditioners on a mainline stabilizer?",
+            level: 2,
+          },
+        },
+        {
+          type: "paragraph",
+          data: {
+            text: "Yes, as long as the total connected load is within the stabilizer capacity. Always calculate your overall running wattage and leave a safety buffer for compressor start-up and future appliances.",
+          },
+        },
+        {
+          type: "header",
+          data: {
+            text: "How to estimate your home's power load",
+            level: 2,
+          },
+        },
+        {
+          type: "paragraph",
+          data: {
+            text: "List the appliances you plan to run, multiply quantity by wattage for each row, then add them together. A practical buying guide is to keep a 20% headroom so the stabilizer does not run at its limit all the time.",
+          },
+        },
+        {
+          type: "paragraph",
+          data: {
+            text: "Use the calculator below to estimate total wattage, buffered wattage, and the nearest standard kVA size for a mainline stabilizer.",
+          },
+        },
+      ],
+    }),
+  },
+  {
+    title: "Distribution",
+    slug: "distribution-page",
+    pageTypeSlug: "magiccms-module-ty-distribution",
+    isPublished: true,
+    content: JSON.stringify({
+      blocks: [
+        {
+          type: "header",
+          data: {
+            text: "Become a Daikcell Distribution Partner",
+            level: 2,
+          },
+        },
+        {
+          type: "paragraph",
+          data: {
+            text: "Daikcell works with channel partners who can represent our stabilizer, inverter, battery, and power-backup portfolio in local markets with consistent service and after-sales support.",
+          },
+        },
+        {
+          type: "header",
+          data: {
+            text: "Who should apply",
+            level: 2,
+          },
+        },
+        {
+          type: "paragraph",
+          data: {
+            text: "This page is suited for distributors, dealers, regional partners, and businesses that already handle electrical, appliance, or energy-related products and want to expand with a structured power-solutions catalog.",
+          },
+        },
+        {
+          type: "header",
+          data: {
+            text: "What Daikcell looks for",
+            level: 2,
+          },
+        },
+        {
+          type: "list",
+          data: {
+            style: "unordered",
+            items: [
+              "Strong local market presence and channel reach",
+              "Ability to handle product positioning and service coordination",
+              "Operational readiness for enquiries, orders, and follow-up",
+              "Commitment to long-term brand building in the assigned region",
+            ],
+          },
+        },
+        {
+          type: "header",
+          data: {
+            text: "How to proceed",
+            level: 2,
+          },
+        },
+        {
+          type: "paragraph",
+          data: {
+            text: "Use this page as the CMS-managed distribution information page. If you want lead capture, we can attach a widget form or a dedicated enquiry module without changing the page model.",
+          },
+        },
+      ],
+    }),
   },
   {
     title: "Terms & Conditions",

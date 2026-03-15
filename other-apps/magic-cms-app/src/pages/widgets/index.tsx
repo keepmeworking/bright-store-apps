@@ -5,7 +5,6 @@ import { useRouter } from "next/router";
 import { useClient } from "urql";
 import { useGetWidgetsQuery } from "../../../generated/graphql";
 import {
-  isModulePageType,
   isRepeaterDataAttributeSlug,
   isRepeaterModelByAttributes,
   isWidgetModelPageType,
@@ -18,8 +17,7 @@ type WidgetModelNode = {
   attributes?: ReadonlyArray<{ slug?: string | null } | null> | null;
 };
 
-const isMagicCmsManagedModel = (slug: string) =>
-  isModulePageType(slug) || isWidgetModelPageType(slug);
+const isMagicCmsManagedModel = (slug: string) => isWidgetModelPageType(slug);
 
 const getFieldCount = (attributes: ReadonlyArray<{ slug?: string | null }> = []) =>
   attributes.filter((attribute) => !isRepeaterDataAttributeSlug(attribute.slug || "")).length;
@@ -32,22 +30,18 @@ const normalizeGraphQLErrors = (
 const WidgetModelCard = ({
   model,
   onCreateWidget,
-  onOpenModeling,
   onDeleteModel,
   isDeleteConfirm,
   isDeleting,
 }: {
   model: WidgetModelNode;
   onCreateWidget: (modelId: string) => void;
-  onOpenModeling: () => void;
   onDeleteModel: (model: WidgetModelNode) => void;
   isDeleteConfirm: boolean;
   isDeleting: boolean;
 }) => {
   const attrs = (model.attributes || []).filter((attr): attr is { slug?: string | null } => Boolean(attr));
   const isRepeater = isRepeaterModelByAttributes(attrs);
-  const isModule = isModulePageType(model.slug);
-  const isWidgetModel = isWidgetModelPageType(model.slug);
 
   return (
     <Box
@@ -65,7 +59,7 @@ const WidgetModelCard = ({
           {model.name}
         </Text>
         <Text as="span" size={1} color="default2" textTransform="uppercase">
-          {isModule ? "MODULE" : isRepeater ? "REPEATER" : "SINGLE"}
+          {isRepeater ? "REPEATER" : "SINGLE"}
         </Text>
       </Box>
 
@@ -77,15 +71,9 @@ const WidgetModelCard = ({
       </Text>
 
       <Box marginTop="auto" display="flex" gap={2}>
-        {isModule ? (
-          <Button variant="secondary" size="small" onClick={onOpenModeling} style={{ flex: 1 }}>
-            Open in /models
-          </Button>
-        ) : isWidgetModel ? (
-          <Button variant="secondary" size="small" onClick={() => onCreateWidget(model.id)} style={{ flex: 1 }}>
-            Create Widget
-          </Button>
-        ) : null}
+        <Button variant="secondary" size="small" onClick={() => onCreateWidget(model.id)} style={{ flex: 1 }}>
+          Create Widget
+        </Button>
         <Button
           variant="secondary"
           size="small"
@@ -255,6 +243,11 @@ export default function WidgetsPage() {
 
   const handleDeleteModel = async (model: WidgetModelNode) => {
     if (deletingModelId) {
+      return;
+    }
+
+    if (!isWidgetModelPageType(model.slug)) {
+      setDeleteError("Only widget module models can be deleted from this screen.");
       return;
     }
 
@@ -440,7 +433,6 @@ export default function WidgetsPage() {
                   key={model.id}
                   model={model}
                   onCreateWidget={goCreateWidget}
-                  onOpenModeling={() => window.location.assign("/models/")}
                   onDeleteModel={handleDeleteModel}
                   isDeleteConfirm={pendingDeleteModelId === model.id}
                   isDeleting={deletingModelId === model.id}

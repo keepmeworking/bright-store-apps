@@ -3,8 +3,12 @@ import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import { useClient } from "urql";
 import { useCreateWidgetMutation } from "../../../generated/graphql";
-import { syncMagicRefWidgetOnModulePages } from "@/lib/module-widget-reference-sync";
-import { createShortToken, isWidgetOrModulePageType, sanitizeSlugPart } from "@/lib/widget-models";
+import {
+  createShortToken,
+  isWidgetModelPageType,
+  sanitizeSlugPart,
+  stripWidgetModelPrefix,
+} from "@/lib/widget-models";
 
 type WidgetModelNode = {
   id: string;
@@ -68,7 +72,7 @@ export default function CreateWidgetEntryPage() {
           const pageTypes: any = result.data?.pageTypes;
           (pageTypes?.edges || []).forEach((edge: any) => {
             const node = edge?.node;
-            if (node?.slug && isWidgetOrModulePageType(node.slug)) {
+            if (node?.slug && isWidgetModelPageType(node.slug)) {
               collected.push(node as WidgetModelNode);
             }
           });
@@ -112,8 +116,13 @@ export default function CreateWidgetEntryPage() {
       return;
     }
 
+    if (!selectedModel || !isWidgetModelPageType(selectedModel.slug)) {
+      setError("Only widget models are allowed in widget module.");
+      return;
+    }
+
     setError("");
-    const modelHint = sanitizeSlugPart(selectedModel?.name || "model");
+    const modelHint = sanitizeSlugPart(stripWidgetModelPrefix(selectedModel.slug) || selectedModel.name || "model");
     const slug = `magic-widget-${modelHint}-${sanitizeSlugPart(cleanTitle) || "item"}-${createShortToken()}`;
 
     const result = await createWidget({
@@ -132,19 +141,6 @@ export default function CreateWidgetEntryPage() {
     }
 
     const createdPageId = result.data.pageCreate.page.id;
-
-    let syncWarning = "";
-    const syncResult = await syncMagicRefWidgetOnModulePages(client, createdPageId, "add");
-    if (syncResult.errors.length > 0) {
-      syncWarning =
-        syncResult.errors[0] ||
-        "Widget created, but magic-ref-widget sync failed for one or more module pages.";
-    }
-
-    if (syncWarning) {
-      router.push(`/widgets/${createdPageId}?syncWarning=${encodeURIComponent(syncWarning)}`);
-      return;
-    }
 
     router.push(`/widgets/${createdPageId}`);
   };
@@ -175,10 +171,10 @@ export default function CreateWidgetEntryPage() {
           <Text color="critical1">{loadError}</Text>
         ) : models.length === 0 ? (
           <Box>
-            <Text color="default2">No module found. Create a module first.</Text>
+            <Text color="default2">No widget model found. Create a widget model first.</Text>
             <Box marginTop={3}>
               <Button variant="secondary" onClick={() => router.push("/widgets/create")}>
-                Create Module
+                Create Widget Model
               </Button>
             </Box>
           </Box>
@@ -186,7 +182,7 @@ export default function CreateWidgetEntryPage() {
           <>
             <Box marginBottom={4}>
               <Text as="span" size={2} fontWeight="bold">
-                Module
+                Widget model
               </Text>
               <Box marginTop={2}>
                 <select
@@ -210,7 +206,7 @@ export default function CreateWidgetEntryPage() {
               </Box>
               {selectedModel ? (
                 <Text as="p" size={1} color="default2" marginTop={1}>
-                  Module slug: {selectedModel.slug}
+                  Widget model slug: {selectedModel.slug}
                 </Text>
               ) : null}
             </Box>

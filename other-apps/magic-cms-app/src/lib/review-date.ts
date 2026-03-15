@@ -77,7 +77,7 @@ const tryParseByParts = (value: string) => {
     year = normalizeYear(first);
     month = normalizeMonth(second);
     day = normalizeDay(third);
-  } else if (third.length === 4) {
+  } else if (third.length === 4 || third.length === 2) {
     year = normalizeYear(third);
     const firstNumber = Number.parseInt(first, 10);
     const secondNumber = Number.parseInt(second, 10);

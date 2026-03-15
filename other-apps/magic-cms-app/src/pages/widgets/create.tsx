@@ -1,6 +1,6 @@
 import { Box, Button, Input, Spinner, Text } from "@saleor/macaw-ui";
 import { useRouter } from "next/router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useClient } from "urql";
 import {
   AttributeCreateDocument,
@@ -11,6 +11,7 @@ import {
   PageTypeUpdateDocument,
 } from "../../../generated/graphql";
 import {
+  buildWidgetAttributeSlug,
   buildWidgetModelSlug,
   createShortToken,
   mapWidgetFieldTypeToSaleor,
@@ -20,17 +21,51 @@ import {
   WIDGET_MODEL_PAGE_TYPE_PREFIX,
   WIDGET_FIELD_TYPE_OPTIONS,
   WIDGET_MODEL_ATTRIBUTE_PREFIX,
+  type WidgetFieldStorage,
   type WidgetFieldDraft,
   type WidgetModelMode,
 } from "@/lib/widget-models";
 
-const createFieldDraft = (): WidgetFieldDraft => ({
+const createFieldDraft = (storage: WidgetFieldStorage = "item"): WidgetFieldDraft => ({
   id: createShortToken(),
   label: "",
   slug: "",
   manualSlug: false,
   type: "text",
+  storage,
 });
+
+type WidgetModelPreset = {
+  id: string;
+  label: string;
+  description: string;
+  modelName: string;
+  mode: WidgetModelMode;
+  fields: Array<{
+    label: string;
+    slug: string;
+    type: WidgetFieldDraft["type"];
+    storage?: WidgetFieldStorage;
+  }>;
+};
+
+const WIDGET_MODEL_PRESETS: WidgetModelPreset[] = [
+  {
+    id: "hero-slider",
+    label: "Hero Slider Widget",
+    description: "Slides as repeat rows + widget-level speed setting.",
+    modelName: "Hero Slider",
+    mode: "repeater",
+    fields: [
+      { label: "Title", slug: "title", type: "text", storage: "item" },
+      { label: "Content", slug: "content", type: "rich_text", storage: "item" },
+      { label: "Image", slug: "image", type: "file", storage: "item" },
+      { label: "Button Text", slug: "button-text", type: "text", storage: "item" },
+      { label: "Button Link", slug: "button-link", type: "text", storage: "item" },
+      { label: "Speed (ms)", slug: "speed", type: "number", storage: "setting" },
+    ],
+  },
+];
 
 const normalizeGraphQLErrors = (
   errors: ReadonlyArray<{ message?: string | null; code?: string | null; field?: string | null }>
@@ -53,6 +88,13 @@ export default function CreateWidgetModelPage() {
     return `${WIDGET_MODEL_PAGE_TYPE_PREFIX}${mode}-${base}-*`;
   }, [mode, modelName]);
 
+  useEffect(() => {
+    if (mode !== "single") {
+      return;
+    }
+    setFields((prev) => prev.map((field) => ({ ...field, storage: "item" })));
+  }, [mode]);
+
   const addField = () => setFields((prev) => [...prev, createFieldDraft()]);
 
   const removeField = (id: string) => {
@@ -61,6 +103,23 @@ export default function CreateWidgetModelPage() {
 
   const updateField = (id: string, patch: Partial<WidgetFieldDraft>) => {
     setFields((prev) => prev.map((field) => (field.id === id ? { ...field, ...patch } : field)));
+  };
+
+  const applyPreset = (preset: WidgetModelPreset) => {
+    setModelName(preset.modelName);
+    setMode(preset.mode);
+    setFields(
+      preset.fields.map((field) => ({
+        id: createShortToken(),
+        label: field.label,
+        slug: sanitizeSlugPart(field.slug),
+        manualSlug: true,
+        type: field.type,
+        storage: field.storage || "item",
+      })),
+    );
+    setError("");
+    setSuccess(`Preset applied: ${preset.label}`);
   };
 
   const loadAttributeIdBySlug = async (slug: string) => {
@@ -93,9 +152,13 @@ export default function CreateWidgetModelPage() {
 
     for (const field of cleanFields) {
       const cleanFieldSlug = sanitizeSlugPart(field.slug || field.label || "field");
-      const attrSlug = `${WIDGET_MODEL_ATTRIBUTE_PREFIX}${modelKey}-${cleanFieldSlug}`;
+      const attrSlug = buildWidgetAttributeSlug({
+        modelKey,
+        fieldSlug: cleanFieldSlug,
+        storage: mode === "repeater" ? field.storage || "item" : "item",
+      });
       if (localSlugSet.has(attrSlug)) {
-        throw new Error(`Duplicate field slug generated: ${cleanFieldSlug}`);
+        throw new Error(`Duplicate field slug generated: ${cleanFieldSlug}.`);
       }
       localSlugSet.add(attrSlug);
 
@@ -109,7 +172,9 @@ export default function CreateWidgetModelPage() {
       const createResult = await client
         .mutation(AttributeCreateDocument, {
           input: {
-            name: `Magic Widget ${modelName || "Field"}: ${field.label || cleanFieldSlug}`,
+            name: `Magic Widget ${modelName || "Field"}: ${field.label || cleanFieldSlug}${
+              mode === "repeater" && field.storage === "setting" ? " (Setting)" : ""
+            }`,
             slug: attrSlug,
             type: AttributeTypeEnum.PageType,
             inputType: mapping.inputType as AttributeInputTypeEnum,
@@ -189,6 +254,7 @@ export default function CreateWidgetModelPage() {
         ...field,
         label: field.label.trim(),
         slug: sanitizeSlugPart(field.slug || field.label),
+        storage: mode === "repeater" ? field.storage || "item" : "item",
       }))
       .filter((field) => Boolean(field.label));
 
@@ -198,6 +264,20 @@ export default function CreateWidgetModelPage() {
     }
     if (cleanFields.length === 0) {
       setError("At least one field is required.");
+      return;
+    }
+
+    const dedupeKeySet = new Set<string>();
+    const hasDuplicate = cleanFields.some((field) => {
+      const dedupeKey = `${field.storage || "item"}:${field.slug}`;
+      if (dedupeKeySet.has(dedupeKey)) {
+        return true;
+      }
+      dedupeKeySet.add(dedupeKey);
+      return false;
+    });
+    if (hasDuplicate) {
+      setError("Duplicate field slug detected. Make every field slug unique.");
       return;
     }
 
@@ -258,7 +338,7 @@ export default function CreateWidgetModelPage() {
 
       setSuccess(`Widget model created: ${proposedModelSlug}`);
       setTimeout(() => {
-        router.push("/widgets?tab=modules");
+        router.push("/widgets");
       }, 500);
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Create model failed.");
@@ -270,7 +350,7 @@ export default function CreateWidgetModelPage() {
   return (
     <Box padding={8}>
       <Box marginBottom={5}>
-        <Button variant="tertiary" onClick={() => router.push("/widgets?tab=modules")} style={{ paddingLeft: 0 }}>
+        <Button variant="tertiary" onClick={() => router.push("/widgets")} style={{ paddingLeft: 0 }}>
           Back to Widgets
         </Button>
       </Box>
@@ -282,6 +362,29 @@ export default function CreateWidgetModelPage() {
         <Text as="p" size={3} color="default2" marginTop={2}>
           Saleor-native model builder: create a page type + attributes, then create widget entries from it.
         </Text>
+      </Box>
+
+      <Box borderStyle="solid" borderWidth={1} borderColor="default1" borderRadius={4} padding={5} marginBottom={4}>
+        <Text as="h3" size={4} fontWeight="bold">
+          Quick start templates
+        </Text>
+        <Text as="p" size={2} color="default2" marginTop={1} marginBottom={3}>
+          Apply a template to scaffold repeatable + settings workflow instantly.
+        </Text>
+        <Box display="flex" gap={2} flexWrap="wrap">
+          {WIDGET_MODEL_PRESETS.map((preset) => (
+            <Button key={preset.id} variant="secondary" onClick={() => applyPreset(preset)}>
+              {preset.label}
+            </Button>
+          ))}
+        </Box>
+        {WIDGET_MODEL_PRESETS.length > 0 ? (
+          <Box marginTop={2}>
+            <Text size={1} color="default2">
+              {WIDGET_MODEL_PRESETS[0].label}: {WIDGET_MODEL_PRESETS[0].description}
+            </Text>
+          </Box>
+        ) : null}
       </Box>
 
       <Box borderStyle="solid" borderWidth={1} borderColor="default1" borderRadius={4} padding={5}>
@@ -320,7 +423,7 @@ export default function CreateWidgetModelPage() {
             </select>
           </Box>
           <Text as="p" size={1} color="default2" marginTop={1}>
-            Repeater mode auto-adds plain text JSON field with slug `magic-json-*`.
+            Repeater mode auto-adds plain text JSON field with slug `magic-json-*` for repeat rows.
           </Text>
         </Box>
 
@@ -333,7 +436,12 @@ export default function CreateWidgetModelPage() {
             marginTop={3}
             display="grid"
             gap={2}
-            style={{ gridTemplateColumns: "minmax(220px, 1fr) minmax(220px, 1fr) minmax(180px, 220px) 96px" }}
+            style={{
+              gridTemplateColumns:
+                mode === "repeater"
+                  ? "minmax(220px, 1fr) minmax(220px, 1fr) minmax(180px, 220px) minmax(160px, 200px) 96px"
+                  : "minmax(220px, 1fr) minmax(220px, 1fr) minmax(180px, 220px) 96px",
+            }}
           >
             <Text size={1} color="default2">
               Field label
@@ -344,6 +452,11 @@ export default function CreateWidgetModelPage() {
             <Text size={1} color="default2">
               Type
             </Text>
+            {mode === "repeater" ? (
+              <Text size={1} color="default2">
+                Store in
+              </Text>
+            ) : null}
             <Text size={1} color="default2">
               &nbsp;
             </Text>
@@ -360,7 +473,11 @@ export default function CreateWidgetModelPage() {
                 padding={3}
                 display="grid"
                 gap={2}
-                __gridTemplateColumns="minmax(160px, 1fr) minmax(140px, 1fr) minmax(150px, 180px) 80px"
+                __gridTemplateColumns={
+                  mode === "repeater"
+                    ? "minmax(160px, 1fr) minmax(140px, 1fr) minmax(150px, 180px) minmax(150px, 190px) 80px"
+                    : "minmax(160px, 1fr) minmax(140px, 1fr) minmax(150px, 180px) 80px"
+                }
               >
                 <Input
                   value={field.label}
@@ -402,6 +519,27 @@ export default function CreateWidgetModelPage() {
                     </option>
                   ))}
                 </select>
+                {mode === "repeater" ? (
+                  <select
+                    value={field.storage || "item"}
+                    onChange={(event) =>
+                      updateField(field.id, {
+                        storage: event.target.value as WidgetFieldStorage,
+                      })
+                    }
+                    style={{
+                      width: "100%",
+                      minHeight: 40,
+                      borderRadius: 8,
+                      border: "1px solid #CBD4E1",
+                      padding: "8px 12px",
+                      background: "white",
+                    }}
+                  >
+                    <option value="item">Repeater item</option>
+                    <option value="setting">Widget setting</option>
+                  </select>
+                ) : null}
                 <Button variant="secondary" onClick={() => removeField(field.id)} style={{ width: "100%" }}>
                   Remove
                 </Button>
@@ -423,6 +561,11 @@ export default function CreateWidgetModelPage() {
           <Text as="p" size={1} color="default2" marginTop={1}>
             Generated field slug pattern: {WIDGET_MODEL_ATTRIBUTE_PREFIX}...
           </Text>
+          {mode === "repeater" ? (
+            <Text as="p" size={1} color="default2" marginTop={1}>
+              Repeater settings are stored as normal attributes with `-setting-` token in slug.
+            </Text>
+          ) : null}
         </Box>
 
         {error ? (
@@ -445,7 +588,7 @@ export default function CreateWidgetModelPage() {
           <Button variant="primary" onClick={handleCreateModel} disabled={loading}>
             {loading ? "Creating model..." : "Create Model"}
           </Button>
-          <Button variant="secondary" onClick={() => router.push("/widgets?tab=modules")} disabled={loading}>
+          <Button variant="secondary" onClick={() => router.push("/widgets")} disabled={loading}>
             Cancel
           </Button>
         </Box>

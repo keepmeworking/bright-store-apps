@@ -5,9 +5,11 @@ export const LEGACY_WIDGET_MODEL_PAGE_TYPE_PREFIX = "magic-widget-module-";
 export const WIDGET_MODEL_ATTRIBUTE_PREFIX = "magic-widget-attr-";
 export const WIDGET_JSON_ATTRIBUTE_PREFIX = "magic-json-";
 export const WIDGET_MODEL_REPEATER_SUFFIX = "-repeater-items";
+export const WIDGET_REPEATER_SETTING_TOKEN = "-setting-";
 export const MODULE_PAGE_TYPE_PREFIX = "magiccms-module-";
 
 export type WidgetModelMode = "single" | "repeater";
+export type WidgetFieldStorage = "item" | "setting";
 
 export type WidgetFieldType =
   | "text"
@@ -24,6 +26,7 @@ export type WidgetFieldDraft = {
   slug: string;
   manualSlug?: boolean;
   type: WidgetFieldType;
+  storage?: WidgetFieldStorage;
 };
 
 export const WIDGET_FIELD_TYPE_OPTIONS: Array<{ value: WidgetFieldType; label: string }> = [
@@ -62,8 +65,24 @@ export const stripWidgetModelPrefix = (slug: string) =>
     .replace(WIDGET_MODEL_PAGE_TYPE_PREFIX, "")
     .replace(LEGACY_WIDGET_MODEL_PAGE_TYPE_PREFIX, "");
 
+export const buildWidgetAttributeSlug = ({
+  modelKey,
+  fieldSlug,
+  storage = "item",
+}: {
+  modelKey: string;
+  fieldSlug: string;
+  storage?: WidgetFieldStorage;
+}) =>
+  storage === "setting"
+    ? `${WIDGET_MODEL_ATTRIBUTE_PREFIX}${modelKey}${WIDGET_REPEATER_SETTING_TOKEN}${fieldSlug}`
+    : `${WIDGET_MODEL_ATTRIBUTE_PREFIX}${modelKey}-${fieldSlug}`;
+
 export const isRepeaterDataAttributeSlug = (slug: string) =>
   slug.startsWith(WIDGET_JSON_ATTRIBUTE_PREFIX) || slug.endsWith(WIDGET_MODEL_REPEATER_SUFFIX);
+
+export const isRepeaterSettingAttributeSlug = (slug: string) =>
+  slug.includes(WIDGET_REPEATER_SETTING_TOKEN);
 
 export const isRepeaterModelByAttributes = (attributes: ReadonlyArray<{ slug?: string | null }> = []) =>
   attributes.some((attribute) => isRepeaterDataAttributeSlug(attribute.slug || ""));
