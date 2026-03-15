@@ -1,4 +1,4 @@
-import { Box, Button, Input, Spinner, Text } from "@saleor/macaw-ui";
+import { Box, Button, Spinner, Text } from "@saleor/macaw-ui";
 import { Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useClient } from "urql";
@@ -331,7 +331,7 @@ export default function SettingsPage() {
 
       {loading ? (
         <Box paddingY={8} display="flex" alignItems="center" gap={4}>
-          <Spinner size="medium" />
+          <Spinner />
           <Text>Loading settings...</Text>
         </Box>
       ) : (
@@ -362,16 +362,27 @@ export default function SettingsPage() {
                   <Save size={14} /> {savingHeaderCode ? "Saving..." : "Save Header"}
                 </Button>
               </Box>
-              <Input
-                label="Header Injection Code"
-                value={form.headerCode}
-                placeholder="Paste trusted scripts/snippets for <head>."
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, headerCode: event.target.value }))
-                }
-                minRows={6}
-                multiline
-              />
+              <Box display="flex" flexDirection="column" gap={2}>
+                <Text as="span" size={2} fontWeight="bold">
+                   Header Injection Code
+                </Text>
+                <textarea
+                  value={form.headerCode}
+                  placeholder="Paste trusted scripts/snippets for <head>."
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, headerCode: event.target.value }))
+                  }
+                  style={{
+                    width: "100%",
+                    minHeight: 150,
+                    border: "1px solid #CBD4E1",
+                    borderRadius: 8,
+                    padding: 10,
+                    fontSize: 14,
+                    fontFamily: "inherit",
+                  }}
+                />
+              </Box>
             </Box>
 
             <Box display="flex" flexDirection="column" gap={3}>
@@ -388,16 +399,27 @@ export default function SettingsPage() {
                   <Save size={14} /> {savingBodyCode ? "Saving..." : "Save Body"}
                 </Button>
               </Box>
-              <Input
-                label="Body Injection Code"
-                value={form.bodyCode}
-                placeholder="Paste trusted scripts/snippets after <body>."
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, bodyCode: event.target.value }))
-                }
-                minRows={6}
-                multiline
-              />
+              <Box display="flex" flexDirection="column" gap={2}>
+                <Text as="span" size={2} fontWeight="bold">
+                   Body Injection Code
+                </Text>
+                <textarea
+                  value={form.bodyCode}
+                  placeholder="Paste trusted scripts/snippets after <body>."
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, bodyCode: event.target.value }))
+                  }
+                  style={{
+                    width: "100%",
+                    minHeight: 150,
+                    border: "1px solid #CBD4E1",
+                    borderRadius: 8,
+                    padding: 10,
+                    fontSize: 14,
+                    fontFamily: "inherit",
+                  }}
+                />
+              </Box>
             </Box>
 
             <Box display="flex" flexDirection="column" gap={3}>
@@ -414,16 +436,27 @@ export default function SettingsPage() {
                   <Save size={14} /> {savingFooterCode ? "Saving..." : "Save Footer"}
                 </Button>
               </Box>
-              <Input
-                label="Footer Injection Code"
-                value={form.footerCode}
-                placeholder="Paste trusted scripts/snippets before </body>."
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, footerCode: event.target.value }))
-                }
-                minRows={6}
-                multiline
-              />
+              <Box display="flex" flexDirection="column" gap={2}>
+                <Text as="span" size={2} fontWeight="bold">
+                   Footer Injection Code
+                </Text>
+                <textarea
+                  value={form.footerCode}
+                  placeholder="Paste trusted scripts/snippets before </body>."
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, footerCode: event.target.value }))
+                  }
+                  style={{
+                    width: "100%",
+                    minHeight: 150,
+                    border: "1px solid #CBD4E1",
+                    borderRadius: 8,
+                    padding: 10,
+                    fontSize: 14,
+                    fontFamily: "inherit",
+                  }}
+                />
+              </Box>
             </Box>
           </Box>
         </>
