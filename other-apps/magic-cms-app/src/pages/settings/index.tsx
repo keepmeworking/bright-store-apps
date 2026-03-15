@@ -331,7 +331,7 @@ export default function SettingsPage() {
 
       {loading ? (
         <Box paddingY={8} display="flex" alignItems="center" gap={4}>
-          <Spinner size={16} />
+          <Spinner size="medium" />
           <Text>Loading settings...</Text>
         </Box>
       ) : (
