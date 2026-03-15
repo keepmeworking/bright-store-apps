@@ -325,7 +325,7 @@ export default function SettingsPage() {
       <Text as="h1" size={6} fontWeight="bold">
         Storefront Settings
       </Text>
-      <Text as="p" size={2} color="textNeutralSubdued">
+      <Text as="p" size={2} color="default2">
         Manage tracking tags and global header/body/footer injections.
       </Text>
 
@@ -338,12 +338,12 @@ export default function SettingsPage() {
         <>
           {error && (
             <Box paddingY={4}>
-              <Text color="textCriticalDefault">{error}</Text>
+              <Text color="critical1">{error}</Text>
             </Box>
           )}
           {success && (
             <Box paddingY={4}>
-              <Text color="textSuccessDefault">{success}</Text>
+              <Text color="success1">{success}</Text>
             </Box>
           )}
 
