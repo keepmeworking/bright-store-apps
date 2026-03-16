@@ -234,11 +234,17 @@ export default function SettingsPage() {
     if (section === "enquiryEmail") setSavingEnquiryEmail(true);
 
     try {
+      const rawValue = form[section];
       const payload = [
-        {
-          id: attributeId,
-          values: [form[section]],
-        },
+        rawValue.trim()
+          ? {
+              id: attributeId,
+              plainText: rawValue,
+            }
+          : {
+              id: attributeId,
+              values: [],
+            },
       ];
 
       if (pageId) {
@@ -278,7 +284,7 @@ export default function SettingsPage() {
         const createResult = await client
           .mutation(
             `
-              mutation CreateSettings($input: PageInput!) {
+              mutation CreateSettings($input: PageCreateInput!) {
                 pageCreate(input: $input) {
                   page {
                     id
@@ -312,6 +318,7 @@ export default function SettingsPage() {
         setPageId(createResult.data?.pageCreate?.page?.id || null);
       }
 
+      await loadSettings();
       setSuccess(
         section === "headerCode"
           ? "Header code saved."
