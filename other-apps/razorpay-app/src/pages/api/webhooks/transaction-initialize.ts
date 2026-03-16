@@ -82,8 +82,8 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
       }
       keyId = settings.liveKeyId;
     } else {
-      // Test mode — use test key or fallback to env for local dev
-      keyId = settings.testKeyId || process.env.RAZORPAY_KEY_ID || "";
+      // Test mode — use test key from app settings
+      keyId = settings.testKeyId || "";
     }
 
     if (!keyId) {

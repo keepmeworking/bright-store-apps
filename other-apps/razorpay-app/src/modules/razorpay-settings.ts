@@ -208,14 +208,9 @@ function getFileSettings(saleorApiUrl: string): RazorpaySettings {
     console.warn("Failed to read file-based settings:", error);
   }
 
-  // Return defaults merged with env vars for local dev
+  // Return defaults when no stored settings exist
   return {
     ...DEFAULT_SETTINGS,
-    enabled: true,
-    mode: "test",
-    testKeyId: process.env.RAZORPAY_KEY_ID || "",
-    testKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
-    testWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
   };
 }
 
@@ -395,7 +390,7 @@ export function maskSettings(settings: RazorpaySettings): MaskedRazorpaySettings
  * Get a Razorpay client instance configured with the correct keys
  * based on the current mode (test/live).
  *
- * Falls back to env vars if no settings are stored in DynamoDB.
+ * Uses only app-level settings (DynamoDB or file storage).
  */
 export async function getRazorpayClient(
   docClient: DynamoDBDocumentClient | null,
@@ -413,9 +408,8 @@ export async function getRazorpayClient(
     keyId = settings.testKeyId;
     keySecret = settings.testKeySecret;
   } else {
-    // Fallback to env vars
-    keyId = process.env.RAZORPAY_KEY_ID || "";
-    keySecret = process.env.RAZORPAY_KEY_SECRET || "";
+    keyId = "";
+    keySecret = "";
   }
 
   if (!keyId || !keySecret) {
@@ -434,7 +428,7 @@ export async function getRazorpayClient(
 }
 
 /**
- * Get the webhook secret for the current mode
+ * Get the webhook secret for the current mode (app-level only)
  */
 export async function getWebhookSecret(
   docClient: DynamoDBDocumentClient | null,
@@ -450,6 +444,5 @@ export async function getWebhookSecret(
     return settings.testWebhookSecret;
   }
 
-  // Fallback to env var
-  return process.env.RAZORPAY_WEBHOOK_SECRET || "";
+  return "";
 }

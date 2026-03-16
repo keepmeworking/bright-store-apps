@@ -60,7 +60,7 @@ export default createManifestHandler({
       author: "Brightcode Canvas",
       brand: {
         logo: {
-          default: `${normalizedApiBaseURL}/logo.svg`,
+          default: `${normalizedApiBaseURL}/logo.png`,
         },
       },
     };

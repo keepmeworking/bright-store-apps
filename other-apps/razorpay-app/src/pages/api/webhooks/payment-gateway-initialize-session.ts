@@ -33,13 +33,15 @@ export default paymentGatewayInitializeSessionWebhook.createHandler(async (req, 
 
     const keyId = settings.mode === "live" && settings.liveKeyId
       ? settings.liveKeyId
-      : settings.testKeyId || process.env.RAZORPAY_KEY_ID || "";
+      : settings.testKeyId || "";
 
     return res.status(200).json({
       data: {
         razorpay_key_id: keyId,
         mode: settings.mode,
         is_key_missing: !keyId,
+        magic_checkout: settings.magicCheckout,
+        payment_action: settings.paymentAction,
       },
     });
   } catch (error) {

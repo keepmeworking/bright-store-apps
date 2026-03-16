@@ -65,8 +65,8 @@ export default transactionProcessSessionWebhook.createHandler(async (req, res, c
       }
       keySecret = settings.liveKeySecret;
     } else {
-      // Test mode — use test secret or fallback to env for local dev
-      keySecret = settings.testKeySecret || process.env.RAZORPAY_KEY_SECRET || "";
+      // Test mode — use test secret from app settings
+      keySecret = settings.testKeySecret || "";
     }
 
     if (!keySecret) {

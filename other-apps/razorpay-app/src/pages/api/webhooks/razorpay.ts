@@ -35,13 +35,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "Missing signature" });
     }
 
-    // Get webhook secret from settings or env
-    let webhookSecret: string;
-    if (docClient) {
-      webhookSecret = await getWebhookSecret(docClient, saleorApiUrl);
-    } else {
-      webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || "";
-    }
+    // Get webhook secret from app-level settings
+    const webhookSecret = await getWebhookSecret(docClient, saleorApiUrl);
 
     if (!webhookSecret) {
       console.error("Razorpay webhook secret not configured");
