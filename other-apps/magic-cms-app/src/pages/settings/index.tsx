@@ -1,4 +1,4 @@
-import { Box, Button, Spinner, Text } from "@saleor/macaw-ui";
+import { Box, Button, Input, Spinner, Text } from "@saleor/macaw-ui";
 import { Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useClient } from "urql";
@@ -10,12 +10,14 @@ const ATTRIBUTE_SLUGS = {
   headerCode: "magic-settings-header-code",
   bodyCode: "magic-settings-body-code",
   footerCode: "magic-settings-footer-code",
+  enquiryEmail: "magic-settings-enquiry-email",
 } as const;
 
 type SettingsFormState = {
   headerCode: string;
   bodyCode: string;
   footerCode: string;
+  enquiryEmail: string;
   isPublished: boolean;
 };
 
@@ -45,6 +47,7 @@ const defaultFormState = (): SettingsFormState => ({
   headerCode: "",
   bodyCode: "",
   footerCode: "",
+  enquiryEmail: "",
   isPublished: false,
 });
 
@@ -78,6 +81,7 @@ export default function SettingsPage() {
   const [savingHeaderCode, setSavingHeaderCode] = useState(false);
   const [savingBodyCode, setSavingBodyCode] = useState(false);
   const [savingFooterCode, setSavingFooterCode] = useState(false);
+  const [savingEnquiryEmail, setSavingEnquiryEmail] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [pageTypeId, setPageTypeId] = useState("");
@@ -197,6 +201,7 @@ export default function SettingsPage() {
         headerCode: attrFirstText(attrBySlug.get(ATTRIBUTE_SLUGS.headerCode)),
         bodyCode: attrFirstText(attrBySlug.get(ATTRIBUTE_SLUGS.bodyCode)),
         footerCode: attrFirstText(attrBySlug.get(ATTRIBUTE_SLUGS.footerCode)),
+        enquiryEmail: attrFirstText(attrBySlug.get(ATTRIBUTE_SLUGS.enquiryEmail)),
         isPublished: Boolean(settingsPage?.isPublished),
       });
     } catch (err) {
@@ -210,7 +215,9 @@ export default function SettingsPage() {
     void loadSettings();
   }, [loadSettings]);
 
-  const saveSettings = async (section: "headerCode" | "bodyCode" | "footerCode") => {
+  const saveSettings = async (
+    section: "headerCode" | "bodyCode" | "footerCode" | "enquiryEmail",
+  ) => {
     if (!canSave) return;
     setError("");
     setSuccess("");
@@ -224,6 +231,7 @@ export default function SettingsPage() {
     if (section === "headerCode") setSavingHeaderCode(true);
     if (section === "bodyCode") setSavingBodyCode(true);
     if (section === "footerCode") setSavingFooterCode(true);
+    if (section === "enquiryEmail") setSavingEnquiryEmail(true);
 
     try {
       const payload = [
@@ -309,7 +317,9 @@ export default function SettingsPage() {
           ? "Header code saved."
           : section === "bodyCode"
             ? "Body code saved."
-            : "Footer code saved.",
+            : section === "footerCode"
+              ? "Footer code saved."
+              : "Enquiry email saved.",
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save settings");
@@ -317,6 +327,7 @@ export default function SettingsPage() {
       setSavingHeaderCode(false);
       setSavingBodyCode(false);
       setSavingFooterCode(false);
+      setSavingEnquiryEmail(false);
     }
   };
 
@@ -348,6 +359,34 @@ export default function SettingsPage() {
           )}
 
           <Box paddingTop={6} display="flex" flexDirection="column" gap={6}>
+            <Box display="flex" flexDirection="column" gap={3}>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Text as="h2" size={4} fontWeight="bold">
+                  Enquiry Email
+                </Text>
+                <Button
+                  variant="primary"
+                  size="small"
+                  onClick={() => void saveSettings("enquiryEmail")}
+                  disabled={!canSave || savingEnquiryEmail}
+                >
+                  <Save size={14} /> {savingEnquiryEmail ? "Saving..." : "Save Email"}
+                </Button>
+              </Box>
+              <Box display="flex" flexDirection="column" gap={2}>
+                <Text as="span" size={2} fontWeight="bold">
+                  Form submission recipient
+                </Text>
+                <Input
+                  value={form.enquiryEmail}
+                  placeholder="support@example.com"
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, enquiryEmail: event.target.value }))
+                  }
+                />
+              </Box>
+            </Box>
+
             <Box display="flex" flexDirection="column" gap={3}>
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Text as="h2" size={4} fontWeight="bold">

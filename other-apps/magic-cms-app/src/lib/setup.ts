@@ -1881,6 +1881,10 @@ export async function performSetup(client: Client, options: SetupOptions = {}): 
       const normalized = normalizeErrors(gqlErrors as any);
       if (normalized.length > 0) {
         const joined = normalized.join("; ");
+        if (joined.includes("Couldn't resolve to a node")) {
+          steps.push(`Skipped stale attribute cleanup for ${attribute.slug}: attribute already missing`);
+          continue;
+        }
         if (hasProductTypePermissionError(joined)) {
           steps.push(`Skipped stale attribute cleanup for ${attribute.slug}: missing MANAGE_PRODUCT_TYPES_AND_ATTRIBUTES`);
         } else {

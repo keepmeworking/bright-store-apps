@@ -120,6 +120,7 @@ export const CMS_ATTRIBUTES: CmsAttributeDefinition[] = [
   { slug: "magic-settings-header-code", name: "Magic Settings Header Code", type: "PLAIN_TEXT" },
   { slug: "magic-settings-body-code", name: "Magic Settings Body Code", type: "PLAIN_TEXT" },
   { slug: "magic-settings-footer-code", name: "Magic Settings Footer Code", type: "PLAIN_TEXT" },
+  { slug: "magic-settings-enquiry-email", name: "Magic Settings Enquiry Email", type: "PLAIN_TEXT" },
   {
     slug: "magic-product-short-description",
     name: "Magic Product Short Description",
@@ -313,6 +314,7 @@ export const CMS_PAGE_TYPES: CmsPageTypeDefinition[] = [
       "magic-settings-header-code",
       "magic-settings-body-code",
       "magic-settings-footer-code",
+      "magic-settings-enquiry-email",
     ],
   },
 ];
@@ -512,6 +514,9 @@ export const CMS_DEFAULT_PAGES: CmsDefaultPageDefinition[] = [
     slug: "magic-settings",
     pageTypeSlug: "magiccms-storefront-settings",
     isPublished: false,
+    attributeValues: {
+      "magic-settings-enquiry-email": "support@example.com",
+    },
   },
 ];
 
