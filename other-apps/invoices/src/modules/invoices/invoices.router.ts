@@ -8,12 +8,19 @@ const logger = createLogger("invoicesRouter");
 
 export const invoicesRouter = router({
   generateInvoice: protectedClientProcedure
-    .input(z.object({ orderId: z.string() }))
+    .input(
+      z.object({
+        orderRef: z.preprocess(
+          (value) => (Array.isArray(value) ? value[0] : value),
+          z.string().min(1, "Missing order reference"),
+        ),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
-      logger.info({ orderId: input.orderId }, "invoicesRouter.generateInvoice called");
+      logger.info({ orderRef: input.orderRef }, "invoicesRouter.generateInvoice called");
 
       const service = new GenerateInvoiceService(ctx.apiClient);
       
-      return service.generate(input.orderId);
+      return service.generate(input.orderRef);
     }),
 });

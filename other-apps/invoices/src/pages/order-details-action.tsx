@@ -12,7 +12,8 @@ const OrderDetailsActionPage: NextPage = () => {
   const { notifySuccess, notifyError } = useDashboardNotification();
   const [isGenerated, setIsGenerated] = useState(false);
 
-  const orderId = query.id as string;
+  const rawOrderRef = query.id;
+  const orderRef = Array.isArray(rawOrderRef) ? rawOrderRef[0] : rawOrderRef;
 
   const { mutate, isLoading, error } = trpcClient.invoices.generateInvoice.useMutation({
     onSuccess: () => {
@@ -32,7 +33,7 @@ const OrderDetailsActionPage: NextPage = () => {
       setTimeout(() => {
         appBridge?.dispatch(
           actions.Redirect({
-            to: `/orders/${orderId}`,
+            to: orderRef ? `/orders/${orderRef}` : "/orders",
           })
         );
       }, 1500);
@@ -43,10 +44,10 @@ const OrderDetailsActionPage: NextPage = () => {
   });
 
   useEffect(() => {
-    if (orderId && !isGenerated && !isLoading && !error) {
-      mutate({ orderId });
+    if (orderRef && !isGenerated && !isLoading && !error) {
+      mutate({ orderRef });
     }
-  }, [orderId, mutate, isGenerated, isLoading, error]);
+  }, [orderRef, mutate, isGenerated, isLoading, error]);
 
   if (!appBridgeState) {
     return null;
@@ -86,7 +87,7 @@ const OrderDetailsActionPage: NextPage = () => {
             onClick={() => {
               appBridge?.dispatch(
                 actions.Redirect({
-                  to: `/orders/${orderId}`,
+                  to: orderRef ? `/orders/${orderRef}` : "/orders",
                 })
               );
             }}
@@ -101,7 +102,16 @@ const OrderDetailsActionPage: NextPage = () => {
           <Text color="critical1" marginBottom={4}>
             {error.message}
           </Text>
-          <Button onClick={() => mutate({ orderId })}>Retry</Button>
+          <Button
+            onClick={() => {
+              if (orderRef) {
+                mutate({ orderRef });
+              }
+            }}
+            disabled={!orderRef}
+          >
+            Retry
+          </Button>
         </Box>
       )}
     </Box>

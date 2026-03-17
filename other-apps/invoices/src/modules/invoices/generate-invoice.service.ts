@@ -95,31 +95,227 @@ const OrderQuery = gql`
   }
 `;
 
+const OrdersByNumberQuery = gql`
+  query GenerateInvoiceService_OrdersByNumber($numbers: [String!]) {
+    orders(first: 1, filter: { numbers: $numbers }) {
+      edges {
+        node {
+          ...GenerateInvoiceService_OrderPayloadByNumber
+        }
+      }
+    }
+  }
+
+  fragment GenerateInvoiceService_AddressByNumber on Address {
+    id
+    country {
+      country
+      code
+    }
+    companyName
+    cityArea
+    countryArea
+    streetAddress1
+    streetAddress2
+    postalCode
+    phone
+    firstName
+    lastName
+    city
+  }
+
+  fragment GenerateInvoiceService_MoneyByNumber on Money {
+    amount
+    currency
+  }
+
+  fragment GenerateInvoiceService_TaxedMoneyByNumber on TaxedMoney {
+    currency
+    gross {
+      ...GenerateInvoiceService_MoneyByNumber
+    }
+    net {
+      ...GenerateInvoiceService_MoneyByNumber
+    }
+    tax {
+      ...GenerateInvoiceService_MoneyByNumber
+    }
+  }
+
+  fragment GenerateInvoiceService_OrderPayloadByNumber on Order {
+    shippingPrice {
+      ...GenerateInvoiceService_TaxedMoneyByNumber
+    }
+    shippingMethodName
+    number
+
+    id
+    billingAddress {
+      ...GenerateInvoiceService_AddressByNumber
+    }
+    created
+    fulfillments {
+      created
+    }
+    status
+    number
+    total {
+      ...GenerateInvoiceService_TaxedMoneyByNumber
+    }
+    channel {
+      slug
+    }
+    lines {
+      productName
+      variantName
+      quantity
+      totalPrice {
+        ...GenerateInvoiceService_TaxedMoneyByNumber
+      }
+    }
+  }
+`;
+
+const OrdersBySearchQuery = gql`
+  query GenerateInvoiceService_OrdersBySearch($search: String!) {
+    orders(first: 1, filter: { search: $search }) {
+      edges {
+        node {
+          ...GenerateInvoiceService_OrderPayloadBySearch
+        }
+      }
+    }
+  }
+
+  fragment GenerateInvoiceService_AddressBySearch on Address {
+    id
+    country {
+      country
+      code
+    }
+    companyName
+    cityArea
+    countryArea
+    streetAddress1
+    streetAddress2
+    postalCode
+    phone
+    firstName
+    lastName
+    city
+  }
+
+  fragment GenerateInvoiceService_MoneyBySearch on Money {
+    amount
+    currency
+  }
+
+  fragment GenerateInvoiceService_TaxedMoneyBySearch on TaxedMoney {
+    currency
+    gross {
+      ...GenerateInvoiceService_MoneyBySearch
+    }
+    net {
+      ...GenerateInvoiceService_MoneyBySearch
+    }
+    tax {
+      ...GenerateInvoiceService_MoneyBySearch
+    }
+  }
+
+  fragment GenerateInvoiceService_OrderPayloadBySearch on Order {
+    shippingPrice {
+      ...GenerateInvoiceService_TaxedMoneyBySearch
+    }
+    shippingMethodName
+    number
+
+    id
+    billingAddress {
+      ...GenerateInvoiceService_AddressBySearch
+    }
+    created
+    fulfillments {
+      created
+    }
+    status
+    number
+    total {
+      ...GenerateInvoiceService_TaxedMoneyBySearch
+    }
+    channel {
+      slug
+    }
+    lines {
+      productName
+      variantName
+      quantity
+      totalPrice {
+        ...GenerateInvoiceService_TaxedMoneyBySearch
+      }
+    }
+  }
+`;
+
+function normalizeOrderRef(orderRef: string) {
+  return orderRef.replace(/^#/, "").trim();
+}
+
 export class GenerateInvoiceService {
   private logger = createLogger("GenerateInvoiceService");
   private invoiceNumberGenerator = new InvoiceNumberGenerator();
 
   constructor(private client: Client) {}
 
-  async generate(orderId: string) {
-    this.logger.info({ orderId }, "Starting invoice generation");
+  private async resolveOrder(orderRef: string) {
+    const normalized = normalizeOrderRef(orderRef);
 
-    const orderResponse = await this.client
-      .query(OrderQuery, { id: orderId })
-      .toPromise();
-
-    const order = orderResponse.data?.order;
-
-    if (!order) {
-      throw new Error("Order not found");
+    if (!normalized) {
+      throw new Error("Missing order reference");
     }
+
+    const byId = await this.client.query(OrderQuery, { id: normalized }).toPromise();
+    const orderById = byId.data?.order;
+
+    if (orderById) {
+      this.logger.info({ orderRef, normalized }, "Resolved order using GraphQL ID lookup");
+      return orderById;
+    }
+
+    const byNumber = await this.client
+      .query(OrdersByNumberQuery, { numbers: [normalized] })
+      .toPromise();
+    const orderByNumber = byNumber.data?.orders?.edges?.[0]?.node;
+
+    if (orderByNumber) {
+      this.logger.info({ orderRef, normalized }, "Resolved order using order number lookup");
+      return orderByNumber;
+    }
+
+    const bySearch = await this.client
+      .query(OrdersBySearchQuery, { search: normalized })
+      .toPromise();
+    const orderBySearch = bySearch.data?.orders?.edges?.[0]?.node;
+
+    if (orderBySearch) {
+      this.logger.info({ orderRef, normalized }, "Resolved order using search lookup");
+      return orderBySearch;
+    }
+
+    throw new Error(`Could not resolve order from dashboard reference: ${normalized}`);
+  }
+
+  async generate(orderRef: string) {
+    this.logger.info({ orderRef }, "Starting invoice generation");
+
+    const order = await this.resolveOrder(orderRef);
 
     const invoiceName = this.invoiceNumberGenerator.generateFromOrder(
       order as OrderPayloadFragment,
       InvoiceNumberGenerationStrategy.localizedDate("en-US"),
     );
 
-    const hashedInvoiceName = hashInvoiceFilename(invoiceName, orderId);
+    const hashedInvoiceName = hashInvoiceFilename(invoiceName, order.id);
     const hashedInvoiceFileName = `${hashedInvoiceName}.pdf`;
     const tempPdfLocation = await resolveTempPdfFileLocation(hashedInvoiceFileName);
 
@@ -150,7 +346,7 @@ export class GenerateInvoiceService {
     const uploadedFileUrl = await uploader.upload(tempPdfLocation, `${invoiceName}.pdf`);
 
     await new InvoiceCreateNotifier(this.client).notifyInvoiceCreated(
-      orderId,
+      order.id,
       invoiceName,
       uploadedFileUrl,
     );
