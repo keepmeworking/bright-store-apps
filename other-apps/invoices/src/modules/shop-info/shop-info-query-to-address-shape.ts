@@ -17,6 +17,7 @@ export const shopInfoQueryToAddressShape = (
     cityArea,
     companyName,
     city,
+    phone,
   } = shopFragment.companyAddress;
 
   return {
@@ -25,7 +26,9 @@ export const shopInfoQueryToAddressShape = (
     companyName,
     country: country.country,
     countryArea,
+    email: undefined,
     postalCode,
+    phone: phone ?? undefined,
     streetAddress1,
     streetAddress2,
     taxId: undefined,

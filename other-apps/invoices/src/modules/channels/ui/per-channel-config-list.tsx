@@ -57,6 +57,16 @@ export const PerChannelConfigList = () => {
               GSTIN / Tax ID: {address.taxId}
             </Text>
           ) : null}
+          {address.phone ? (
+            <Text size={2} as={"p"}>
+              Phone: {address.phone}
+            </Text>
+          ) : null}
+          {address.email ? (
+            <Text size={2} as={"p"}>
+              Email: {address.email}
+            </Text>
+          ) : null}
         </Box>
       );
     } else {

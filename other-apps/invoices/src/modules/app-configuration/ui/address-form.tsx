@@ -40,6 +40,8 @@ type FormSchemaType = z.infer<typeof FormSchema>;
 const fieldsBlock1: Array<keyof FormSchemaType> = [
   "companyName",
   "taxId",
+  "email",
+  "phone",
   "streetAddress1",
   "streetAddress2",
 ];
@@ -58,6 +60,8 @@ const fieldLabels: Record<keyof FormSchemaType, string> = {
   streetAddress1: "Street Address 1",
   companyName: "Company Name",
   taxId: "GSTIN / Tax ID",
+  email: "Email",
+  phone: "Phone",
   city: "City",
   postalCode: "Postal Code",
 };

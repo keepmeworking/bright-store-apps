@@ -6,6 +6,8 @@ export const AddressV2Schema = z.object({
    */
   companyName: z.string().optional(),
   taxId: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
   cityArea: z.string().optional(),
   countryArea: z.string().optional(),
   streetAddress1: z.string().optional(),

@@ -1,6 +1,8 @@
 export type SellerAddress = {
   companyName: string;
   taxId?: string;
+  email?: string;
+  phone?: string;
   cityArea: string;
   countryArea: string;
   streetAddress1: string;
@@ -18,7 +20,9 @@ export const Address = {
       companyName: "",
       country: "",
       countryArea: "",
+      email: "",
       postalCode: "",
+      phone: "",
       streetAddress1: "",
       streetAddress2: "",
       taxId: "",
