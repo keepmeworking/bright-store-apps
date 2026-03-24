@@ -5,6 +5,7 @@ export const AddressV2Schema = z.object({
    * min() to allow empty strings
    */
   companyName: z.string().optional(),
+  taxId: z.string().optional(),
   cityArea: z.string().optional(),
   countryArea: z.string().optional(),
   streetAddress1: z.string().optional(),

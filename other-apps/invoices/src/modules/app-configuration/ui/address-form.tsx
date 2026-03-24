@@ -39,6 +39,7 @@ type FormSchemaType = z.infer<typeof FormSchema>;
  */
 const fieldsBlock1: Array<keyof FormSchemaType> = [
   "companyName",
+  "taxId",
   "streetAddress1",
   "streetAddress2",
 ];
@@ -56,6 +57,7 @@ const fieldLabels: Record<keyof FormSchemaType, string> = {
   streetAddress2: "Street Address 2",
   streetAddress1: "Street Address 1",
   companyName: "Company Name",
+  taxId: "GSTIN / Tax ID",
   city: "City",
   postalCode: "Postal Code",
 };
@@ -98,7 +100,7 @@ export const AddressForm = (props: Props & InnerFormProps) => {
               return (
                 <Input
                   onChange={onChange}
-                  value={value}
+                  value={value ?? ""}
                   error={!!formState.errors[fieldName]}
                   label={fieldLabels[fieldName]}
                   onBlur={onBlur}
@@ -120,7 +122,7 @@ export const AddressForm = (props: Props & InnerFormProps) => {
                 return (
                   <Input
                     onChange={onChange}
-                    value={value}
+                    value={value ?? ""}
                     error={!!formState.errors[fieldName]}
                     label={fieldLabels[fieldName]}
                     onBlur={onBlur}
@@ -142,7 +144,7 @@ export const AddressForm = (props: Props & InnerFormProps) => {
               return (
                 <Input
                   onChange={onChange}
-                  value={value}
+                  value={value ?? ""}
                   error={!!formState.errors[fieldName]}
                   label={fieldLabels[fieldName]}
                   onBlur={onBlur}

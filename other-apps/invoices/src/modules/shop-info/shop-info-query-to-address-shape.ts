@@ -28,5 +28,6 @@ export const shopInfoQueryToAddressShape = (
     postalCode,
     streetAddress1,
     streetAddress2,
+    taxId: undefined,
   };
 };

@@ -303,6 +303,7 @@ export class MicroinvoiceInvoiceGenerator implements InvoiceGenerator {
       `${companyAddressData.city ?? ""}, ${companyAddressData.postalCode ?? ""}`,
       companyAddressData.country,
       companyAddressData.countryArea,
+      companyAddressData.taxId ? `GSTIN: ${toSingleLine(companyAddressData.taxId)}` : undefined,
     ]);
 
     const customerLines = compactAddressLines([

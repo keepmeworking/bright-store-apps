@@ -52,6 +52,11 @@ export const PerChannelConfigList = () => {
           <Text size={2} as={"p"}>
             {address.country}
           </Text>
+          {address.taxId ? (
+            <Text size={2} as={"p"}>
+              GSTIN / Tax ID: {address.taxId}
+            </Text>
+          ) : null}
         </Box>
       );
     } else {

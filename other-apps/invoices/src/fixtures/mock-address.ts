@@ -10,5 +10,6 @@ export const getMockAddress = (): SellerShopConfig["address"] => {
     postalCode: "201001",
     streetAddress1: "Pillar No. 680, Plot No. 1, Morta Industrial Area",
     streetAddress2: "Meerut Road",
+    taxId: "09AAECD1234A1Z5",
   };
 };

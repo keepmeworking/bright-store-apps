@@ -18,6 +18,7 @@ export class ConfigV1ToV2Transformer {
         streetAddress2: addressV1.streetAddress2 ?? "",
         postalCode: addressV1.postalCode ?? "",
         companyName: addressV1.companyName ?? "",
+        taxId: "",
         streetAddress1: addressV1.streetAddress1 ?? "",
         countryArea: addressV1.countryArea ?? "",
         cityArea: addressV1.cityArea ?? "",
