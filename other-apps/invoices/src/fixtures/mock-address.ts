@@ -2,13 +2,13 @@ import { SellerShopConfig } from "../modules/app-configuration/schema-v1/app-con
 
 export const getMockAddress = (): SellerShopConfig["address"] => {
   return {
-    city: "Wrocław",
+    city: "Ghaziabad",
     cityArea: "",
-    companyName: "Saleor",
-    country: "Poland",
-    countryArea: "Dolnoslaskie",
-    postalCode: "12-123",
-    streetAddress1: "Techowa 7",
-    streetAddress2: "",
+    companyName: "Daikcell India Pvt Ltd",
+    country: "India",
+    countryArea: "Uttar Pradesh",
+    postalCode: "201001",
+    streetAddress1: "Pillar No. 680, Plot No. 1, Morta Industrial Area",
+    streetAddress2: "Meerut Road",
   };
 };

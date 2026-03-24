@@ -72,6 +72,9 @@ const OrderQuery = gql`
     billingAddress {
       ...GenerateInvoiceService_Address
     }
+    shippingAddress {
+      ...GenerateInvoiceService_Address
+    }
     created
     fulfillments {
       created
@@ -153,6 +156,9 @@ const OrdersByNumberQuery = gql`
     billingAddress {
       ...GenerateInvoiceService_AddressByNumber
     }
+    shippingAddress {
+      ...GenerateInvoiceService_AddressByNumber
+    }
     created
     fulfillments {
       created
@@ -232,6 +238,9 @@ const OrdersBySearchQuery = gql`
 
     id
     billingAddress {
+      ...GenerateInvoiceService_AddressBySearch
+    }
+    shippingAddress {
       ...GenerateInvoiceService_AddressBySearch
     }
     created

@@ -63,6 +63,9 @@ const OrderPayload = gql`
     billingAddress {
       ...Address
     }
+    shippingAddress {
+      ...Address
+    }
     created
     fulfillments {
       created

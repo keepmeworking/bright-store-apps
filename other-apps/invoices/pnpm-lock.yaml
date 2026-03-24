@@ -44,6 +44,9 @@ importers:
       '@trpc/server':
         specifier: 10.45.3
         version: 10.45.3
+      '@types/pdfkit':
+        specifier: 0.13.9
+        version: 0.13.9
       '@urql/exchange-auth':
         specifier: 2.1.4
         version: 2.1.4(graphql@16.7.1)
@@ -77,6 +80,9 @@ importers:
       next:
         specifier: 15.2.8
         version: 15.2.8(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.52.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      pdfkit:
+        specifier: 0.12.3
+        version: 0.12.3
       react:
         specifier: 18.2.0
         version: 18.2.0
@@ -2365,6 +2371,9 @@ packages:
 
   '@types/node@25.2.2':
     resolution: {integrity: sha512-BkmoP5/FhRYek5izySdkOneRyXYN35I860MFAGupTdebyE66uZaR+bXLHq8k4DirE5DwQi3NuhvRU1jqTVwUrQ==}
+
+  '@types/pdfkit@0.13.9':
+    resolution: {integrity: sha512-RDG8Yb1zT7I01FfpwK7nMSA433XWpblMqSCtA5vJlSyavWZb303HUYPCel6JTiDDFqwGLvtAnYbH8N/e0Cb89g==}
 
   '@types/prop-types@15.7.15':
     resolution: {integrity: sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==}
@@ -7575,6 +7584,10 @@ snapshots:
   '@types/node@25.2.2':
     dependencies:
       undici-types: 7.16.0
+
+  '@types/pdfkit@0.13.9':
+    dependencies:
+      '@types/node': 25.2.2
 
   '@types/prop-types@15.7.15': {}
 
