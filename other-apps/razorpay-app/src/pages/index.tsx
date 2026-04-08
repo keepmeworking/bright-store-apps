@@ -162,6 +162,18 @@ const IndexPage: NextPage = () => {
     }
   };
 
+  const setActiveWebhookSecretDraft = (value: string) => {
+    setNewKeys((prev) =>
+      activeCredentialMode === "live"
+        ? { ...prev, liveWebhookSecret: value }
+        : { ...prev, testWebhookSecret: value }
+    );
+  };
+
+  const clearActiveWebhookSecretDraft = () => {
+    setActiveWebhookSecretDraft("");
+  };
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -460,28 +472,6 @@ const IndexPage: NextPage = () => {
               onChange={(e) => setNewKeys({ ...newKeys, testKeySecret: e.target.value })}
             />
           </Box>
-          <Box>
-            <Text marginBottom={2} size={2} fontWeight="bold" color="default1">Webhook Secret</Text>
-            <Box display="flex" gap={2}>
-              <Input
-                type="password"
-                disabled={!editModes.test}
-                placeholder="Enter test webhook secret"
-                value={editModes.test ? newKeys.testWebhookSecret : (settings?.testWebhookSecret ? "••••••••••••" : "")}
-                onChange={(e) => setNewKeys({ ...newKeys, testWebhookSecret: e.target.value })}
-              />
-              {editModes.test && (
-                <>
-                  <Button variant="secondary" onClick={() => setNewKeys({ ...newKeys, testWebhookSecret: generateWebhookSecret() })}>
-                    Generate
-                  </Button>
-                  <Button variant="secondary" onClick={() => copyToClipboard(newKeys.testWebhookSecret)}>
-                    Copy
-                  </Button>
-                </>
-              )}
-            </Box>
-          </Box>
           {editModes.test && connectionResult && (
              <Box marginTop={2} padding={4} backgroundColor={connectionResult.success ? "default1" : "critical1"} borderRadius={2} style={{ border: connectionResult.success ? "1px solid #16a34a" : "1px solid #dc2626" }}>
                 <Text fontWeight="bold" size={2} color={connectionResult.success ? "default1" : "critical1"}>{connectionResult.success ? "Connection Successful" : "Connection Failed"}</Text>
@@ -540,28 +530,6 @@ const IndexPage: NextPage = () => {
               onChange={(e) => setNewKeys({ ...newKeys, liveKeySecret: e.target.value })}
             />
           </Box>
-          <Box>
-            <Text marginBottom={2} size={2} fontWeight="bold" color="default1">Webhook Secret</Text>
-            <Box display="flex" gap={2}>
-              <Input
-                type="password"
-                disabled={!editModes.live}
-                placeholder="Enter live webhook secret"
-                value={editModes.live ? newKeys.liveWebhookSecret : (settings?.liveWebhookSecret ? "••••••••••••" : "")}
-                onChange={(e) => setNewKeys({ ...newKeys, liveWebhookSecret: e.target.value })}
-              />
-              {editModes.live && (
-                <>
-                  <Button variant="secondary" onClick={() => setNewKeys({ ...newKeys, liveWebhookSecret: generateWebhookSecret() })}>
-                    Generate
-                  </Button>
-                  <Button variant="secondary" onClick={() => copyToClipboard(newKeys.liveWebhookSecret)}>
-                    Copy
-                  </Button>
-                </>
-              )}
-            </Box>
-          </Box>
           {editModes.live && connectionResult && (
              <Box marginTop={2} padding={4} backgroundColor={connectionResult.success ? "default1" : "critical1"} borderRadius={2} style={{ border: connectionResult.success ? "1px solid #16a34a" : "1px solid #dc2626" }}>
                 <Text fontWeight="bold" size={2} color={connectionResult.success ? "default1" : "critical1"}>{connectionResult.success ? "Connection Successful" : "Connection Failed"}</Text>
@@ -604,30 +572,38 @@ const IndexPage: NextPage = () => {
             <Text marginBottom={1} size={2} color="default2">
               Active {activeCredentialMode === "live" ? "Live" : "Test"} Webhook Secret
             </Text>
-            <Box display="flex" gap={2} alignItems="center">
+            <Box display="flex" gap={2} alignItems="center" style={{ flexWrap: "wrap" }}>
               <Input
                 value={activeDraftWebhookSecret || activeWebhookSecret}
                 readOnly
-                type="password"
-                placeholder="Generate or save a webhook secret from the credentials section"
+                type={activeDraftWebhookSecret ? "text" : "password"}
+                placeholder="Generate and save a webhook secret for the active mode"
                 style={{ backgroundColor: "var(--color-background-default2)", color: "var(--color-text-default2)", flex: 1 }}
               />
               <Button
                 variant="secondary"
+                onClick={() => setActiveWebhookSecretDraft(generateWebhookSecret())}
+              >
+                Generate new
+              </Button>
+              <Button
+                variant="secondary"
                 disabled={!activeDraftWebhookSecret}
-                onClick={() => {
-                  if (activeDraftWebhookSecret) {
-                    navigator.clipboard.writeText(activeDraftWebhookSecret);
-                    setSaveMsg("Webhook secret copied to clipboard");
-                    setTimeout(() => setSaveMsg(""), 3000);
-                  }
-                }}
+                onClick={() => activeDraftWebhookSecret && copyToClipboard(activeDraftWebhookSecret)}
               >
                 Copy
               </Button>
+              <Button variant="primary" disabled={!activeDraftWebhookSecret || saving} onClick={saveSettingsHandler}>
+                {saving ? "Saving..." : "Store"}
+              </Button>
+              {activeDraftWebhookSecret ? (
+                <Button variant="secondary" disabled={saving} onClick={clearActiveWebhookSecretDraft}>
+                  Cancel
+                </Button>
+              ) : null}
             </Box>
             <Text size={1} color="default2" marginTop={1}>
-              For security, saved secrets remain masked here. Copy becomes available while editing or after generating a new secret.
+              Saved secrets stay masked. Generate a new secret here, copy it, then store it for the currently active mode.
             </Text>
           </Box>
 

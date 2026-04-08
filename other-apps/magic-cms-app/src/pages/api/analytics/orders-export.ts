@@ -132,7 +132,7 @@ const normalizeDate = (value: string, boundary: "start" | "end") => {
   if (!value) {
     return "";
   }
-  return boundary === "start" ? `${value}T00:00:00.000Z` : `${value}T23:59:59.999Z`;
+  return value;
 };
 
 const buildFileName = ({
