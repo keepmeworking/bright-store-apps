@@ -7,7 +7,7 @@
  *
  * Security:
  * - API keys are encrypted at rest using AES-256-GCM
- * - Keys are never returned unmasked via the API
+ * - Dashboard settings can be returned unmasked to authenticated app users
  * - SECRET_KEY env var is used as the encryption key
  */
 
@@ -60,23 +60,8 @@ export interface RazorpaySettings {
   updatedAt: string;
 }
 
-/** Settings returned to the dashboard (keys masked) */
-export interface MaskedRazorpaySettings
-  extends Omit<
-    RazorpaySettings,
-    | "testKeyId"
-    | "testKeySecret"
-    | "testWebhookSecret"
-    | "liveKeyId"
-    | "liveKeySecret"
-    | "liveWebhookSecret"
-  > {
-  testKeyId: string; // e.g., "rzp_test_****1234"
-  testKeySecret: string; // e.g., "****"
-  testWebhookSecret: string; // e.g., "****"
-  liveKeyId: string;
-  liveKeySecret: string;
-  liveWebhookSecret: string;
+/** Settings returned to the authenticated dashboard */
+export interface DashboardRazorpaySettings extends RazorpaySettings {
   /** Whether keys are configured */
   hasTestKeys: boolean;
   hasLiveKeys: boolean;
@@ -359,24 +344,11 @@ export async function saveSettings(
 }
 
 /**
- * Get masked settings for dashboard display
+ * Get dashboard settings with plaintext values for authenticated app users
  */
-export function maskSettings(settings: RazorpaySettings): MaskedRazorpaySettings {
+export function toDashboardSettings(settings: RazorpaySettings): DashboardRazorpaySettings {
   return {
-    enabled: settings.enabled,
-    title: settings.title,
-    description: settings.description,
-    mode: settings.mode,
-    testKeyId: maskKeyId(settings.testKeyId),
-    testKeySecret: maskValue(settings.testKeySecret, 0),
-    testWebhookSecret: maskValue(settings.testWebhookSecret, 0),
-    liveKeyId: maskKeyId(settings.liveKeyId),
-    liveKeySecret: maskValue(settings.liveKeySecret, 0),
-    liveWebhookSecret: maskValue(settings.liveWebhookSecret, 0),
-    paymentAction: settings.paymentAction,
-    magicCheckout: settings.magicCheckout,
-    debugMode: settings.debugMode,
-    updatedAt: settings.updatedAt,
+    ...settings,
     hasTestKeys: !!(settings.testKeyId && settings.testKeySecret),
     hasLiveKeys: !!(settings.liveKeyId && settings.liveKeySecret),
   };

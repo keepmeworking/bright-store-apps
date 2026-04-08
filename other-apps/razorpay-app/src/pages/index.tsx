@@ -16,7 +16,7 @@ import { Box, Button, Text, Input, Checkbox, Select } from "@saleor/macaw-ui";
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
-interface MaskedSettings {
+interface DashboardSettings {
   enabled: boolean;
   title: string;
   description: string;
@@ -116,8 +116,8 @@ const IndexPage: NextPage = () => {
   const [activeTab, setActiveTab] = useState<Tab>("settings");
 
   // Settings state
-  const [settings, setSettings] = useState<MaskedSettings | null>(null);
-  const [editSettings, setEditSettings] = useState<Partial<MaskedSettings>>({});
+  const [settings, setSettings] = useState<DashboardSettings | null>(null);
+  const [editSettings, setEditSettings] = useState<Partial<DashboardSettings>>({});
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
 
@@ -277,12 +277,13 @@ const IndexPage: NextPage = () => {
     const modeKeyId = `${mode}KeyId` as const;
     const modeKeySecret = `${mode}KeySecret` as const;
     const modeWebhookSecret = `${mode}WebhookSecret` as const;
+    const isEnteringEdit = !editModes[mode];
 
     setNewKeys((prev) => ({
       ...prev,
-      [modeKeyId]: "",
-      [modeKeySecret]: "",
-      [modeWebhookSecret]: "",
+      [modeKeyId]: isEnteringEdit ? settings?.[modeKeyId] || "" : "",
+      [modeKeySecret]: isEnteringEdit ? settings?.[modeKeySecret] || "" : "",
+      [modeWebhookSecret]: isEnteringEdit ? settings?.[modeWebhookSecret] || "" : "",
     }));
     setEditModes((prev) => ({ ...prev, [mode]: !prev[mode] }));
     setConnectionResult(null); // Clear test results when toggling
@@ -378,6 +379,19 @@ const IndexPage: NextPage = () => {
           appBridgeState?.saleorApiUrl || "",
         )}`
       : "";
+  const magicQuerySuffix = `saleorApiUrl=${encodeURIComponent(appBridgeState?.saleorApiUrl || "")}`;
+  const getPromotionsEndpoint =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/api/magic/get-promotions?${magicQuerySuffix}`
+      : "";
+  const applyPromotionEndpoint =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/api/magic/apply-promotion?${magicQuerySuffix}`
+      : "";
+  const shippingInfoEndpoint =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/api/magic/shipping-info?${magicQuerySuffix}`
+      : "";
 
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER: CONFIGURATION TAB
@@ -465,10 +479,9 @@ const IndexPage: NextPage = () => {
           <Box>
             <Text marginBottom={2} size={2} fontWeight="bold" color="default1">Key Secret</Text>
             <Input
-              type="password"
               disabled={!editModes.test}
               placeholder="Enter test key secret"
-              value={editModes.test ? newKeys.testKeySecret : (settings?.hasTestKeys ? "••••••••••••" : "")}
+              value={editModes.test ? newKeys.testKeySecret : (settings?.testKeySecret || "")}
               onChange={(e) => setNewKeys({ ...newKeys, testKeySecret: e.target.value })}
             />
           </Box>
@@ -523,10 +536,9 @@ const IndexPage: NextPage = () => {
           <Box>
             <Text marginBottom={2} size={2} fontWeight="bold" color="default1">Key Secret</Text>
             <Input
-              type="password"
               disabled={!editModes.live}
               placeholder="Enter live key secret"
-              value={editModes.live ? newKeys.liveKeySecret : (settings?.hasLiveKeys ? "••••••••••••" : "")}
+              value={editModes.live ? newKeys.liveKeySecret : (settings?.liveKeySecret || "")}
               onChange={(e) => setNewKeys({ ...newKeys, liveKeySecret: e.target.value })}
             />
           </Box>
@@ -576,7 +588,6 @@ const IndexPage: NextPage = () => {
               <Input
                 value={activeDraftWebhookSecret || activeWebhookSecret}
                 readOnly
-                type={activeDraftWebhookSecret ? "text" : "password"}
                 placeholder="Generate and save a webhook secret for the active mode"
                 style={{ backgroundColor: "var(--color-background-default2)", color: "var(--color-text-default2)", flex: 1 }}
               />
@@ -588,8 +599,8 @@ const IndexPage: NextPage = () => {
               </Button>
               <Button
                 variant="secondary"
-                disabled={!activeDraftWebhookSecret}
-                onClick={() => activeDraftWebhookSecret && copyToClipboard(activeDraftWebhookSecret)}
+                disabled={!activeDraftWebhookSecret && !activeWebhookSecret}
+                onClick={() => copyToClipboard(activeDraftWebhookSecret || activeWebhookSecret)}
               >
                 Copy
               </Button>
@@ -603,7 +614,7 @@ const IndexPage: NextPage = () => {
               ) : null}
             </Box>
             <Text size={1} color="default2" marginTop={1}>
-              Saved secrets stay masked. Generate a new secret here, copy it, then store it for the currently active mode.
+              You can copy the currently stored secret directly, or generate a new one and store it for the currently active mode.
             </Text>
           </Box>
 
@@ -621,6 +632,52 @@ const IndexPage: NextPage = () => {
           <Box marginTop={2}>
              {/* Test Connection moved to credential sections */}
           </Box>
+        </Box>
+      </Section>
+
+      <Section
+        title="Magic Checkout Endpoints"
+        description="Use these public URLs in Razorpay Magic Checkout setup for promotions and shipping information."
+      >
+        <Box display="flex" flexDirection="column" gap={6}>
+          {[
+            {
+              label: "URL for get promotions",
+              value: getPromotionsEndpoint,
+            },
+            {
+              label: "URL for apply promotions",
+              value: applyPromotionEndpoint,
+            },
+            {
+              label: "URL for shipping info",
+              value: shippingInfoEndpoint,
+            },
+          ].map((endpoint) => (
+            <Box key={endpoint.label}>
+              <Text marginBottom={1} size={2} color="default2">
+                {endpoint.label}
+              </Text>
+              <Box display="flex" gap={2} alignItems="center">
+                <Input
+                  value={endpoint.value}
+                  readOnly
+                  style={{
+                    backgroundColor: "var(--color-background-default2)",
+                    color: "var(--color-text-default2)",
+                    flex: 1,
+                  }}
+                />
+                <Button variant="secondary" onClick={() => copyToClipboard(endpoint.value)}>
+                  Copy
+                </Button>
+              </Box>
+            </Box>
+          ))}
+          <Text size={1} color="default2">
+            These endpoints stay tied to the current Saleor installation via the embedded{" "}
+            <code>saleorApiUrl</code> query param, so copy them directly into Razorpay dashboard settings.
+          </Text>
         </Box>
       </Section>
 

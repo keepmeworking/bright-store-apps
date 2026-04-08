@@ -1,7 +1,7 @@
 /**
  * Razorpay Settings API
  *
- * GET  — Returns masked settings for dashboard display
+ * GET  — Returns dashboard settings for authenticated app users
  * POST — Saves/updates settings (encrypts secrets)
  */
 
@@ -11,7 +11,7 @@ import { saleorApp } from "@/saleor-app";
 import {
   getSettings,
   saveSettings,
-  maskSettings,
+  toDashboardSettings,
   type RazorpaySettings,
 } from "@/modules/razorpay-settings";
 import { getDocClient } from "@/modules/dynamodb-helpers";
@@ -26,13 +26,12 @@ async function handler(
 
 
   // ─────────────────────────────────────────────────────────────────────────
-  // GET — Return masked settings
+  // GET — Return dashboard settings
   // ─────────────────────────────────────────────────────────────────────────
   if (req.method === "GET") {
     try {
       const settings = await getSettings(docClient, saleorApiUrl);
-      const masked = maskSettings(settings);
-      return res.status(200).json(masked);
+      return res.status(200).json(toDashboardSettings(settings));
     } catch (error) {
       console.error("Failed to fetch settings:", error);
       return res.status(500).json({ error: "Failed to fetch settings" });
@@ -60,11 +59,9 @@ async function handler(
 
       // Save (encryption handled internally)
       const saved = await saveSettings(docClient, saleorApiUrl, body);
-      const masked = maskSettings(saved);
-
       return res.status(200).json({
         success: true,
-        settings: masked,
+        settings: toDashboardSettings(saved),
       });
     } catch (error) {
       console.error("Failed to save settings:", error);

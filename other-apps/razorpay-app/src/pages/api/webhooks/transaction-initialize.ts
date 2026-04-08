@@ -15,26 +15,119 @@ function normalizeMagicCheckoutData(data: unknown) {
   }
 
   const payload = data as {
+    checkout_flow?: unknown;
     line_items_total?: unknown;
     line_items?: unknown;
     shipping_fee?: unknown;
     customer_details?: unknown;
   };
 
-  if (!Array.isArray(payload.line_items) || payload.line_items.length === 0) {
+  const checkoutFlow = payload.checkout_flow === "magic" ? "magic" : undefined;
+
+  if (checkoutFlow !== "magic" || !Array.isArray(payload.line_items) || payload.line_items.length === 0) {
     return null;
   }
 
+  const sanitizeText = (value: unknown, maxLength = 128) => {
+    if (typeof value !== "string") {
+      return undefined;
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+
+    return trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
+  };
+
+  const sanitizeLineItems = payload.line_items
+    .map((lineItem) => {
+      if (!lineItem || typeof lineItem !== "object") {
+        return null;
+      }
+
+      const rawLineItem = lineItem as Record<string, unknown>;
+      const quantity =
+        typeof rawLineItem.quantity === "number" && Number.isFinite(rawLineItem.quantity)
+          ? Math.max(1, Math.round(rawLineItem.quantity))
+          : 1;
+      const offerPrice =
+        typeof rawLineItem.offer_price === "number" && Number.isFinite(rawLineItem.offer_price)
+          ? Math.max(0, Math.round(rawLineItem.offer_price))
+          : 0;
+      const price =
+        typeof rawLineItem.price === "number" && Number.isFinite(rawLineItem.price)
+          ? Math.max(0, Math.round(rawLineItem.price))
+          : offerPrice;
+
+      if (!offerPrice) {
+        return null;
+      }
+
+      return {
+        ...rawLineItem,
+        quantity,
+        offer_price: offerPrice,
+        price,
+        tax_amount:
+          typeof rawLineItem.tax_amount === "number" && Number.isFinite(rawLineItem.tax_amount)
+            ? Math.max(0, Math.round(rawLineItem.tax_amount))
+            : undefined,
+        name: sanitizeText(rawLineItem.name),
+        description: sanitizeText(rawLineItem.description),
+      };
+    })
+    .filter(Boolean);
+
+  if (!sanitizeLineItems.length) {
+    return null;
+  }
+
+  const customerDetails =
+    payload.customer_details && typeof payload.customer_details === "object"
+      ? (payload.customer_details as Record<string, unknown>)
+      : undefined;
+
+  const shippingAddress =
+    customerDetails?.shipping_address && typeof customerDetails.shipping_address === "object"
+      ? (customerDetails.shipping_address as Record<string, unknown>)
+      : undefined;
+
   return {
+    checkout_flow: "magic" as const,
     line_items_total:
       typeof payload.line_items_total === "number" ? Math.max(0, Math.round(payload.line_items_total)) : undefined,
-    line_items: payload.line_items,
+    line_items: sanitizeLineItems,
     shipping_fee:
       typeof payload.shipping_fee === "number" ? Math.max(0, Math.round(payload.shipping_fee)) : undefined,
-    customer_details:
-      payload.customer_details && typeof payload.customer_details === "object"
-        ? payload.customer_details
-        : undefined,
+    customer_details: customerDetails
+      ? {
+          ...(typeof customerDetails.contact === "string" && customerDetails.contact.trim()
+            ? { contact: customerDetails.contact.trim() }
+            : {}),
+          ...(typeof customerDetails.email === "string" && customerDetails.email.trim()
+            ? { email: customerDetails.email.trim() }
+            : {}),
+          ...(shippingAddress
+            ? {
+                shipping_address: {
+                  ...(sanitizeText(shippingAddress.name) ? { name: sanitizeText(shippingAddress.name) } : {}),
+                  ...(typeof shippingAddress.contact === "string" && shippingAddress.contact.trim()
+                    ? { contact: shippingAddress.contact.trim() }
+                    : {}),
+                  ...(sanitizeText(shippingAddress.line1) ? { line1: sanitizeText(shippingAddress.line1) } : {}),
+                  ...(sanitizeText(shippingAddress.line2) ? { line2: sanitizeText(shippingAddress.line2) } : {}),
+                  ...(sanitizeText(shippingAddress.city) ? { city: sanitizeText(shippingAddress.city) } : {}),
+                  ...(sanitizeText(shippingAddress.state) ? { state: sanitizeText(shippingAddress.state) } : {}),
+                  ...(sanitizeText(shippingAddress.country, 8)
+                    ? { country: sanitizeText(shippingAddress.country, 8) }
+                    : {}),
+                },
+              }
+            : {}),
+        }
+      : undefined,
   };
 }
 
@@ -57,7 +150,6 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
   const amount = payload.action?.amount || 0;
   const currency = payload.action?.currency || "INR";
   const magicCheckoutData = normalizeMagicCheckoutData(payload.data);
-  const hasMagicPayload = Boolean(magicCheckoutData?.line_items?.length);
 
   const docClient = getDocClient();
   let mode: "test" | "live" = "test";
@@ -79,7 +171,7 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
     // Razorpay receipt max length is 40 chars; Saleor IDs are base64 and longer
     const receipt = (orderId || "").slice(0, 40);
 
-    const useMagicCheckout = settings.magicCheckout || hasMagicPayload;
+    const useMagicCheckout = settings.magicCheckout && magicCheckoutData?.checkout_flow === "magic";
 
     const razorpayOrder = await client.orders.create({
       amount: Math.round(amount * 100), // convert to paise
@@ -112,6 +204,8 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
       amount,
       currency,
       razorpayOrderId: razorpayOrder.id,
+      receipt,
+      saleorCheckoutId: orderId,
       saleorOrderId: orderId,
       mode,
       rawResponse: settings.debugMode
@@ -168,6 +262,8 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
         status: "failed",
         amount,
         currency,
+        receipt: (orderId || "").slice(0, 40),
+        saleorCheckoutId: orderId,
         saleorOrderId: orderId,
         error: message,
         mode,

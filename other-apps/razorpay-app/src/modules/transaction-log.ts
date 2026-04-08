@@ -36,9 +36,11 @@ export interface TransactionLogEntry {
   /** Razorpay-side identifiers */
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
+  receipt?: string;
 
   /** Saleor-side identifiers */
   saleorOrderId?: string;
+  saleorCheckoutId?: string;
   saleorTransactionId?: string;
 
   /** Error message if failed */
@@ -200,5 +202,47 @@ export async function getTransactionLogs(
   } catch (error) {
     console.error("Failed to fetch transaction logs:", error);
     return { logs: [], count: 0 };
+  }
+}
+
+export async function findRecentInitializeLogByReference(
+  docClient: DynamoDBDocumentClient | null,
+  saleorApiUrl: string,
+  reference: {
+    razorpayOrderId?: string;
+    receipt?: string;
+  }
+): Promise<TransactionLogEntry | null> {
+  const { razorpayOrderId, receipt } = reference;
+
+  if (!razorpayOrderId && !receipt) {
+    return null;
+  }
+
+  const matchesReference = (entry: TransactionLogEntry) =>
+    entry.type === "initialize" &&
+    ((receipt && entry.receipt === receipt) || (razorpayOrderId && entry.razorpayOrderId === razorpayOrderId));
+
+  if (!docClient) {
+    return getLogsFromFile(saleorApiUrl).find(matchesReference) || null;
+  }
+
+  try {
+    const result = await docClient.send(
+      new QueryCommand({
+        TableName: TABLE_NAME,
+        KeyConditionExpression: "PK = :pk",
+        ExpressionAttributeValues: {
+          ":pk": getPK(saleorApiUrl),
+        },
+        ScanIndexForward: false,
+        Limit: 100,
+      })
+    );
+
+    return ((result.Items || []) as TransactionLogEntry[]).find(matchesReference) || null;
+  } catch (error) {
+    console.error("Failed to resolve transaction log by reference:", error);
+    return null;
   }
 }

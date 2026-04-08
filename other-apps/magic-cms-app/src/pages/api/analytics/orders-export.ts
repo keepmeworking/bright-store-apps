@@ -102,13 +102,15 @@ const formatLineItems = (
     })
     .join("\n");
 
-const sanitizeSpreadsheetValue = (value: string | number) => {
+const sanitizeCsvValue = (value: string | number) => {
   const normalized = String(value ?? "");
   return /^[=\-+@]/.test(normalized) ? `'${normalized}` : normalized;
 };
 
 const toCsvCell = (value: string | number) =>
-  `"${sanitizeSpreadsheetValue(value).replace(/"/g, '""')}"`;
+  `"${sanitizeCsvValue(value).replace(/"/g, '""')}"`;
+
+const PHONE_COLUMN_KEYS = ["Customer Phone", "Billing Phone", "Shipping Phone"] as const;
 
 const parseToken = (authorizationHeader?: string) => {
   const authHeader = (authorizationHeader || "").trim();
@@ -269,11 +271,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   }
 
-  const sanitizedRows = rows.map((row) =>
+  const csvRowsData = rows.map((row) =>
     Object.fromEntries(
       Object.entries(row).map(([key, value]) => [
         key,
-        typeof value === "number" ? value : sanitizeSpreadsheetValue(value),
+        typeof value === "number" ? value : sanitizeCsvValue(value),
       ]),
     ),
   );
@@ -287,7 +289,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (format === "xlsx") {
     const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(sanitizedRows);
+    const worksheet = XLSX.utils.json_to_sheet(rows);
     const columnWidths = Object.keys(rows[0] || {}).map((key) => ({
       wch:
         key === "Line Items"
@@ -296,11 +298,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               36,
               Math.max(
                 key.length + 2,
-                ...sanitizedRows.map((row) => String(row[key as keyof typeof row] ?? "").slice(0, 80).length + 2),
+                ...rows.map((row) => String(row[key as keyof typeof row] ?? "").slice(0, 80).length + 2),
               ),
             ),
     }));
     worksheet["!cols"] = columnWidths;
+    const headers = Object.keys(rows[0] || {});
+    PHONE_COLUMN_KEYS.forEach((columnKey) => {
+      const columnIndex = headers.indexOf(columnKey);
+      if (columnIndex === -1) {
+        return;
+      }
+
+      for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+        const cellAddress = XLSX.utils.encode_cell({ c: columnIndex, r: rowIndex + 1 });
+        const cell = worksheet[cellAddress];
+        if (!cell) {
+          continue;
+        }
+
+        cell.t = "s";
+        cell.z = "@";
+      }
+    });
     XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
     const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
 
@@ -338,7 +358,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     "Customer Note": "",
   });
   const csvHeader = headers.map((column) => toCsvCell(column)).join(",");
-  const csvRows = sanitizedRows.map((row) =>
+  const csvRows = csvRowsData.map((row) =>
     headers.map((column) => toCsvCell(row[column as keyof typeof row] ?? "")).join(","),
   );
 

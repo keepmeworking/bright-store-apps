@@ -26,6 +26,7 @@ export default createManifestHandler({
         "MANAGE_ORDERS",
         "HANDLE_PAYMENTS",
         "MANAGE_CHECKOUTS",
+        "MANAGE_DISCOUNTS",
       ],
       webhooks: [
         transactionInitializeWebhook.getWebhookManifest(normalizedApiBaseURL),
