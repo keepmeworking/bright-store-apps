@@ -9,6 +9,35 @@ import { getRazorpayClient } from "@/modules/razorpay-settings";
 import { logTransaction } from "@/modules/transaction-log";
 import { getDocClient } from "@/modules/dynamodb-helpers";
 
+function normalizeMagicCheckoutData(data: unknown) {
+  if (!data || typeof data !== "object") {
+    return null;
+  }
+
+  const payload = data as {
+    line_items_total?: unknown;
+    line_items?: unknown;
+    shipping_fee?: unknown;
+    customer_details?: unknown;
+  };
+
+  if (!Array.isArray(payload.line_items) || payload.line_items.length === 0) {
+    return null;
+  }
+
+  return {
+    line_items_total:
+      typeof payload.line_items_total === "number" ? Math.max(0, Math.round(payload.line_items_total)) : undefined,
+    line_items: payload.line_items,
+    shipping_fee:
+      typeof payload.shipping_fee === "number" ? Math.max(0, Math.round(payload.shipping_fee)) : undefined,
+    customer_details:
+      payload.customer_details && typeof payload.customer_details === "object"
+        ? payload.customer_details
+        : undefined,
+  };
+}
+
 export const transactionInitializeWebhook = new SaleorSyncWebhook<
   TransactionInitializeSessionEventFragment
 >({
@@ -27,6 +56,8 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
   const orderId = payload.sourceObject?.id;
   const amount = payload.action?.amount || 0;
   const currency = payload.action?.currency || "INR";
+  const magicCheckoutData = normalizeMagicCheckoutData(payload.data);
+  const hasMagicPayload = Boolean(magicCheckoutData?.line_items?.length);
 
   const docClient = getDocClient();
   let mode: "test" | "live" = "test";
@@ -48,12 +79,26 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
     // Razorpay receipt max length is 40 chars; Saleor IDs are base64 and longer
     const receipt = (orderId || "").slice(0, 40);
 
+    const useMagicCheckout = settings.magicCheckout || hasMagicPayload;
+
     const razorpayOrder = await client.orders.create({
       amount: Math.round(amount * 100), // convert to paise
       currency,
       receipt,
       payment_capture: paymentCapture,
-    });
+      ...(useMagicCheckout && magicCheckoutData?.line_items?.length
+        ? {
+            line_items_total: magicCheckoutData.line_items_total ?? Math.round(amount * 100),
+            line_items: magicCheckoutData.line_items,
+            ...(typeof magicCheckoutData.shipping_fee === "number"
+              ? { shipping_fee: magicCheckoutData.shipping_fee }
+              : {}),
+            ...(magicCheckoutData.customer_details
+              ? { customer_details: magicCheckoutData.customer_details }
+              : {}),
+          }
+        : {}),
+    } as any);
 
     if (settings.debugMode) {
       console.log("[Razorpay Init] Order created:", razorpayOrder.id);
@@ -107,7 +152,7 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
         razorpay_key_id: keyId,
         amount: razorpayOrder.amount, // already in paise from Razorpay
         currency,
-        magic_checkout: settings.magicCheckout,
+        magic_checkout: useMagicCheckout,
         payment_action: settings.paymentAction,
       },
     });

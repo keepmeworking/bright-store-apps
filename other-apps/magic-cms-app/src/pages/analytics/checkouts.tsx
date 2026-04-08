@@ -1,24 +1,22 @@
 import { useAppBridge } from "@saleor/app-sdk/app-bridge";
 import { Box, Button, Spinner, Text } from "@saleor/macaw-ui";
 import { format, parseISO } from "date-fns";
-import { ArrowLeft, Mail, Phone, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Mail, Phone, X } from "lucide-react";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 
-import { type GetCheckoutsStatsQuery, useGetCheckoutsStatsQuery } from "../../../generated/graphql";
+import {
+  type GetCheckoutDetailsQuery,
+  type GetCheckoutsListQuery,
+  useGetCheckoutDetailsQuery,
+  useGetCheckoutsListQuery,
+} from "../../../generated/graphql";
 import { resolveRangeFromQuery, toDateQuery } from "@/lib/analytics-range";
 
-type CheckoutNode = NonNullable<NonNullable<GetCheckoutsStatsQuery["checkouts"]>["edges"][number]>["node"];
+type CheckoutListNode = NonNullable<NonNullable<GetCheckoutsListQuery["checkouts"]>["edges"][number]>["node"];
+type CheckoutViewMode = "recoverable" | "leads";
 
 const pageSize = 10;
-
-const formatMoney = (amount?: number | null, currency?: string | null) => {
-  const formatted = new Intl.NumberFormat("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount || 0);
-  return `${currency || ""} ${formatted}`.trim();
-};
 
 const joinName = (...parts: Array<string | null | undefined>) =>
   parts
@@ -27,19 +25,20 @@ const joinName = (...parts: Array<string | null | undefined>) =>
     .filter(Boolean)
     .join(" ");
 
-const getCustomerName = (checkout: CheckoutNode) =>
+const getCustomerName = (checkout: CheckoutListNode) =>
   (
-    joinName(checkout.user?.firstName, checkout.user?.lastName) ||
     joinName(checkout.billingAddress?.firstName, checkout.billingAddress?.lastName) ||
     joinName(checkout.shippingAddress?.firstName, checkout.shippingAddress?.lastName)
   ).trim() || "Guest";
 
-const getCustomerEmail = (checkout: CheckoutNode) => checkout.email || checkout.user?.email || "";
+const getCustomerEmail = (checkout: CheckoutListNode) => checkout.email || "";
 
-const getCustomerPhone = (checkout: CheckoutNode) =>
+const getCustomerPhone = (checkout: CheckoutListNode) =>
   checkout.billingAddress?.phone || checkout.shippingAddress?.phone || "";
 
-const getCustomerLocation = (checkout: CheckoutNode) =>
+type CheckoutDetailsNode = NonNullable<GetCheckoutDetailsQuery["checkout"]>;
+
+const getCustomerLocation = (checkout: CheckoutDetailsNode) =>
   [
     checkout.shippingAddress?.city || checkout.billingAddress?.city,
     checkout.shippingAddress?.country?.country || checkout.billingAddress?.country?.country,
@@ -47,14 +46,27 @@ const getCustomerLocation = (checkout: CheckoutNode) =>
     .filter(Boolean)
     .join(", ");
 
-const hasCustomerContact = (checkout: CheckoutNode) =>
+const hasCustomerContact = (checkout: CheckoutListNode) =>
   Boolean(getCustomerEmail(checkout) || getCustomerPhone(checkout));
 
-const getCheckoutProducts = (checkout: CheckoutNode) => {
+const getLineCount = (checkout: CheckoutListNode) => checkout.quantity;
+
+const isCompletedOnline = (checkout: CheckoutListNode) =>
+  checkout.chargeStatus === "FULL" || checkout.chargeStatus === "OVERCHARGED";
+
+const isRecoverableCart = (checkout: CheckoutListNode) =>
+  hasCustomerContact(checkout) && getLineCount(checkout) > 0 && !isCompletedOnline(checkout);
+
+const isOpenLead = (checkout: CheckoutListNode) => hasCustomerContact(checkout) && !isCompletedOnline(checkout) && !isRecoverableCart(checkout);
+
+const isPermissionDeniedError = (message?: string) =>
+  /need one of the following permissions|permission/i.test(message || "");
+
+const getCheckoutProducts = (checkout: CheckoutDetailsNode) => {
   const productMap = new Map<string, { name: string; qty: number }>();
 
   checkout.lines.forEach((line) => {
-    const productName = line.variant?.product?.name || line.variant?.name || "Unnamed product";
+    const productName = line.variant.product.name || line.variant.name || "Unnamed product";
     const current = productMap.get(productName) || { name: productName, qty: 0 };
     current.qty += line.quantity;
     productMap.set(productName, current);
@@ -63,7 +75,7 @@ const getCheckoutProducts = (checkout: CheckoutNode) => {
   return Array.from(productMap.values());
 };
 
-const toAddressLine = (checkout: CheckoutNode, type: "shipping" | "billing") => {
+const toAddressLine = (checkout: CheckoutDetailsNode, type: "shipping" | "billing") => {
   const address = type === "shipping" ? checkout.shippingAddress : checkout.billingAddress;
   return [
     [address?.streetAddress1, address?.streetAddress2].filter(Boolean).join(", "),
@@ -83,9 +95,10 @@ export default function AnalyticsCheckoutsPage() {
   const selectedChannelId = Array.isArray(channelId) ? channelId[0] : channelId || "";
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedCheckout, setSelectedCheckout] = useState<CheckoutNode | null>(null);
+  const [selectedCheckoutId, setSelectedCheckoutId] = useState<string>("");
+  const [viewMode, setViewMode] = useState<CheckoutViewMode>("recoverable");
 
-  const [{ data, fetching, error }] = useGetCheckoutsStatsQuery({
+  const [{ data, fetching, error }] = useGetCheckoutsListQuery({
     variables: {
       createdAfter: toDateQuery(resolvedRange.startDate),
       createdBefore: toDateQuery(resolvedRange.endDate),
@@ -93,8 +106,14 @@ export default function AnalyticsCheckoutsPage() {
       first: 100,
     },
     pause: !appBridgeState?.ready || !selectedChannelId,
-    requestPolicy: "network-only",
+    requestPolicy: "cache-and-network",
   });
+  const [{ data: selectedCheckoutData, fetching: selectedCheckoutFetching, error: selectedCheckoutError }] =
+    useGetCheckoutDetailsQuery({
+      variables: { id: selectedCheckoutId },
+      pause: !appBridgeState?.ready || !selectedCheckoutId,
+      requestPolicy: "cache-first",
+    });
 
   const listRouteQuery = useMemo(
     () => ({
@@ -105,12 +124,10 @@ export default function AnalyticsCheckoutsPage() {
     [selectedChannelId, resolvedRange]
   );
 
-  const allCheckouts = data?.checkouts?.edges.map((edge) => edge.node) || [];
-  const actionableCheckouts = useMemo(
-    () => allCheckouts.filter(hasCustomerContact),
-    [allCheckouts]
-  );
-
+  const allCheckouts = data?.checkouts?.edges.map((edge: NonNullable<GetCheckoutsListQuery["checkouts"]>["edges"][number]) => edge.node) || [];
+  const recoverableCheckouts = useMemo(() => allCheckouts.filter(isRecoverableCart), [allCheckouts]);
+  const openLeads = useMemo(() => allCheckouts.filter(isOpenLead), [allCheckouts]);
+  const actionableCheckouts = viewMode === "recoverable" ? recoverableCheckouts : openLeads;
   const totalLeads = actionableCheckouts.length;
   const totalPages = Math.max(1, Math.ceil(totalLeads / pageSize));
 
@@ -119,10 +136,17 @@ export default function AnalyticsCheckoutsPage() {
   }, [selectedChannelId, resolvedRange.startDate.getTime(), resolvedRange.endDate.getTime()]);
 
   useEffect(() => {
+    setCurrentPage(1);
+    setSelectedCheckoutId("");
+  }, [viewMode]);
+
+  useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  const selectedCheckout = selectedCheckoutData?.checkout ?? null;
 
   const pagedCheckouts = useMemo(() => {
     const from = (currentPage - 1) * pageSize;
@@ -147,13 +171,15 @@ export default function AnalyticsCheckoutsPage() {
       <Box display="flex" justifyContent="space-between" alignItems="center">
         <Box display="grid" gap={1}>
           <Text as="h1" size={7} fontWeight="bold">
-            Open Checkouts ({totalLeads})
+            {viewMode === "recoverable" ? "Recoverable Carts" : "Open Leads"} ({totalLeads})
           </Text>
           <Text color="default2" style={{ lineHeight: 1.35 }}>
             {format(resolvedRange.startDate, "dd MMM yyyy")} - {format(resolvedRange.endDate, "dd MMM yyyy")}
           </Text>
           <Text size={2} color="default2" marginTop={1} style={{ lineHeight: 1.35, maxWidth: 560 }}>
-            Only checkouts with captured email or phone are shown for conversion workflow.
+            {viewMode === "recoverable"
+              ? "Only carts with contact details, items, and non-zero subtotal are shown here for active recovery."
+              : "Leads with contact details but without a valid recoverable cart stay here for manual follow-up."}
           </Text>
         </Box>
 
@@ -168,11 +194,31 @@ export default function AnalyticsCheckoutsPage() {
         </Box>
       ) : error ? (
         <Box padding={8} borderStyle="solid" borderWidth={1} borderColor="critical1" borderRadius={4}>
-          <Text color="critical1">Failed to load checkouts: {error.message}</Text>
+          {isPermissionDeniedError(error.message) ? (
+            <Box display="grid" gap={2}>
+              <Box display="flex" gap={2} alignItems="center">
+                <AlertCircle size={16} />
+                <Text color="critical1" fontWeight="bold">
+                  Checkout analytics need additional Saleor permissions
+                </Text>
+              </Box>
+              <Text color="default2">
+                The Magic CMS app can still load dashboard analytics, but the checkout recovery screens need refreshed
+                app permissions in Saleor. Reinstall or refresh the app permissions after the manifest update, then try
+                again.
+              </Text>
+            </Box>
+          ) : (
+            <Text color="critical1">Failed to load checkouts: {error.message}</Text>
+          )}
         </Box>
       ) : pagedCheckouts.length === 0 ? (
         <Box padding={8} borderStyle="solid" borderWidth={1} borderColor="default1" borderRadius={4}>
-          <Text>No convertible checkouts found in selected range.</Text>
+          <Text>
+            {viewMode === "recoverable"
+              ? "No recoverable carts found in the selected range."
+              : "No open leads found in the selected range."}
+          </Text>
         </Box>
       ) : (
         <Box
@@ -186,7 +232,7 @@ export default function AnalyticsCheckoutsPage() {
             <Box
               padding={3}
               display="grid"
-              __gridTemplateColumns="1.4fr 1fr 1fr 1fr 0.9fr"
+              __gridTemplateColumns="1.5fr 1fr 1fr 1fr 0.9fr"
               style={{ backgroundColor: "#f8f9fb", fontWeight: 700, gap: 10 }}
             >
               <Text size={2} fontWeight="bold">
@@ -199,20 +245,20 @@ export default function AnalyticsCheckoutsPage() {
                 Created
               </Text>
               <Text size={2} fontWeight="bold">
-                Total
+                Status
               </Text>
               <Text size={2} fontWeight="bold">
                 Action
               </Text>
             </Box>
 
-            {pagedCheckouts.map((checkout) => {
+            {pagedCheckouts.map((checkout: CheckoutListNode) => {
               return (
                 <Box
                   key={checkout.id}
                   padding={3}
                   display="grid"
-                  __gridTemplateColumns="1.4fr 1fr 1fr 1fr 0.9fr"
+                  __gridTemplateColumns="1.5fr 1fr 1fr 1fr 0.9fr"
                   borderTopStyle="solid"
                   borderTopWidth={1}
                   borderColor="default1"
@@ -229,7 +275,7 @@ export default function AnalyticsCheckoutsPage() {
                       {checkout.token}
                     </Text>
                     <Text size={1} color="default2">
-                      {checkout.lines.length} items
+                      {getLineCount(checkout)} items
                     </Text>
                   </Box>
 
@@ -245,17 +291,16 @@ export default function AnalyticsCheckoutsPage() {
 
                   <Box display="grid" gap={1}>
                     <Text size={2} fontWeight="bold">
-                      {formatMoney(checkout.totalPrice?.gross?.amount, checkout.totalPrice?.gross?.currency)}
+                      {checkout.chargeStatus}
                     </Text>
                     <Text size={1} color="default2">
-                      Subtotal:{" "}
-                      {formatMoney(checkout.subtotalPrice?.gross?.amount, checkout.subtotalPrice?.gross?.currency)}
+                      Authorization: {checkout.authorizeStatus}
                     </Text>
                   </Box>
 
                   <Box display="grid" gap={2}>
-                    <Button size="small" variant="secondary" onClick={() => setSelectedCheckout(checkout)}>
-                      Open lead
+                    <Button size="small" variant="secondary" onClick={() => setSelectedCheckoutId(checkout.id)}>
+                      {viewMode === "recoverable" ? "Open cart" : "Open lead"}
                     </Button>
                   </Box>
                 </Box>
@@ -264,6 +309,30 @@ export default function AnalyticsCheckoutsPage() {
           </Box>
         </Box>
       )}
+
+      <Box
+        display="flex"
+        gap={2}
+        alignItems="center"
+        padding={3}
+        borderStyle="solid"
+        borderWidth={1}
+        borderColor="default1"
+        borderRadius={4}
+      >
+        <Button
+          variant={viewMode === "recoverable" ? "primary" : "secondary"}
+          onClick={() => setViewMode("recoverable")}
+        >
+          Recoverable Carts ({recoverableCheckouts.length})
+        </Button>
+        <Button
+          variant={viewMode === "leads" ? "primary" : "secondary"}
+          onClick={() => setViewMode("leads")}
+        >
+          Open Leads ({openLeads.length})
+        </Button>
+      </Box>
 
       <Box
         display="flex"
@@ -310,7 +379,7 @@ export default function AnalyticsCheckoutsPage() {
         </Box>
       </Box>
 
-      {selectedCheckout ? (
+      {selectedCheckoutId ? (
         <Box
           style={{
             position: "fixed",
@@ -322,7 +391,7 @@ export default function AnalyticsCheckoutsPage() {
             padding: 24,
             zIndex: 1200,
           }}
-          onClick={() => setSelectedCheckout(null)}
+          onClick={() => setSelectedCheckoutId("")}
         >
           <Box
             borderRadius={4}
@@ -337,7 +406,7 @@ export default function AnalyticsCheckoutsPage() {
               overflow: "auto",
               boxShadow: "0 18px 42px rgba(15,23,42,0.2)",
             }}
-            onClick={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
           >
             <Box
               padding={4}
@@ -350,18 +419,32 @@ export default function AnalyticsCheckoutsPage() {
             >
               <Box display="grid" gap={1}>
                 <Text as="h3" size={5} fontWeight="bold">
-                  Lead Details
+                  {viewMode === "recoverable" ? "Recoverable Cart Details" : "Lead Details"}
                 </Text>
                 <Text size={2} color="default2">
-                  Checkout {selectedCheckout.token}
+                    Checkout {selectedCheckout?.token || selectedCheckoutId}
                 </Text>
               </Box>
-              <Button variant="tertiary" size="small" onClick={() => setSelectedCheckout(null)}>
+              <Button variant="tertiary" size="small" onClick={() => setSelectedCheckoutId("")}>
                 <X size={14} />
               </Button>
             </Box>
 
             <Box padding={4} display="grid" gap={4}>
+              {selectedCheckoutFetching ? (
+                <Box padding={8} display="flex" justifyContent="center">
+                  <Spinner />
+                </Box>
+              ) : selectedCheckoutError ? (
+                <Box padding={4} borderStyle="solid" borderWidth={1} borderColor="critical1" borderRadius={4}>
+                  <Text color="critical1">Failed to load checkout details: {selectedCheckoutError.message}</Text>
+                </Box>
+              ) : !selectedCheckout ? (
+                <Box padding={4} borderStyle="solid" borderWidth={1} borderColor="default1" borderRadius={4}>
+                  <Text>Checkout details not available.</Text>
+                </Box>
+              ) : (
+                <>
               <Box display="grid" gap={1}>
                 <Text size={1} color="default2">
                   Customer
@@ -431,7 +514,7 @@ export default function AnalyticsCheckoutsPage() {
                     <Text size={2} fontWeight="bold">
                       Billing address
                     </Text>
-                    <Text size={2}>{toAddressLine(selectedCheckout, "billing")}</Text>
+                  <Text size={2}>{toAddressLine(selectedCheckout, "billing")}</Text>
                   </Box>
                 ) : null}
               </Box>
@@ -497,15 +580,15 @@ export default function AnalyticsCheckoutsPage() {
                 <Text size={2}>
                   Created: {format(parseISO(selectedCheckout.created), "dd MMM yyyy, hh:mm a")}
                 </Text>
+                <Text size={2}>Items: {getLineCount(selectedCheckout)}</Text>
+                <Text size={2}>Charge status: {selectedCheckout.chargeStatus}</Text>
+                <Text size={2}>Authorization status: {selectedCheckout.authorizeStatus}</Text>
                 <Text size={2}>
-                  Total:{" "}
-                  {formatMoney(
-                    selectedCheckout.totalPrice?.gross?.amount,
-                    selectedCheckout.totalPrice?.gross?.currency
-                  )}
+                  Classification: {isRecoverableCart(selectedCheckout) ? "Recoverable cart" : "Open lead"}
                 </Text>
-                <Text size={2}>Items: {selectedCheckout.lines.length}</Text>
               </Box>
+                </>
+              )}
             </Box>
           </Box>
         </Box>

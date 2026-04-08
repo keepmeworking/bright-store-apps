@@ -5,6 +5,24 @@ import { getWebhookSecret } from "@/modules/razorpay-settings";
 import { logTransaction } from "@/modules/transaction-log";
 import { getDocClient } from "@/modules/dynamodb-helpers";
 
+function resolveSaleorApiUrl(req: NextApiRequest) {
+  const queryValue = Array.isArray(req.query.saleorApiUrl) ? req.query.saleorApiUrl[0] : req.query.saleorApiUrl;
+  const headerValue = req.headers["x-saleor-api-url"];
+  const normalizedHeader = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+
+  return queryValue || normalizedHeader || process.env.NEXT_PUBLIC_SALEOR_API_URL || "default";
+}
+
+async function readRawBody(req: NextApiRequest) {
+  const chunks: Buffer[] = [];
+
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+  }
+
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 /**
  * Razorpay Webhook Handler
  *
@@ -22,10 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const docClient = getDocClient();
-
-  // Extract Saleor API URL from custom header or use a default
-  // Razorpay webhooks won't have Saleor context, so we use a configured value
-  const saleorApiUrl = process.env.NEXT_PUBLIC_SALEOR_API_URL || "default";
+  const saleorApiUrl = resolveSaleorApiUrl(req);
 
   try {
     const signature = req.headers["x-razorpay-signature"] as string;
@@ -43,8 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(500).json({ error: "Webhook secret not configured" });
     }
 
-    // 1. Verify HMAC Signature
-    const body = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+    const body = await readRawBody(req);
     const shasum = crypto.createHmac("sha256", webhookSecret);
     shasum.update(body);
     const digest = shasum.digest("hex");
@@ -67,7 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "Invalid signature" });
     }
 
-    const event = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const event = JSON.parse(body);
     console.log("Razorpay Webhook Received:", event.event);
 
     // 2. Process Events
@@ -148,3 +162,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Internal server error" });
   }
 }
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};

@@ -54,6 +54,7 @@ export default createManifestHandler({
         "MANAGE_PRODUCTS",
         "MANAGE_ORDERS",
         "MANAGE_CHECKOUTS",
+        "HANDLE_PAYMENTS",
         "MANAGE_CHANNELS",
       ],
       webhooks: [],

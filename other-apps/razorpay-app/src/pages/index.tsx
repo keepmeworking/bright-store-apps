@@ -262,13 +262,16 @@ const IndexPage: NextPage = () => {
   };
 
   const toggleEdit = (mode: "test" | "live") => {
-    const isEntering = !editModes[mode];
-    if (isEntering && settings) {
-      setNewKeys((prev) => ({
-        ...prev,
-        [`${mode}KeyId`]: settings[`${mode}KeyId`] || "",
-      }));
-    }
+    const modeKeyId = `${mode}KeyId` as const;
+    const modeKeySecret = `${mode}KeySecret` as const;
+    const modeWebhookSecret = `${mode}WebhookSecret` as const;
+
+    setNewKeys((prev) => ({
+      ...prev,
+      [modeKeyId]: "",
+      [modeKeySecret]: "",
+      [modeWebhookSecret]: "",
+    }));
     setEditModes((prev) => ({ ...prev, [mode]: !prev[mode] }));
     setConnectionResult(null); // Clear test results when toggling
   };
@@ -352,13 +355,24 @@ const IndexPage: NextPage = () => {
 
   if (!mounted) return null;
 
+  const activeCredentialMode = editSettings.mode === "live" ? "live" : "test";
+  const activeWebhookSecret =
+    activeCredentialMode === "live" ? settings?.liveWebhookSecret || "" : settings?.testWebhookSecret || "";
+  const activeDraftWebhookSecret =
+    activeCredentialMode === "live" ? newKeys.liveWebhookSecret : newKeys.testWebhookSecret;
+  const webhookEndpoint =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/api/webhooks/razorpay?saleorApiUrl=${encodeURIComponent(
+          appBridgeState?.saleorApiUrl || "",
+        )}`
+      : "";
+
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER: CONFIGURATION TAB
   // ─────────────────────────────────────────────────────────────────────────
 
   const renderConfiguration = () => (
     <Box display="flex" flexDirection="column">
-      
       <Box marginBottom={6}>
         <Text as="h2" size={8} fontWeight="bold">Configuration</Text>
         <Text color="default2">Manage your Razorpay account settings and API credentials.</Text>
@@ -430,6 +444,11 @@ const IndexPage: NextPage = () => {
               value={editModes.test ? newKeys.testKeyId : (settings?.testKeyId || "")}
               onChange={(e) => setNewKeys({ ...newKeys, testKeyId: e.target.value })}
             />
+            {editModes.test ? (
+              <Text size={1} color="default2" marginTop={1}>
+                Leave blank to keep the currently saved test credentials unchanged.
+              </Text>
+            ) : null}
           </Box>
           <Box>
             <Text marginBottom={2} size={2} fontWeight="bold" color="default1">Key Secret</Text>
@@ -505,6 +524,11 @@ const IndexPage: NextPage = () => {
               value={editModes.live ? newKeys.liveKeyId : (settings?.liveKeyId || "")}
               onChange={(e) => setNewKeys({ ...newKeys, liveKeyId: e.target.value })}
             />
+            {editModes.live ? (
+              <Text size={1} color="default2" marginTop={1}>
+                Leave blank to keep the currently saved live credentials unchanged.
+              </Text>
+            ) : null}
           </Box>
           <Box>
             <Text marginBottom={2} size={2} fontWeight="bold" color="default1">Key Secret</Text>
@@ -557,15 +581,15 @@ const IndexPage: NextPage = () => {
             <Text marginBottom={1} size={2} color="default2">Webhook Endpoint</Text>
             <Box display="flex" gap={2} alignItems="center">
               <Input
-                value={typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/razorpay` : ""}
+                value={webhookEndpoint}
                 readOnly
                 style={{ backgroundColor: "var(--color-background-default2)", color: "var(--color-text-default2)", flex: 1 }}
               />
               <Button 
                 variant="secondary" 
                 onClick={() => {
-                  if (typeof window !== 'undefined') {
-                    navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/razorpay`);
+                  if (webhookEndpoint) {
+                    navigator.clipboard.writeText(webhookEndpoint);
                     setSaveMsg("Webhook URL copied to clipboard");
                     setTimeout(() => setSaveMsg(""), 3000);
                   }
@@ -574,6 +598,37 @@ const IndexPage: NextPage = () => {
                 Copy
               </Button>
             </Box>
+          </Box>
+
+          <Box>
+            <Text marginBottom={1} size={2} color="default2">
+              Active {activeCredentialMode === "live" ? "Live" : "Test"} Webhook Secret
+            </Text>
+            <Box display="flex" gap={2} alignItems="center">
+              <Input
+                value={activeDraftWebhookSecret || activeWebhookSecret}
+                readOnly
+                type="password"
+                placeholder="Generate or save a webhook secret from the credentials section"
+                style={{ backgroundColor: "var(--color-background-default2)", color: "var(--color-text-default2)", flex: 1 }}
+              />
+              <Button
+                variant="secondary"
+                disabled={!activeDraftWebhookSecret}
+                onClick={() => {
+                  if (activeDraftWebhookSecret) {
+                    navigator.clipboard.writeText(activeDraftWebhookSecret);
+                    setSaveMsg("Webhook secret copied to clipboard");
+                    setTimeout(() => setSaveMsg(""), 3000);
+                  }
+                }}
+              >
+                Copy
+              </Button>
+            </Box>
+            <Text size={1} color="default2" marginTop={1}>
+              For security, saved secrets remain masked here. Copy becomes available while editing or after generating a new secret.
+            </Text>
           </Box>
 
           <Box>

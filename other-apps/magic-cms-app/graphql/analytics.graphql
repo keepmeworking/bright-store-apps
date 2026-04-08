@@ -30,6 +30,116 @@ query GetDashboardAnalytics($createdAfter: Date, $createdBefore: Date, $channels
   }
 }
 
+query GetOrdersExportPage(
+  $createdAfter: Date
+  $createdBefore: Date
+  $channels: [ID!]
+  $first: Int = 100
+  $after: String
+  $status: [OrderStatusFilter!]
+) {
+  orders(
+    first: $first
+    after: $after
+    sortBy: { field: CREATED_AT, direction: DESC }
+    filter: {
+      created: { gte: $createdAfter, lte: $createdBefore }
+      channels: $channels
+      status: $status
+    }
+  ) {
+    totalCount
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    edges {
+      node {
+        id
+        number
+        created
+        status
+        statusDisplay
+        chargeStatus
+        paymentStatus
+        userEmail
+        customerNote
+        channel {
+          id
+          name
+          slug
+          currencyCode
+        }
+        billingAddress {
+          firstName
+          lastName
+          phone
+          streetAddress1
+          streetAddress2
+          city
+          postalCode
+          country {
+            country
+            code
+          }
+        }
+        shippingAddress {
+          firstName
+          lastName
+          phone
+          streetAddress1
+          streetAddress2
+          city
+          postalCode
+          country {
+            country
+            code
+          }
+        }
+        subtotal {
+          gross {
+            amount
+            currency
+          }
+        }
+        shippingPrice {
+          gross {
+            amount
+            currency
+          }
+        }
+        total {
+          gross {
+            amount
+            currency
+          }
+        }
+        lines {
+          id
+          quantity
+          productName
+          variantName
+          variant {
+            sku
+          }
+          unitPrice {
+            gross {
+              amount
+              currency
+            }
+          }
+          totalPrice {
+            gross {
+              amount
+              currency
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 # Note: Checkouts query might be restricted or return only own checkouts depending on permission/app type.
 # We will try to fetch somecheckout data if possible, or fallback.
 # Usually 'checkouts' query exists.
@@ -142,6 +252,98 @@ query GetCheckoutsStats(
   }
 }
 
+query GetCheckoutsAnalyticsSummary(
+  $createdAfter: Date
+  $createdBefore: Date
+  $channels: [ID!]
+  $first: Int = 100
+  $after: String
+) {
+  checkouts(
+    first: $first
+    after: $after
+    sortBy: { field: CREATION_DATE, direction: DESC }
+    filter: {
+      created: { gte: $createdAfter, lte: $createdBefore }
+      channels: $channels
+    }
+  ) {
+    totalCount
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+    edges {
+      node {
+        id
+        created
+        email
+        billingAddress {
+          phone
+        }
+        shippingAddress {
+          phone
+        }
+      }
+    }
+  }
+}
+
+query GetCheckoutsList(
+  $createdAfter: Date
+  $createdBefore: Date
+  $channels: [ID!]
+  $first: Int = 100
+  $after: String
+  $search: String
+  $chargeStatus: [CheckoutChargeStatusEnum!]
+  $authorizeStatus: [CheckoutAuthorizeStatusEnum!]
+) {
+  checkouts(
+    first: $first
+    after: $after
+    sortBy: { field: CREATION_DATE, direction: DESC }
+    filter: {
+      created: { gte: $createdAfter, lte: $createdBefore }
+      channels: $channels
+      search: $search
+      chargeStatus: $chargeStatus
+      authorizeStatus: $authorizeStatus
+    }
+  ) {
+    totalCount
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+    edges {
+      node {
+        id
+        token
+        created
+        email
+        quantity
+        chargeStatus
+        authorizeStatus
+        billingAddress {
+          firstName
+          lastName
+          phone
+        }
+        shippingAddress {
+          firstName
+          lastName
+          phone
+        }
+      }
+    }
+  }
+}
+
 query GetCheckoutDetails($id: ID!) {
   checkout(id: $id) {
     id
@@ -157,12 +359,6 @@ query GetCheckoutDetails($id: ID!) {
       id
       name
       slug
-    }
-    user {
-      id
-      firstName
-      lastName
-      email
     }
     billingAddress {
       firstName
@@ -190,39 +386,9 @@ query GetCheckoutDetails($id: ID!) {
         code
       }
     }
-    subtotalPrice {
-      gross {
-        amount
-        currency
-      }
-    }
-    shippingPrice {
-      gross {
-        amount
-        currency
-      }
-    }
-    totalPrice {
-      gross {
-        amount
-        currency
-      }
-    }
     lines {
       id
       quantity
-      unitPrice {
-        gross {
-          amount
-          currency
-        }
-      }
-      totalPrice {
-        gross {
-          amount
-          currency
-        }
-      }
       variant {
         id
         name

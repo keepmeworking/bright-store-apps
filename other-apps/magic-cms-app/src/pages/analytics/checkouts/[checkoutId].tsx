@@ -8,9 +8,6 @@ import { useMemo } from "react";
 import { useGetCheckoutDetailsQuery } from "../../../../generated/graphql";
 import { resolveRangeFromQuery, toDateQuery } from "@/lib/analytics-range";
 
-const formatMoney = (amount?: number | null, currency?: string | null) =>
-  `${currency || ""} ${(amount || 0).toFixed(2)}`.trim();
-
 const joinName = (...parts: Array<string | null | undefined>) =>
   parts
     .filter(Boolean)
@@ -31,6 +28,28 @@ const toAddressLines = (address?: {
     address?.country?.country,
   ].filter(Boolean);
 
+const hasContact = (checkout?: {
+  email?: string | null;
+  billingAddress?: { phone?: string | null } | null;
+  shippingAddress?: { phone?: string | null } | null;
+} | null) =>
+  Boolean(checkout?.email || checkout?.billingAddress?.phone || checkout?.shippingAddress?.phone);
+
+const isRecoverableCart = (checkout?: {
+  lines: ReadonlyArray<{ quantity: number }>;
+  chargeStatus: string;
+  email?: string | null;
+  billingAddress?: { phone?: string | null } | null;
+  shippingAddress?: { phone?: string | null } | null;
+} | null) =>
+  Boolean(
+    checkout &&
+      hasContact(checkout) &&
+      checkout.lines.reduce((count, line) => count + line.quantity, 0) > 0 &&
+      checkout.chargeStatus !== "FULL" &&
+      checkout.chargeStatus !== "OVERCHARGED",
+  );
+
 export default function CheckoutDetailsPage() {
   const router = useRouter();
   const { appBridgeState } = useAppBridge();
@@ -48,11 +67,10 @@ export default function CheckoutDetailsPage() {
 
   const checkout = data?.checkout;
   const customerName =
-    joinName(checkout?.user?.firstName, checkout?.user?.lastName) ||
     joinName(checkout?.billingAddress?.firstName, checkout?.billingAddress?.lastName) ||
     joinName(checkout?.shippingAddress?.firstName, checkout?.shippingAddress?.lastName) ||
     "Guest";
-  const customerEmail = checkout?.email || checkout?.user?.email || "";
+  const customerEmail = checkout?.email || "";
   const customerPhone = checkout?.billingAddress?.phone || checkout?.shippingAddress?.phone || "";
 
   const routeQuery = useMemo(
@@ -127,10 +145,10 @@ export default function CheckoutDetailsPage() {
             </Box>
             <Box borderStyle="solid" borderWidth={1} borderColor="default1" borderRadius={4} padding={4}>
               <Text size={1} color="default2">
-                Total
+                Charge status
               </Text>
               <Text size={2} fontWeight="bold">
-                {formatMoney(checkout.totalPrice?.gross?.amount, checkout.totalPrice?.gross?.currency)}
+                {checkout.chargeStatus}
               </Text>
             </Box>
           </Box>
@@ -149,6 +167,9 @@ export default function CheckoutDetailsPage() {
                 </Text>
                 <Text size={2} color="default2">
                   Authorization: {checkout.authorizeStatus}
+                </Text>
+                <Text size={2} color="default2">
+                  Classification: {isRecoverableCart(checkout) ? "Recoverable cart" : "Open lead"}
                 </Text>
                 {customerEmail ? (
                   <a
@@ -218,7 +239,7 @@ export default function CheckoutDetailsPage() {
             <Box
               padding={3}
               display="grid"
-              __gridTemplateColumns="2fr 1fr 1fr 1fr"
+              __gridTemplateColumns="2fr 1fr 1fr"
               style={{ backgroundColor: "#f8f9fb", fontWeight: 700, gap: 10 }}
             >
               <Text size={2} fontWeight="bold">
@@ -228,10 +249,7 @@ export default function CheckoutDetailsPage() {
                 Qty
               </Text>
               <Text size={2} fontWeight="bold">
-                Unit
-              </Text>
-              <Text size={2} fontWeight="bold">
-                Total
+                SKU
               </Text>
             </Box>
 
@@ -240,7 +258,7 @@ export default function CheckoutDetailsPage() {
                 key={line.id}
                 padding={3}
                 display="grid"
-                __gridTemplateColumns="2fr 1fr 1fr 1fr"
+                __gridTemplateColumns="2fr 1fr 1fr"
                 borderTopStyle="solid"
                 borderTopWidth={1}
                 borderColor="default1"
@@ -255,12 +273,7 @@ export default function CheckoutDetailsPage() {
                   </Text>
                 </Box>
                 <Text size={2}>{line.quantity}</Text>
-                <Text size={2}>
-                  {formatMoney(line.unitPrice?.gross?.amount, line.unitPrice?.gross?.currency)}
-                </Text>
-                <Text size={2} fontWeight="bold">
-                  {formatMoney(line.totalPrice?.gross?.amount, line.totalPrice?.gross?.currency)}
-                </Text>
+                <Text size={2}>{line.variant.sku || "-"}</Text>
               </Box>
             ))}
           </Box>

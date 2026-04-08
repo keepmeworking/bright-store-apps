@@ -1,12 +1,13 @@
 import { actions, useAppBridge } from "@saleor/app-sdk/app-bridge";
 import { Box, Button, Text, Spinner, Select, Input } from "@saleor/macaw-ui";
 import { useRouter } from "next/router";
+import { OrdersExportDialog } from "@/components/analytics/OrdersExportDialog";
 import {
   useGetDashboardAnalyticsQuery,
-  useGetCheckoutsStatsQuery,
+  useGetCheckoutsAnalyticsSummaryQuery,
   useGetChannelsQuery,
   type GetDashboardAnalyticsQuery,
-  type GetCheckoutsStatsQuery,
+  type GetCheckoutsAnalyticsSummaryQuery,
 } from "../../../generated/graphql";
 import { useMemo, useState, useEffect, useRef } from "react";
 import {
@@ -65,6 +66,7 @@ type PresetKey =
 
 type RangeMode = "fixed" | "rolling";
 type RollingUnit = "days" | "weeks" | "months";
+type ExportFormat = "csv" | "xlsx";
 
 const weekLabels = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
@@ -170,6 +172,17 @@ const parseDateInput = (value: string) => {
   return new Date(year, month - 1, day);
 };
 
+const downloadBlobFile = (fileName: string, blob: Blob) => {
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(objectUrl);
+};
+
 const getMonthMatrix = (month: Date) => {
   const monthStart = startOfMonth(month);
   const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
@@ -186,7 +199,7 @@ const normalizeRangeBounds = (from: Date, to: Date) => {
 
 type DashboardOrder = NonNullable<NonNullable<GetDashboardAnalyticsQuery["orders"]>["edges"][number]>["node"];
 type DashboardCheckout = NonNullable<
-  NonNullable<GetCheckoutsStatsQuery["checkouts"]>["edges"][number]
+  NonNullable<GetCheckoutsAnalyticsSummaryQuery["checkouts"]>["edges"][number]
 >["node"];
 
 type ChartGranularity = "day" | "week" | "month";
@@ -218,12 +231,10 @@ const formatCompactNumber = (value: number) => {
 };
 
 const hasCheckoutContact = (checkout: DashboardCheckout) =>
-  Boolean(
-    checkout.email ||
-      checkout.user?.email ||
-      checkout.billingAddress?.phone ||
-      checkout.shippingAddress?.phone
-  );
+  Boolean(checkout.email || checkout.billingAddress?.phone || checkout.shippingAddress?.phone);
+
+const isPermissionDeniedError = (message?: string) =>
+  /need one of the following permissions|permission/i.test(message || "");
 
 const selectChartGranularity = (rangeDays: number): ChartGranularity => {
   if (rangeDays > 180) return "month";
@@ -315,6 +326,14 @@ export default function AnalyticsPage() {
   const [draftTo, setDraftTo] = useState<Date>(resolvePresetRange("7d").endDate);
   const [calendarBaseMonth, setCalendarBaseMonth] = useState<Date>(startOfMonth(new Date()));
   const [selectionStep, setSelectionStep] = useState<"start" | "end">("start");
+  const [isExportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportStartDate, setExportStartDate] = useState(() =>
+    toDateInput(resolvePresetRange("7d").startDate)
+  );
+  const [exportEndDate, setExportEndDate] = useState(() => toDateInput(resolvePresetRange("7d").endDate));
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
+  const [isExportingOrders, setIsExportingOrders] = useState(false);
+  const [exportOrdersError, setExportOrdersError] = useState("");
 
   const [{ data: channelData, fetching: fetchingChannels, error: channelError }, refetchChannels] =
     useGetChannelsQuery({
@@ -379,9 +398,10 @@ export default function AnalyticsPage() {
     });
 
   const [{ data: checkoutData, fetching: fetchingCheckouts, error: checkoutError }] =
-    useGetCheckoutsStatsQuery({
+    useGetCheckoutsAnalyticsSummaryQuery({
       variables: { ...dateFilters, first: 100 },
       pause: !appBridgeState?.ready || !selectedChannelId,
+      requestPolicy: "cache-and-network",
     });
 
   const [{ data: previousOrderData, fetching: fetchingPreviousOrders, error: previousOrderError }] =
@@ -392,18 +412,25 @@ export default function AnalyticsPage() {
 
   const [
     { data: previousCheckoutData, fetching: fetchingPreviousCheckouts, error: previousCheckoutError },
-  ] = useGetCheckoutsStatsQuery({
+  ] = useGetCheckoutsAnalyticsSummaryQuery({
     variables: { ...previousDateFilters, first: 100 },
     pause: !appBridgeState?.ready || !selectedChannelId,
+    requestPolicy: "cache-and-network",
   });
+
+  const hasCheckoutPermissionError =
+    isPermissionDeniedError(checkoutError?.message) || isPermissionDeniedError(previousCheckoutError?.message);
 
   const loading =
     fetchingOrders ||
-    fetchingCheckouts ||
     fetchingPreviousOrders ||
-    fetchingPreviousCheckouts ||
+    (!hasCheckoutPermissionError && fetchingCheckouts) ||
+    (!hasCheckoutPermissionError && fetchingPreviousCheckouts) ||
     fetchingChannels;
-  const analyticsError = orderError || checkoutError || previousOrderError || previousCheckoutError;
+  const analyticsError =
+    orderError ||
+    previousOrderError ||
+    (!hasCheckoutPermissionError ? checkoutError || previousCheckoutError : undefined);
   const hasAutoReloadedRef = useRef(false);
 
   useEffect(() => {
@@ -427,9 +454,17 @@ export default function AnalyticsPage() {
     if (channels.length === 0 && !fetchingChannels) return "no-channels";
 
     const orders = orderData?.orders?.edges.map((e) => e.node) || [];
-    const checkouts = checkoutData?.checkouts?.edges.map((e) => e.node) || [];
+    const checkouts = hasCheckoutPermissionError
+      ? []
+      : checkoutData?.checkouts?.edges.map(
+          (e: NonNullable<GetCheckoutsAnalyticsSummaryQuery["checkouts"]>["edges"][number]) => e.node,
+        ) || [];
     const previousOrders = previousOrderData?.orders?.edges.map((e) => e.node) || [];
-    const previousCheckouts = previousCheckoutData?.checkouts?.edges.map((e) => e.node) || [];
+    const previousCheckouts = hasCheckoutPermissionError
+      ? []
+      : previousCheckoutData?.checkouts?.edges.map(
+          (e: NonNullable<GetCheckoutsAnalyticsSummaryQuery["checkouts"]>["edges"][number]) => e.node,
+        ) || [];
 
     const actionableCheckouts = checkouts.filter(hasCheckoutContact);
     const previousActionableCheckouts = previousCheckouts.filter(hasCheckoutContact);
@@ -528,6 +563,7 @@ export default function AnalyticsPage() {
     checkoutData,
     previousOrderData,
     previousCheckoutData,
+    hasCheckoutPermissionError,
     selectedChannelId,
     channels,
     activeChannel,
@@ -572,6 +608,86 @@ export default function AnalyticsPage() {
 
   const openOrdersByProduct = () => {
     openSaleorOrdersPage();
+  };
+
+  const openOrdersExportDialog = () => {
+    setExportStartDate(toDateInput(appliedRange.startDate));
+    setExportEndDate(toDateInput(appliedRange.endDate));
+    setExportOrdersError("");
+    setExportDialogOpen(true);
+  };
+
+  const closeOrdersExportDialog = () => {
+    if (isExportingOrders) {
+      return;
+    }
+    setExportDialogOpen(false);
+    setExportOrdersError("");
+  };
+
+  const applyExportPreset = (preset: Extract<PresetKey, "7d" | "30d" | "thisMonth">) => {
+    const next = resolvePresetRange(preset);
+    setExportStartDate(toDateInput(next.startDate));
+    setExportEndDate(toDateInput(next.endDate));
+    setExportOrdersError("");
+  };
+
+  const handleOrdersExport = async () => {
+    const token = appBridge?.getState().token ?? appBridgeState?.token ?? "";
+    const saleorApiUrl = appBridgeState?.saleorApiUrl ?? "";
+
+    if (!token || !saleorApiUrl || !selectedChannelId) {
+      setExportOrdersError("Missing Saleor authentication or channel context. Refresh the app and try again.");
+      return;
+    }
+
+    if (!exportStartDate || !exportEndDate) {
+      setExportOrdersError("Please choose both start and end dates.");
+      return;
+    }
+
+    if (exportStartDate > exportEndDate) {
+      setExportOrdersError("Start date cannot be after end date.");
+      return;
+    }
+
+    try {
+      setIsExportingOrders(true);
+      setExportOrdersError("");
+
+      const response = await fetch("/api/analytics/orders-export", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          saleorApiUrl,
+          channelId: selectedChannelId,
+          startDate: exportStartDate,
+          endDate: exportEndDate,
+          format: exportFormat,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({ message: "Unable to export orders." }));
+        throw new Error(payload.message || "Unable to export orders.");
+      }
+
+      const fileNameHeader = response.headers.get("content-disposition") || "";
+      const fileNameMatch = fileNameHeader.match(/filename="?([^"]+)"?/i);
+      const fileName =
+        fileNameMatch?.[1] || `orders-export-${exportStartDate}-to-${exportEndDate}.${exportFormat}`;
+      const blob = await response.blob();
+      downloadBlobFile(fileName, blob);
+      setExportDialogOpen(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to export orders.";
+      setExportOrdersError(message);
+    } finally {
+      setIsExportingOrders(false);
+    }
   };
 
   useEffect(() => {
@@ -687,6 +803,10 @@ export default function AnalyticsPage() {
         </Text>
 
         <Box display="flex" gap={4} alignItems="center" style={{ flexWrap: "wrap" }}>
+          <Button variant="secondary" onClick={openOrdersExportDialog} disabled={!selectedChannelId}>
+            Export orders
+          </Button>
+
           {channels.length > 0 && (
             <Box style={{ minWidth: isCompactRangePicker ? 260 : 330, flex: "1 1 260px" }}>
               <Select
@@ -988,6 +1108,23 @@ export default function AnalyticsPage() {
         </Box>
       </Box>
 
+      <OrdersExportDialog
+        open={isExportDialogOpen}
+        startDate={exportStartDate}
+        endDate={exportEndDate}
+        format={exportFormat}
+        loading={isExportingOrders}
+        error={exportOrdersError}
+        onClose={closeOrdersExportDialog}
+        onStartDateChange={setExportStartDate}
+        onEndDateChange={setExportEndDate}
+        onFormatChange={setExportFormat}
+        onPresetLast7Days={() => applyExportPreset("7d")}
+        onPresetLast30Days={() => applyExportPreset("30d")}
+        onPresetThisMonth={() => applyExportPreset("thisMonth")}
+        onExport={handleOrdersExport}
+      />
+
       {loading ? (
         <Box padding={10} display="flex" justifyContent="center">
           <Spinner />
@@ -1050,6 +1187,18 @@ export default function AnalyticsPage() {
       ) : (
         stats && (
           <Box display="grid" gap={6}>
+            {hasCheckoutPermissionError ? (
+              <Box padding={4} borderStyle="solid" borderWidth={1} borderColor="warning1" borderRadius={4}>
+                <Text size={2} fontWeight="bold">
+                  Checkout analytics are partially unavailable
+                </Text>
+                <Text size={2} color="default2" style={{ marginTop: 4 }}>
+                  Order analytics are loaded, but checkout-specific metrics are limited because the current app token
+                  does not have the permissions Saleor expects for this checkout path. Reinstalling or refreshing app
+                  permissions after the manifest update will restore richer checkout analytics.
+                </Text>
+              </Box>
+            ) : null}
             <Box display="grid" gap={4} __gridTemplateColumns="repeat(auto-fit, minmax(240px, 1fr))">
               <KPICard
                 title="Total Sales"
