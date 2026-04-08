@@ -400,21 +400,22 @@ export async function getRazorpayClient(
 }
 
 /**
- * Get the webhook secret for the current mode (app-level only)
+ * Get all available webhook secrets.
+ *
+ * Webhook verification should not depend on the currently selected payment mode,
+ * because Razorpay may continue signing requests with an already configured test
+ * or live secret while the dashboard mode is changed in the app.
  */
-export async function getWebhookSecret(
+export async function getWebhookSecrets(
   docClient: DynamoDBDocumentClient | null,
   saleorApiUrl: string
-): Promise<string> {
+): Promise<string[]> {
   const settings = await getSettings(docClient, saleorApiUrl);
+  const secrets = [
+    settings.liveWebhookSecret,
+    settings.testWebhookSecret,
+    process.env.RAZORPAY_WEBHOOK_SECRET || "",
+  ].filter(Boolean);
 
-  if (settings.mode === "live" && settings.liveWebhookSecret) {
-    return settings.liveWebhookSecret;
-  }
-
-  if (settings.testWebhookSecret) {
-    return settings.testWebhookSecret;
-  }
-
-  return "";
+  return Array.from(new Set(secrets));
 }

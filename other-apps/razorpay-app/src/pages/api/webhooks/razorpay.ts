@@ -1,7 +1,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import crypto from "crypto";
-import { getWebhookSecret } from "@/modules/razorpay-settings";
+import { getWebhookSecrets } from "@/modules/razorpay-settings";
 import { logTransaction } from "@/modules/transaction-log";
 import { getDocClient } from "@/modules/dynamodb-helpers";
 
@@ -10,7 +10,13 @@ function resolveSaleorApiUrl(req: NextApiRequest) {
   const headerValue = req.headers["x-saleor-api-url"];
   const normalizedHeader = Array.isArray(headerValue) ? headerValue[0] : headerValue;
 
-  return queryValue || normalizedHeader || process.env.NEXT_PUBLIC_SALEOR_API_URL || "default";
+  return (
+    queryValue ||
+    normalizedHeader ||
+    process.env.SALEOR_API_URL ||
+    process.env.NEXT_PUBLIC_SALEOR_API_URL ||
+    "default"
+  );
 }
 
 async function readRawBody(req: NextApiRequest) {
@@ -50,20 +56,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "Missing signature" });
     }
 
-    // Get webhook secret from app-level settings
-    const webhookSecret = await getWebhookSecret(docClient, saleorApiUrl);
+    // Get all configured webhook secrets and accept any valid match.
+    const webhookSecrets = await getWebhookSecrets(docClient, saleorApiUrl);
 
-    if (!webhookSecret) {
+    if (!webhookSecrets.length) {
       console.error("Razorpay webhook secret not configured");
       return res.status(500).json({ error: "Webhook secret not configured" });
     }
 
     const body = await readRawBody(req);
-    const shasum = crypto.createHmac("sha256", webhookSecret);
-    shasum.update(body);
-    const digest = shasum.digest("hex");
+    const signatureMatched = webhookSecrets.some((secret) => {
+      const shasum = crypto.createHmac("sha256", secret);
+      shasum.update(body);
+      const digest = shasum.digest("hex");
+      return signature === digest;
+    });
 
-    if (signature !== digest) {
+    if (!signatureMatched) {
       console.error("Invalid Razorpay Webhook Signature");
 
       if (docClient) {

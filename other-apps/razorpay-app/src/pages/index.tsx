@@ -35,6 +35,21 @@ interface DashboardSettings {
   hasLiveKeys: boolean;
 }
 
+function normalizeDashboardSettings(data: DashboardSettings | null): DashboardSettings | null {
+  if (!data) {
+    return null;
+  }
+
+  return {
+    ...data,
+    enabled: !!data.enabled,
+    magicCheckout: !!data.magicCheckout,
+    debugMode: !!data.debugMode,
+    hasTestKeys: !!data.hasTestKeys,
+    hasLiveKeys: !!data.hasLiveKeys,
+  };
+}
+
 interface LogEntry {
   timestamp: string;
   type: string;
@@ -191,9 +206,9 @@ const IndexPage: NextPage = () => {
     try {
       const res = await fetch("/api/settings", { headers: apiHeaders() });
       if (res.ok) {
-        const data = await res.json();
+        const data = normalizeDashboardSettings(await res.json());
         setSettings(data);
-        setEditSettings(data);
+        setEditSettings(data || {});
       }
     } catch (e) {
       console.error("Failed to load settings:", e);
@@ -247,9 +262,9 @@ const IndexPage: NextPage = () => {
 
       if (res.ok) {
         const data = await res.json();
-        const saved = data.settings;
+        const saved = normalizeDashboardSettings(data.settings);
         setSettings(saved);
-        setEditSettings(saved);
+        setEditSettings(saved || {});
         // Reset draft keys
         setNewKeys({
           testKeyId: "",
@@ -375,22 +390,19 @@ const IndexPage: NextPage = () => {
     activeCredentialMode === "live" ? newKeys.liveWebhookSecret : newKeys.testWebhookSecret;
   const webhookEndpoint =
     typeof window !== "undefined"
-      ? `${window.location.origin}/api/webhooks/razorpay?saleorApiUrl=${encodeURIComponent(
-          appBridgeState?.saleorApiUrl || "",
-        )}`
+      ? `${window.location.origin}/api/webhooks/razorpay`
       : "";
-  const magicQuerySuffix = `saleorApiUrl=${encodeURIComponent(appBridgeState?.saleorApiUrl || "")}`;
   const getPromotionsEndpoint =
     typeof window !== "undefined"
-      ? `${window.location.origin}/api/magic/get-promotions?${magicQuerySuffix}`
+      ? `${window.location.origin}/api/magic/get-promotions`
       : "";
   const applyPromotionEndpoint =
     typeof window !== "undefined"
-      ? `${window.location.origin}/api/magic/apply-promotion?${magicQuerySuffix}`
+      ? `${window.location.origin}/api/magic/apply-promotion`
       : "";
   const shippingInfoEndpoint =
     typeof window !== "undefined"
-      ? `${window.location.origin}/api/magic/shipping-info?${magicQuerySuffix}`
+      ? `${window.location.origin}/api/magic/shipping-info`
       : "";
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -675,8 +687,8 @@ const IndexPage: NextPage = () => {
             </Box>
           ))}
           <Text size={1} color="default2">
-            These endpoints stay tied to the current Saleor installation via the embedded{" "}
-            <code>saleorApiUrl</code> query param, so copy them directly into Razorpay dashboard settings.
+            These are clean public URLs for Razorpay dashboard setup. The app resolves the connected Saleor
+            installation server-side.
           </Text>
         </Box>
       </Section>
@@ -703,10 +715,32 @@ const IndexPage: NextPage = () => {
           </Box>
           <Box display="flex" justifyContent="space-between" alignItems="center">
             <Text>Enable Magic Checkout</Text>
-            <Checkbox
-              checked={editSettings.magicCheckout || false}
-              onCheckedChange={(v) => setEditSettings({ ...editSettings, magicCheckout: !!v })}
-            />
+            <label
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 18,
+                height: 18,
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={!!editSettings.magicCheckout}
+                onChange={(event) =>
+                  setEditSettings((prev) => ({
+                    ...prev,
+                    magicCheckout: event.target.checked,
+                  }))
+                }
+                style={{
+                  width: 18,
+                  height: 18,
+                  cursor: "pointer",
+                }}
+              />
+            </label>
           </Box>
         </Box>
       </Section>

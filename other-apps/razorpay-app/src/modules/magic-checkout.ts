@@ -290,17 +290,26 @@ async function saleorGraphQL<TData>(
 }
 
 export async function getMagicSaleorAuth(saleorApiUrl: string) {
-  if (!saleorApiUrl) {
+  const resolvedSaleorApiUrl =
+    saleorApiUrl ||
+    process.env.SALEOR_API_URL ||
+    process.env.NEXT_PUBLIC_SALEOR_API_URL ||
+    "";
+
+  if (!resolvedSaleorApiUrl) {
     throw new Error("saleorApiUrl is required");
   }
 
-  const authData = await saleorApp.apl.get(saleorApiUrl);
+  const authData = await saleorApp.apl.get(resolvedSaleorApiUrl);
 
   if (!authData?.token) {
-    throw new Error("Unable to resolve Razorpay app auth for the provided Saleor API URL");
+    throw new Error("Unable to resolve Razorpay app auth for the configured Saleor API URL");
   }
 
-  return authData;
+  return {
+    ...authData,
+    saleorApiUrl: resolvedSaleorApiUrl,
+  };
 }
 
 export async function getCheckoutSnapshot(authData: AuthData, checkoutId: string) {
