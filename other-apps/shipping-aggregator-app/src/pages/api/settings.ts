@@ -11,63 +11,12 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { createProtectedHandler } from "@saleor/app-sdk/handlers/next";
 import { saleorApp } from "@/saleor-app";
-import fs from "fs";
-import path from "path";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TYPES
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface ProviderConfig {
-  id: string;
-  provider: string; // "shiprocket" | "delhivery" | "fedex" etc.
-  name: string; // user-given label e.g. "Production Shiprocket"
-  active: boolean;
-  credentials: Record<string, string>;
-  settings: Record<string, string | boolean>;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// STORAGE HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-
-const DATA_DIR = path.join(process.cwd(), ".data");
-const CONFIGS_FILE = path.join(DATA_DIR, "provider-configs.json");
-
-function readConfigs(): ProviderConfig[] {
-  try {
-    if (fs.existsSync(CONFIGS_FILE)) {
-      return JSON.parse(fs.readFileSync(CONFIGS_FILE, "utf-8"));
-    }
-  } catch (e) {
-    console.error("Failed to read configs:", e);
-  }
-  return [];
-}
-
-function writeConfigs(configs: ProviderConfig[]): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  fs.writeFileSync(CONFIGS_FILE, JSON.stringify(configs, null, 2));
-}
-
-function maskCredentials(config: ProviderConfig): ProviderConfig {
-  const masked = { ...config, credentials: { ...config.credentials } };
-  for (const key of Object.keys(masked.credentials)) {
-    const val = masked.credentials[key];
-    if (
-      key.toLowerCase().includes("password") ||
-      key.toLowerCase().includes("secret") ||
-      key.toLowerCase().includes("token")
-    ) {
-      masked.credentials[key] = val ? "••••••••" : "";
-    }
-  }
-  return masked;
-}
+import {
+  getProviderConfigs,
+  maskProviderCredentials,
+  ProviderConfig,
+  saveProviderConfigs,
+} from "@/modules/provider-configs";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HANDLER
@@ -78,11 +27,13 @@ async function handler(
   res: NextApiResponse,
   ctx: { authData: { saleorApiUrl: string } }
 ) {
+  const saleorApiUrl = ctx?.authData?.saleorApiUrl || "";
+
   // GET — Return all configs (masked)
   if (req.method === "GET") {
-    const configs = readConfigs();
+    const configs = getProviderConfigs(saleorApiUrl);
     return res.status(200).json({
-      configurations: configs.map(maskCredentials),
+      configurations: configs.map(maskProviderCredentials),
     });
   }
 
@@ -100,7 +51,7 @@ async function handler(
           .json({ error: "provider and name are required" });
       }
 
-      const configs = readConfigs();
+      const configs = getProviderConfigs(saleorApiUrl);
       const now = new Date().toISOString();
 
       if (body.id) {
@@ -132,10 +83,10 @@ async function handler(
           updatedAt: now,
         };
 
-        writeConfigs(configs);
+        saveProviderConfigs(saleorApiUrl, configs);
         return res.status(200).json({
           success: true,
-          configuration: maskCredentials(configs[idx]),
+          configuration: maskProviderCredentials(configs[idx]),
         });
       } else {
         // Create new
@@ -151,10 +102,10 @@ async function handler(
         };
 
         configs.push(newConfig);
-        writeConfigs(configs);
+        saveProviderConfigs(saleorApiUrl, configs);
         return res.status(201).json({
           success: true,
-          configuration: maskCredentials(newConfig),
+          configuration: maskProviderCredentials(newConfig),
         });
       }
     } catch (error) {
@@ -170,18 +121,18 @@ async function handler(
       return res.status(400).json({ error: "id query param is required" });
     }
 
-    const configs = readConfigs();
+    const configs = getProviderConfigs(saleorApiUrl);
     const filtered = configs.filter((c) => c.id !== id);
 
     if (filtered.length === configs.length) {
       return res.status(404).json({ error: "Configuration not found" });
     }
 
-    writeConfigs(filtered);
+    saveProviderConfigs(saleorApiUrl, filtered);
     return res.status(200).json({ success: true });
   }
 
   return res.status(405).json({ error: "Method not allowed" });
 }
 
-export default createProtectedHandler(handler, saleorApp.apl, ["MANAGE_APPS"]);
+export default createProtectedHandler(handler, saleorApp.apl, ["MANAGE_SHIPPING"]);

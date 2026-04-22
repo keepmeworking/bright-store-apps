@@ -13,12 +13,18 @@ export interface RateRequest {
   country_code: string;
   pincode: string;
   city?: string;
-  total_price: number; 
+  total_price: number;
+  cod?: boolean;
 }
 
 export interface OrderDetails {
   id: string;
+  number?: string;
   tracking_number?: string;
+  payment_method?: "COD" | "Prepaid";
+  shipping_charges?: number;
+  total_price?: number;
+  currency?: string;
   shipping_address: {
     name: string;
     street1: string;
@@ -34,6 +40,8 @@ export interface OrderDetails {
     name: string;
     quantity: number;
     sku: string;
+    unit_price?: number;
+    total_price?: number;
     weight?: number;
   }>;
 }
@@ -44,6 +52,8 @@ export interface ShipmentResult {
   tracking_url?: string;
   courier_name?: string;
   label_url?: string;
+  provider_order_id?: string;
+  provider_shipment_id?: string;
 }
 
 export interface TrackingStatus {

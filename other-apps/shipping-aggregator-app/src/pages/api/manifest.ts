@@ -31,8 +31,6 @@ export default createManifestHandler({
                   checkout {
                     id
                     shippingAddress {
-                      streetAddress1
-                      streetAddress2
                       city
                       postalCode
                       country {
@@ -45,6 +43,15 @@ export default createManifestHandler({
                         currency
                       }
                     }
+                    lines {
+                      quantity
+                      variant {
+                        weight {
+                          value
+                          unit
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -55,18 +62,38 @@ export default createManifestHandler({
         },
         {
           name: "Order Created",
-          asyncEvents: ["ORDER_CREATED"],
+          asyncEvents: ["ORDER_CREATED", "ORDER_FULLY_PAID"],
           query: `
             subscription {
               event {
                 ... on OrderCreated {
                   order {
                     id
+                    number
+                    userEmail
+                    paymentStatus
                     shippingMethodName
+                    metadata {
+                      key
+                      value
+                    }
+                    total {
+                      gross {
+                        amount
+                        currency
+                      }
+                    }
+                    shippingPrice {
+                      gross {
+                        amount
+                        currency
+                      }
+                    }
                     shippingAddress {
                       streetAddress1
                       streetAddress2
                       city
+                      countryArea
                       postalCode
                       country {
                         code
@@ -77,7 +104,80 @@ export default createManifestHandler({
                     }
                     lines {
                       productName
+                      variantName
+                      productSku
                       quantity
+                      unitPrice {
+                        gross {
+                          amount
+                        }
+                      }
+                      totalPrice {
+                        gross {
+                          amount
+                        }
+                      }
+                      variant {
+                        sku
+                        weight {
+                          value
+                          unit
+                        }
+                      }
+                    }
+                  }
+                }
+                ... on OrderFullyPaid {
+                  order {
+                    id
+                    number
+                    userEmail
+                    paymentStatus
+                    shippingMethodName
+                    metadata {
+                      key
+                      value
+                    }
+                    total {
+                      gross {
+                        amount
+                        currency
+                      }
+                    }
+                    shippingPrice {
+                      gross {
+                        amount
+                        currency
+                      }
+                    }
+                    shippingAddress {
+                      streetAddress1
+                      streetAddress2
+                      city
+                      countryArea
+                      postalCode
+                      country {
+                        code
+                      }
+                      phone
+                      firstName
+                      lastName
+                    }
+                    lines {
+                      productName
+                      variantName
+                      productSku
+                      quantity
+                      unitPrice {
+                        gross {
+                          amount
+                        }
+                      }
+                      totalPrice {
+                        gross {
+                          amount
+                        }
+                      }
                       variant {
                         sku
                         weight {

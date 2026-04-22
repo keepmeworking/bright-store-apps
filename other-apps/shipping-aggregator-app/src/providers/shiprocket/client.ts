@@ -10,6 +10,10 @@ export class ShiprocketClient {
   }
 
   private async authenticate() {
+    if (!this.email || !this.password) {
+      throw new Error("Shiprocket credentials are missing");
+    }
+
     if (this.token && Date.now() < this.tokenExpiry) {
       return this.token;
     }
@@ -21,10 +25,14 @@ export class ShiprocketClient {
     });
 
     if (!response.ok) {
-      throw new Error("Shiprocket authentication failed");
+      const body = await response.text();
+      throw new Error(`Shiprocket authentication failed (${response.status}): ${body}`);
     }
 
     const data = await response.json();
+    if (!data?.token) {
+      throw new Error("Shiprocket authentication response did not include token");
+    }
     this.token = data.token;
     // Token is valid for 10 days, but let's refresh every 24 hours to be safe
     this.tokenExpiry = Date.now() + 24 * 60 * 60 * 1000;
@@ -44,7 +52,22 @@ export class ShiprocketClient {
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    return response.json();
+    const text = await response.text();
+    let payload: Record<string, unknown> = {};
+
+    if (text) {
+      try {
+        payload = JSON.parse(text) as Record<string, unknown>;
+      } catch {
+        payload = { raw: text };
+      }
+    }
+
+    if (!response.ok) {
+      throw new Error(`Shiprocket API ${method} ${endpoint} failed (${response.status}): ${text}`);
+    }
+
+    return payload;
   }
 
   async checkServiceability(payload: {
@@ -72,5 +95,27 @@ export class ShiprocketClient {
 
   async createOrder(orderPayload: any) {
     return this.request("/v1/external/orders/create/adhoc", "POST", orderPayload);
+  }
+
+  async assignAwb(shipmentId: string | number) {
+    const shipmentIdAsNumber = Number(shipmentId);
+
+    const attemptPayloads = [
+      { shipment_id: shipmentIdAsNumber },
+      { shipment_id: [shipmentIdAsNumber] },
+      { shipment_id: [String(shipmentId)] },
+    ];
+
+    let lastError: unknown;
+
+    for (const payload of attemptPayloads) {
+      try {
+        return await this.request("/v1/external/courier/assign/awb", "POST", payload);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error("Unable to assign Shiprocket AWB");
   }
 }
