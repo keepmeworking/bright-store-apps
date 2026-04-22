@@ -5,8 +5,8 @@ export class ShiprocketClient {
   private tokenExpiry: number = 0;
 
   constructor(email?: string, password?: string) {
-    this.email = email || process.env.SHIPROCKET_EMAIL || "";
-    this.password = password || process.env.SHIPROCKET_PASSWORD || "";
+    this.email = email ?? process.env.SHIPROCKET_EMAIL ?? "";
+    this.password = password ?? process.env.SHIPROCKET_PASSWORD ?? "";
   }
 
   private async authenticate() {

@@ -123,10 +123,16 @@ function getConfiguredProviders(saleorApiUrl: string): Array<{ provider: Shippin
 
       return {
         provider: new ShiprocketProvider({
-          email: config.credentials.email,
-          password: config.credentials.password,
-          pickupPincode: String(config.settings.pickupPincode || ""),
-          pickupLocation: String(config.settings.pickupLocation || ""),
+          email: config.credentials.email ? String(config.credentials.email).trim() : undefined,
+          password: config.credentials.password ? String(config.credentials.password) : undefined,
+          pickupPincode:
+            typeof config.settings.pickupPincode === "string" && config.settings.pickupPincode.trim()
+              ? config.settings.pickupPincode.trim()
+              : undefined,
+          pickupLocation:
+            typeof config.settings.pickupLocation === "string" && config.settings.pickupLocation.trim()
+              ? config.settings.pickupLocation.trim()
+              : undefined,
           enableCod: Boolean(config.settings.enableCod),
         }),
         displayName: config.name || "Shiprocket",

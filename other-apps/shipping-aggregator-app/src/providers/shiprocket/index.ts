@@ -59,8 +59,8 @@ export class ShiprocketProvider implements ShippingProvider {
 
   constructor(options: ShiprocketProviderOptions = {}) {
     this.client = new ShiprocketClient(options.email, options.password);
-    this.pickupPincode = options.pickupPincode || process.env.SHIPROCKET_PICKUP_PINCODE || "110001";
-    this.pickupLocation = options.pickupLocation || process.env.SHIPROCKET_PICKUP_LOCATION || "Primary";
+    this.pickupPincode = options.pickupPincode ?? process.env.SHIPROCKET_PICKUP_PINCODE ?? "110001";
+    this.pickupLocation = options.pickupLocation ?? process.env.SHIPROCKET_PICKUP_LOCATION ?? "Primary";
     this.enableCod = options.enableCod ?? false;
   }
 
