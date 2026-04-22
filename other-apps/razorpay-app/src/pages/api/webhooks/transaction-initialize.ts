@@ -170,6 +170,14 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
     // 1. Create Razorpay Order
     // Razorpay receipt max length is 40 chars; Saleor IDs are base64 and longer
     const receipt = (orderId || "").slice(0, 40);
+    const orderNotes: Record<string, string> = {};
+
+    if (orderId) {
+      orderNotes.cart_id = orderId;
+    }
+    if (saleorApiUrl) {
+      orderNotes.saleor_api_url = saleorApiUrl;
+    }
 
     const useMagicCheckout = settings.magicCheckout && magicCheckoutData?.checkout_flow === "magic";
 
@@ -178,6 +186,7 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
       currency,
       receipt,
       payment_capture: paymentCapture,
+      ...(Object.keys(orderNotes).length ? { notes: orderNotes } : {}),
       ...(useMagicCheckout && magicCheckoutData?.line_items?.length
         ? {
             line_items_total: magicCheckoutData.line_items_total ?? Math.round(amount * 100),
@@ -196,6 +205,17 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
       console.log("[Razorpay Init] Order created:", razorpayOrder.id);
     }
 
+    const customerEmail =
+      typeof magicCheckoutData?.customer_details?.email === "string"
+        ? magicCheckoutData.customer_details.email
+        : undefined;
+    const customerPhone =
+      typeof magicCheckoutData?.customer_details?.contact === "string"
+        ? magicCheckoutData.customer_details.contact
+        : typeof magicCheckoutData?.customer_details?.shipping_address?.contact === "string"
+          ? magicCheckoutData.customer_details.shipping_address.contact
+          : undefined;
+
     // 2. Log the transaction
     await logTransaction(docClient, saleorApiUrl, {
       timestamp: new Date().toISOString(),
@@ -207,6 +227,8 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
       receipt,
       saleorCheckoutId: orderId,
       saleorOrderId: orderId,
+      customerEmail,
+      customerPhone,
       mode,
       rawResponse: settings.debugMode
         ? JSON.stringify(razorpayOrder)

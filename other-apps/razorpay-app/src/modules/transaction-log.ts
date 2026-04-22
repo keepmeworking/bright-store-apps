@@ -8,7 +8,7 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
-import { DynamoDBDocumentClient, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -49,6 +49,10 @@ export interface TransactionLogEntry {
   /** Raw Razorpay API response (stored only in debug mode) */
   rawResponse?: string;
 
+  /** Customer details captured during initialize/webhook (if available) */
+  customerEmail?: string;
+  customerPhone?: string;
+
   /** Payment mode at the time of transaction */
   mode: "test" | "live";
 }
@@ -59,10 +63,33 @@ export interface TransactionLogEntry {
 
 const TABLE_NAME = process.env.DYNAMODB_MAIN_TABLE_NAME || "razorpay-settings";
 const LOGS_FILE_PATH = path.resolve(process.cwd(), ".data", "transaction-logs.json");
+const PAYMENT_CAPTURE_STATE_FILE_PATH = path.resolve(process.cwd(), ".data", "payment-capture-state.json");
+const PAYMENT_CAPTURE_LOCK_MS = 10 * 60 * 1000;
+const PAYMENT_CAPTURE_COMPLETED_MS = 90 * 24 * 60 * 60 * 1000;
 
 function getPK(saleorApiUrl: string): string {
   return `RAZORPAY_LOG#${saleorApiUrl}`;
 }
+
+function getPaymentCapturePK(saleorApiUrl: string): string {
+  return `RAZORPAY_CAPTURE#${saleorApiUrl}`;
+}
+
+function getPaymentCaptureSK(razorpayPaymentId: string): string {
+  return `PAYMENT#${razorpayPaymentId}`;
+}
+
+type PaymentCaptureState = "processing" | "completed";
+
+type PaymentCaptureStateEntry = {
+  status: PaymentCaptureState;
+  expiresAt: number;
+  updatedAt: string;
+};
+
+type PaymentCaptureStateStore = Record<string, Record<string, PaymentCaptureStateEntry>>;
+
+export type PaymentCaptureGuardState = "acquired" | "in_progress" | "already_completed";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FILE-BASED LOGGING (Local Dev Fallback)
@@ -105,6 +132,37 @@ function getLogsFromFile(saleorApiUrl: string): TransactionLogEntry[] {
     console.warn("Failed to read logs from file:", error);
   }
   return [];
+}
+
+function readPaymentCaptureStateFromFile(): PaymentCaptureStateStore {
+  try {
+    if (!fs.existsSync(PAYMENT_CAPTURE_STATE_FILE_PATH)) {
+      return {};
+    }
+
+    const parsed = JSON.parse(fs.readFileSync(PAYMENT_CAPTURE_STATE_FILE_PATH, "utf-8"));
+    if (!parsed || typeof parsed !== "object") {
+      return {};
+    }
+
+    return parsed as PaymentCaptureStateStore;
+  } catch (error) {
+    console.warn("Failed to read payment capture state file:", error);
+    return {};
+  }
+}
+
+function writePaymentCaptureStateToFile(store: PaymentCaptureStateStore) {
+  try {
+    const dir = path.dirname(PAYMENT_CAPTURE_STATE_FILE_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    fs.writeFileSync(PAYMENT_CAPTURE_STATE_FILE_PATH, JSON.stringify(store, null, 2), "utf-8");
+  } catch (error) {
+    console.warn("Failed to write payment capture state file:", error);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -244,5 +302,195 @@ export async function findRecentInitializeLogByReference(
   } catch (error) {
     console.error("Failed to resolve transaction log by reference:", error);
     return null;
+  }
+}
+
+export async function beginPaymentCapturedProcessing(
+  docClient: DynamoDBDocumentClient | null,
+  saleorApiUrl: string,
+  razorpayPaymentId?: string
+): Promise<PaymentCaptureGuardState> {
+  if (!razorpayPaymentId) {
+    return "acquired";
+  }
+
+  const now = Date.now();
+  const updatedAt = new Date(now).toISOString();
+
+  if (!docClient) {
+    const store = readPaymentCaptureStateFromFile();
+    const byStore = store[saleorApiUrl] || {};
+    const existing = byStore[razorpayPaymentId];
+
+    if (existing?.status === "completed" && existing.expiresAt > now) {
+      return "already_completed";
+    }
+
+    if (existing?.status === "processing" && existing.expiresAt > now) {
+      return "in_progress";
+    }
+
+    byStore[razorpayPaymentId] = {
+      status: "processing",
+      expiresAt: now + PAYMENT_CAPTURE_LOCK_MS,
+      updatedAt,
+    };
+    store[saleorApiUrl] = byStore;
+    writePaymentCaptureStateToFile(store);
+
+    return "acquired";
+  }
+
+  const key = {
+    PK: getPaymentCapturePK(saleorApiUrl),
+    SK: getPaymentCaptureSK(razorpayPaymentId),
+  };
+
+  try {
+    await docClient.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: {
+          ...key,
+          status: "processing" as const,
+          expiresAt: now + PAYMENT_CAPTURE_LOCK_MS,
+          updatedAt,
+          ttl: Math.floor((now + 2 * 24 * 60 * 60 * 1000) / 1000),
+        },
+        ConditionExpression: "attribute_not_exists(PK) OR (#status = :processing AND #expiresAt < :now)",
+        ExpressionAttributeNames: {
+          "#status": "status",
+          "#expiresAt": "expiresAt",
+        },
+        ExpressionAttributeValues: {
+          ":processing": "processing",
+          ":now": now,
+        },
+      })
+    );
+
+    return "acquired";
+  } catch (error) {
+    const errorName = (error as { name?: string })?.name;
+    if (errorName !== "ConditionalCheckFailedException") {
+      console.warn("Failed to acquire payment capture processing guard:", error);
+      return "acquired";
+    }
+  }
+
+  try {
+    const result = await docClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: key,
+      })
+    );
+
+    const item = result.Item as PaymentCaptureStateEntry | undefined;
+    if (item?.status === "completed" && item.expiresAt > now) {
+      return "already_completed";
+    }
+
+    if (item?.status === "processing" && item.expiresAt > now) {
+      return "in_progress";
+    }
+  } catch (error) {
+    console.warn("Failed to inspect payment capture guard state:", error);
+  }
+
+  return "in_progress";
+}
+
+export async function markPaymentCapturedCompleted(
+  docClient: DynamoDBDocumentClient | null,
+  saleorApiUrl: string,
+  razorpayPaymentId?: string
+): Promise<void> {
+  if (!razorpayPaymentId) {
+    return;
+  }
+
+  const now = Date.now();
+  const updatedAt = new Date(now).toISOString();
+  const expiresAt = now + PAYMENT_CAPTURE_COMPLETED_MS;
+
+  if (!docClient) {
+    const store = readPaymentCaptureStateFromFile();
+    const byStore = store[saleorApiUrl] || {};
+    byStore[razorpayPaymentId] = {
+      status: "completed",
+      expiresAt,
+      updatedAt,
+    };
+    store[saleorApiUrl] = byStore;
+    writePaymentCaptureStateToFile(store);
+    return;
+  }
+
+  try {
+    await docClient.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          PK: getPaymentCapturePK(saleorApiUrl),
+          SK: getPaymentCaptureSK(razorpayPaymentId),
+        },
+        UpdateExpression:
+          "SET #status = :completed, #updatedAt = :updatedAt, #expiresAt = :expiresAt, ttl = :ttl",
+        ExpressionAttributeNames: {
+          "#status": "status",
+          "#updatedAt": "updatedAt",
+          "#expiresAt": "expiresAt",
+        },
+        ExpressionAttributeValues: {
+          ":completed": "completed",
+          ":updatedAt": updatedAt,
+          ":expiresAt": expiresAt,
+          ":ttl": Math.floor(expiresAt / 1000),
+        },
+      })
+    );
+  } catch (error) {
+    console.warn("Failed to mark payment capture as completed:", error);
+  }
+}
+
+export async function releasePaymentCapturedProcessing(
+  docClient: DynamoDBDocumentClient | null,
+  saleorApiUrl: string,
+  razorpayPaymentId?: string
+): Promise<void> {
+  if (!razorpayPaymentId) {
+    return;
+  }
+
+  if (!docClient) {
+    const store = readPaymentCaptureStateFromFile();
+    if (!store[saleorApiUrl]) {
+      return;
+    }
+
+    delete store[saleorApiUrl][razorpayPaymentId];
+
+    if (!Object.keys(store[saleorApiUrl]).length) {
+      delete store[saleorApiUrl];
+    }
+
+    writePaymentCaptureStateToFile(store);
+    return;
+  }
+
+  try {
+    await docClient.send(
+      new DeleteCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          PK: getPaymentCapturePK(saleorApiUrl),
+          SK: getPaymentCaptureSK(razorpayPaymentId),
+        },
+      })
+    );
+  } catch (error) {
+    console.warn("Failed to release payment capture processing guard:", error);
   }
 }
