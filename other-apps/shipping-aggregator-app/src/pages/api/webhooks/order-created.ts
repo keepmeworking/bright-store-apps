@@ -80,6 +80,23 @@ function pickString(value: unknown) {
   return trimmed || undefined;
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const DEFAULT_SHIPROCKET_EMAIL_FALLBACK = "support@daikcell.in";
+
+function resolveOrderEmail(value: unknown) {
+  const email = pickString(value);
+  if (email && EMAIL_PATTERN.test(email)) {
+    return email;
+  }
+
+  const configuredFallback = pickString(process.env.SHIPROCKET_FALLBACK_EMAIL);
+  if (configuredFallback && EMAIL_PATTERN.test(configuredFallback)) {
+    return configuredFallback;
+  }
+
+  return DEFAULT_SHIPROCKET_EMAIL_FALLBACK;
+}
+
 function resolveSaleorApiUrl(req: NextApiRequest) {
   const header = req.headers["saleor-api-url"] || req.headers["x-saleor-api-url"];
 
@@ -174,17 +191,29 @@ function toOrderDetails(payload: OrderWebhookPayload): OrderDetails | null {
 
   const lines = (order.lines || [])
     .filter((line) => line && typeof line.quantity === "number" && Number.isFinite(line.quantity) && line.quantity > 0)
-    .map((line) => {
+    .map((line, index) => {
       const productName = pickString(line.productName) || "Product";
       const variantName = pickString(line.variantName);
       const name = variantName ? `${productName} - ${variantName}` : productName;
+      const quantity = Math.max(1, line.quantity || 1);
+      const unitPrice = line.unitPrice?.gross?.amount;
+      const totalPrice = line.totalPrice?.gross?.amount;
+      const hasUnitPrice = typeof unitPrice === "number" && Number.isFinite(unitPrice) && unitPrice >= 0;
+      const hasTotalPrice = typeof totalPrice === "number" && Number.isFinite(totalPrice) && totalPrice >= 0;
+
+      const normalizedUnitPrice = hasUnitPrice ? unitPrice : hasTotalPrice ? totalPrice / quantity : undefined;
+      const normalizedTotalPrice = hasTotalPrice
+        ? totalPrice
+        : typeof normalizedUnitPrice === "number"
+          ? normalizedUnitPrice * quantity
+          : undefined;
 
       return {
         name,
-        quantity: Math.max(1, line.quantity || 1),
-        sku: pickString(line.variant?.sku) || pickString(line.productSku) || `line-${Math.random().toString(16).slice(2, 10)}`,
-        unit_price: line.unitPrice?.gross?.amount || undefined,
-        total_price: line.totalPrice?.gross?.amount || undefined,
+        quantity,
+        sku: pickString(line.variant?.sku) || pickString(line.productSku) || `line-${index + 1}`,
+        unit_price: typeof normalizedUnitPrice === "number" ? Number(normalizedUnitPrice.toFixed(2)) : undefined,
+        total_price: typeof normalizedTotalPrice === "number" ? Number(normalizedTotalPrice.toFixed(2)) : undefined,
         weight: normalizeWeight(line.variant?.weight?.value, line.variant?.weight?.unit),
       };
     });
@@ -198,7 +227,7 @@ function toOrderDetails(payload: OrderWebhookPayload): OrderDetails | null {
 
   return {
     id: order.id,
-    number: pickString(order.number),
+    number: pickString(order.number) || order.id,
     payment_method: paymentMethod,
     shipping_charges: order.shippingPrice?.gross?.amount || 0,
     total_price: order.total?.gross?.amount || undefined,
@@ -208,11 +237,11 @@ function toOrderDetails(payload: OrderWebhookPayload): OrderDetails | null {
       street1: shippingAddress.streetAddress1,
       street2: shippingAddress.streetAddress2 || undefined,
       city: shippingAddress.city,
-      state: shippingAddress.countryArea || "NA",
+      state: pickString(shippingAddress.countryArea) || "Delhi",
       pincode: shippingAddress.postalCode,
       country: pickString(shippingAddress.country?.code) || "IN",
       phone: normalizePhone(shippingAddress.phone),
-      email: pickString(order.userEmail) || "orders@local.invalid",
+      email: resolveOrderEmail(order.userEmail),
     },
     lines,
   };

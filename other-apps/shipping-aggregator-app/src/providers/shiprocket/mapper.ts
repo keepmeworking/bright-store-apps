@@ -33,6 +33,27 @@ function toPositiveNumber(value: unknown, fallback = 0) {
   return fallback;
 }
 
+function toOptionalPositiveNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+
+  return undefined;
+}
+
+function sanitizeOrderId(value: string) {
+  const normalized = value
+    .replace(/[^a-zA-Z0-9_-]/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
+
+  if (normalized) {
+    return normalized.slice(0, 40);
+  }
+
+  return `order-${Date.now()}`;
+}
+
 export function mapToShiprocketOrder(order: OrderDetails, pickupLocation: string) {
   const address = order.shipping_address;
   const { firstName, lastName } = splitName(address.name || "Customer");
@@ -45,13 +66,17 @@ export function mapToShiprocketOrder(order: OrderDetails, pickupLocation: string
   }, 0);
 
   const orderItems = order.lines.map((line) => {
-    const unitPrice = toPositiveNumber(line.unit_price, toPositiveNumber(line.total_price, 0));
+    const quantity = Math.max(1, line.quantity);
+    const unitPrice = toOptionalPositiveNumber(line.unit_price);
+    const totalPrice = toOptionalPositiveNumber(line.total_price);
+    const normalizedUnitPrice =
+      unitPrice !== undefined ? unitPrice : totalPrice !== undefined ? totalPrice / quantity : 0;
 
     return {
       name: line.name,
       sku: line.sku,
-      units: Math.max(1, line.quantity),
-      selling_price: Number(unitPrice.toFixed(2)),
+      units: quantity,
+      selling_price: Number(normalizedUnitPrice.toFixed(2)),
       discount: 0,
       tax: 0,
       hsn: "",
@@ -63,7 +88,7 @@ export function mapToShiprocketOrder(order: OrderDetails, pickupLocation: string
   const orderTotal = toPositiveNumber(order.total_price, computedSubtotal + shippingCharges);
 
   return {
-    order_id: order.number || order.id,
+    order_id: sanitizeOrderId(order.number || order.id),
     order_date: orderDate,
     pickup_location: pickupLocation,
     billing_customer_name: firstName,
@@ -72,10 +97,20 @@ export function mapToShiprocketOrder(order: OrderDetails, pickupLocation: string
     billing_address_2: address.street2 || "",
     billing_city: address.city,
     billing_pincode: toValidPincode(address.pincode),
-    billing_state: address.state,
+    billing_state: address.state || "Delhi",
     billing_country: "India",
-    billing_email: address.email,
+    billing_email: address.email || "support@daikcell.in",
     billing_phone: address.phone,
+    shipping_customer_name: firstName,
+    shipping_last_name: lastName,
+    shipping_address: address.street1,
+    shipping_address_2: address.street2 || "",
+    shipping_city: address.city,
+    shipping_pincode: toValidPincode(address.pincode),
+    shipping_state: address.state || "Delhi",
+    shipping_country: "India",
+    shipping_email: address.email || "support@daikcell.in",
+    shipping_phone: address.phone,
     shipping_is_billing: true,
     order_items: orderItems,
     payment_method: order.payment_method || "Prepaid",
