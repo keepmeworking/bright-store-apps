@@ -10,23 +10,18 @@ import {
   releasePaymentCapturedProcessing,
 } from "@/modules/transaction-log";
 import { getDocClient } from "@/modules/dynamodb-helpers";
+import {
+  extractAddressCandidateFromShippingDetail,
+  extractMagicCheckoutIdentifiers,
+  pickString,
+  toSaleorAddressInput,
+  type SaleorAddressInput,
+} from "@/modules/magic-webhook-details";
 
 type SaleorUserError = {
   field?: string | null;
   message?: string | null;
   code?: string | null;
-};
-
-type SaleorAddressInput = {
-  firstName: string;
-  lastName: string;
-  streetAddress1: string;
-  streetAddress2?: string;
-  city: string;
-  countryArea?: string;
-  postalCode: string;
-  country: string;
-  phone?: string;
 };
 
 type ShippingMethod = {
@@ -63,17 +58,6 @@ type RazorpayWebhookEvent = {
       };
     };
   };
-};
-
-type AddressCandidate = {
-  name?: string;
-  contact?: string;
-  line1?: string;
-  line2?: string;
-  city?: string;
-  state?: string;
-  country?: string;
-  zipcode?: string;
 };
 
 const CHECKOUT_EMAIL_UPDATE = /* GraphQL */ `
@@ -198,113 +182,10 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-function pickString(value: unknown) {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  return trimmed || undefined;
-}
-
 function inferMode(razorpayPaymentId?: string, razorpayOrderId?: string): "test" | "live" {
   const combined = `${razorpayPaymentId || ""} ${razorpayOrderId || ""}`.toLowerCase();
 
   return combined.includes("live") ? "live" : "test";
-}
-
-function splitName(fullName?: string) {
-  if (!fullName) {
-    return { firstName: "Customer", lastName: "" };
-  }
-
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-
-  if (!parts.length) {
-    return { firstName: "Customer", lastName: "" };
-  }
-
-  return {
-    firstName: parts[0],
-    lastName: parts.slice(1).join(" "),
-  };
-}
-
-function normalizeCountry(country?: string) {
-  const normalized = country?.trim().toUpperCase();
-
-  if (!normalized) {
-    return "IN";
-  }
-
-  if (normalized.length === 2) {
-    return normalized;
-  }
-
-  if (normalized === "INDIA") {
-    return "IN";
-  }
-
-  return "IN";
-}
-
-function extractAddressCandidateFromShippingDetail(shippingDetail?: Record<string, unknown> | null): AddressCandidate | null {
-  if (!shippingDetail) {
-    return null;
-  }
-
-  const nestedAddress = asRecord(shippingDetail.address);
-
-  return {
-    name: pickString(shippingDetail.name),
-    contact: pickString(shippingDetail.contact),
-    line1:
-      pickString(shippingDetail.address) ||
-      pickString(shippingDetail.line1) ||
-      pickString(nestedAddress?.line1) ||
-      pickString(nestedAddress?.address),
-    line2:
-      pickString(shippingDetail.line2) ||
-      pickString(nestedAddress?.line2),
-    city: pickString(shippingDetail.city) || pickString(nestedAddress?.city),
-    state: pickString(shippingDetail.state) || pickString(nestedAddress?.state),
-    country: pickString(shippingDetail.country) || pickString(nestedAddress?.country),
-    zipcode:
-      pickString(shippingDetail.zipcode) ||
-      pickString(shippingDetail.postal_code) ||
-      pickString(nestedAddress?.zipcode) ||
-      pickString(nestedAddress?.postal_code),
-  };
-}
-
-function toSaleorAddressInput(candidate: AddressCandidate | null, fallbackPhone?: string): SaleorAddressInput | null {
-  if (!candidate) {
-    return null;
-  }
-
-  const line1 = pickString(candidate.line1);
-  const city = pickString(candidate.city);
-  const postalCode = pickString(candidate.zipcode);
-
-  if (!line1 || !city || !postalCode) {
-    return null;
-  }
-
-  const { firstName, lastName } = splitName(candidate.name);
-
-  return {
-    firstName,
-    lastName,
-    streetAddress1: line1,
-    ...(pickString(candidate.line2) ? { streetAddress2: pickString(candidate.line2) } : {}),
-    city,
-    ...(pickString(candidate.state) ? { countryArea: pickString(candidate.state) } : {}),
-    postalCode,
-    country: normalizeCountry(candidate.country),
-    ...(pickString(candidate.contact) || pickString(fallbackPhone)
-      ? { phone: pickString(candidate.contact) || pickString(fallbackPhone) }
-      : {}),
-  };
 }
 
 function formatSaleorErrors(errors: SaleorUserError[] = []) {
@@ -408,8 +289,6 @@ async function handlePaymentCaptured(params: {
   const amount = (typeof paymentEntity.amount === "number" ? paymentEntity.amount : 0) / 100;
   const currency = pickString(paymentEntity.currency) || "INR";
   const mode = signatureMode || inferMode(razorpayPaymentId, razorpayOrderId);
-  const notes = asRecord(paymentEntity.notes);
-
   const captureGuard = await beginPaymentCapturedProcessing(docClient, saleorApiUrl, razorpayPaymentId);
 
   if (captureGuard === "already_completed") {
@@ -428,12 +307,10 @@ async function handlePaymentCaptured(params: {
       })
     : null;
 
-  let checkoutId =
-    pickString(notes?.cart_id) ||
-    initializeLog?.saleorCheckoutId ||
-    initializeLog?.saleorOrderId;
-  let email = pickString(paymentEntity.email) || initializeLog?.customerEmail;
-  let phone = pickString(paymentEntity.contact) || initializeLog?.customerPhone;
+  const identifiers = extractMagicCheckoutIdentifiers(paymentEntity, initializeLog);
+  let checkoutId = identifiers.checkoutId;
+  let email = identifiers.email;
+  let phone = identifiers.phone;
 
   await logTransaction(docClient, saleorApiUrl, {
     timestamp: new Date().toISOString(),
@@ -760,7 +637,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log("Razorpay Webhook Received:", event.event);
 
-    if (event.event === "payment.captured") {
+    if (event.event === "payment.captured" || event.event === "order.paid") {
       const paymentEntity = event.payload?.payment?.entity;
       const signatureMode = inferMode(pickString(paymentEntity?.id), pickString(paymentEntity?.order_id));
 
