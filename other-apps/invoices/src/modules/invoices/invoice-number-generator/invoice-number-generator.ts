@@ -4,12 +4,17 @@ interface IInvoiceNumberGenerationStrategy {
   (order: OrderPayloadFragment): string;
 }
 
-export const InvoiceNumberGenerationStrategy = {
-  localizedDate: (locale: string) => (order: Pick<OrderPayloadFragment, "created">) => {
-    const orderCreatedDate = new Date(order.created);
+const localizedDate = (locale: string) => (order: Pick<OrderPayloadFragment, "created">) => {
+  const orderCreatedDate = new Date(order.created);
 
-    return Intl.DateTimeFormat(locale).format(orderCreatedDate);
+  return Intl.DateTimeFormat(locale).format(orderCreatedDate);
+};
+
+export const InvoiceNumberGenerationStrategy = {
+  orderNumber: () => (order: Pick<OrderPayloadFragment, "number" | "created">) => {
+    return order.number || localizedDate("en-US")(order);
   },
+  localizedDate,
 } satisfies Record<string, (...args: any[]) => IInvoiceNumberGenerationStrategy>;
 
 export class InvoiceNumberGenerator {

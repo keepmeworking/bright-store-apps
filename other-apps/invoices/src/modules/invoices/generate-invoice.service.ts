@@ -321,7 +321,7 @@ export class GenerateInvoiceService {
 
     const invoiceName = this.invoiceNumberGenerator.generateFromOrder(
       order as OrderPayloadFragment,
-      InvoiceNumberGenerationStrategy.localizedDate("en-US"),
+      InvoiceNumberGenerationStrategy.orderNumber(),
     );
 
     const hashedInvoiceName = hashInvoiceFilename(invoiceName, order.id);

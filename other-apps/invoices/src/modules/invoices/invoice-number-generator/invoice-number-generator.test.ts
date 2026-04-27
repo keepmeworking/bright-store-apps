@@ -2,6 +2,14 @@ import { describe, it, expect } from "vitest";
 import { InvoiceNumberGenerationStrategy } from "./invoice-number-generator";
 
 describe("InvoiceNumberGenerationStrategies", () => {
+  describe("orderNumber strategy", () => {
+    it("uses the Saleor order number as the invoice number", () => {
+      const strategy = InvoiceNumberGenerationStrategy.orderNumber();
+
+      expect(strategy({ number: "45224", created: new Date(2020, 5, 1).toISOString() })).toBe("45224");
+    });
+  });
+
   describe("localizedDate strategy", () => {
     it("Generates proper name for US locale", () => {
       const strategy = InvoiceNumberGenerationStrategy.localizedDate("en-US");
