@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -79,5 +80,17 @@ describe("Razorpay Magic webhook helpers", () => {
       country: "IN",
       phone: "9876543210",
     });
+  });
+
+  it("records the captured Magic payment on the Saleor checkout before auto-completing it", () => {
+    const source = fs.readFileSync("src/pages/api/webhooks/razorpay.ts", "utf-8");
+    const transactionCreateIndex = source.indexOf("const transactionResult = await saleorGraphQL");
+    const checkoutCompleteIndex = source.indexOf("const completeResult = await saleorGraphQL");
+
+    expect(transactionCreateIndex).toBeGreaterThan(-1);
+    expect(checkoutCompleteIndex).toBeGreaterThan(-1);
+    expect(transactionCreateIndex).toBeLessThan(checkoutCompleteIndex);
+    expect(source).toContain("mutation MagicCheckoutTransactionCreate");
+    expect(source).toContain("amountCharged: { amount: $amount, currency: $currency }");
   });
 });

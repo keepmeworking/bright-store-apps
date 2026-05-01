@@ -135,6 +135,39 @@ const CHECKOUT_COMPLETE = /* GraphQL */ `
   }
 `;
 
+const TRANSACTION_CREATE = /* GraphQL */ `
+  mutation MagicCheckoutTransactionCreate(
+    $id: ID!
+    $amount: PositiveDecimal!
+    $currency: String!
+    $pspReference: String!
+    $message: String!
+    $metadata: [MetadataInput!]
+  ) {
+    transactionCreate(
+      id: $id
+      transaction: {
+        name: "Razorpay Magic Checkout"
+        message: $message
+        pspReference: $pspReference
+        amountCharged: { amount: $amount, currency: $currency }
+        availableActions: []
+        metadata: $metadata
+      }
+      transactionEvent: {
+        pspReference: $pspReference
+        message: $message
+      }
+    ) {
+      errors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 const GET_CHECKOUT_SHIPPING_METHODS = /* GraphQL */ `
   query GetCheckoutShippingMethods($id: ID!) {
     checkout(id: $id) {
@@ -462,6 +495,25 @@ async function handlePaymentCaptured(params: {
 
       assertNoSaleorErrors("checkoutDeliveryMethodUpdate", deliveryMethodResult.checkoutDeliveryMethodUpdate.errors);
     }
+
+    const transactionResult = await saleorGraphQL<{
+      transactionCreate: {
+        errors: SaleorUserError[];
+      };
+    }>(saleorApiUrl, token, TRANSACTION_CREATE, {
+      id: checkoutId,
+      amount,
+      currency,
+      pspReference: razorpayPaymentId || razorpayOrderId || `razorpay-magic-${checkoutId}`,
+      message: `Razorpay Magic Checkout payment captured${razorpayPaymentId ? `: ${razorpayPaymentId}` : ""}`,
+      metadata: [
+        ...(razorpayPaymentId ? [{ key: "razorpay_payment_id", value: razorpayPaymentId }] : []),
+        ...(razorpayOrderId ? [{ key: "razorpay_order_id", value: razorpayOrderId }] : []),
+        { key: "razorpay_source", value: "magic_checkout_webhook" },
+      ],
+    });
+
+    assertNoSaleorErrors("transactionCreate", transactionResult.transactionCreate.errors);
 
     const completeResult = await saleorGraphQL<{
       checkoutComplete: {
