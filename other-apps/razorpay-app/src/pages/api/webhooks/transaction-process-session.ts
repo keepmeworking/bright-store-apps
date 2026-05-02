@@ -5,6 +5,7 @@ import { saleorApp } from "@/saleor-app";
 import { getRazorpayClient } from "@/modules/razorpay-settings";
 import { logTransaction } from "@/modules/transaction-log";
 import { getDocClient } from "@/modules/dynamodb-helpers";
+import { findExistingChargedTransactionReference } from "@/modules/razorpay-idempotency";
 
 import {
   TransactionProcessSessionDocument,
@@ -48,6 +49,36 @@ export default transactionProcessSessionWebhook.createHandler(async (req, res, c
   } | null;
 
   const docClient = getDocClient();
+
+  async function saleorGraphQL<TData>(query: string, variables: Record<string, unknown>) {
+    const response = await fetch(saleorApiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization-Bearer": ctx.authData.token,
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+
+    const payload = (await response.json()) as {
+      data?: TData;
+      errors?: Array<{ message?: string }>;
+    };
+
+    if (!response.ok || payload.errors?.length) {
+      const message =
+        payload.errors?.map((entry) => entry.message || "GraphQL error").join(" | ") ||
+        `Saleor request failed with ${response.status}`;
+
+      throw new Error(message);
+    }
+
+    if (!payload.data) {
+      throw new Error("Saleor response did not include data");
+    }
+
+    return payload.data;
+  }
 
   try {
     if (!processData?.razorpay_payment_id || !processData?.razorpay_order_id || !processData?.razorpay_signature) {
@@ -106,6 +137,28 @@ export default transactionProcessSessionWebhook.createHandler(async (req, res, c
     // Signature verified — payment is authentic
     if (settings.debugMode) {
       console.log("[Razorpay Process] Signature verified successfully for payment:", processData.razorpay_payment_id);
+    }
+
+    const existingReference = await findExistingChargedTransactionReference(
+      saleorGraphQL,
+      payload.sourceObject?.id,
+      processData.razorpay_payment_id
+    );
+
+    if (existingReference) {
+      console.log(
+        "[Razorpay Process] Duplicate charged payment ignored for source:",
+        payload.sourceObject?.id,
+        existingReference
+      );
+
+      return res.status(200).json({
+        pspReference: existingReference,
+        result: "CHARGE_SUCCESS",
+        amount: Number(amount.toFixed(2)),
+        actions: ["REFUND"],
+        message: "Payment was already recorded for this Razorpay payment ID",
+      });
     }
 
     // Log successful verification

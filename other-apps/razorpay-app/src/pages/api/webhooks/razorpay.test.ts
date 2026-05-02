@@ -93,4 +93,12 @@ describe("Razorpay Magic webhook helpers", () => {
     expect(source).toContain("mutation MagicCheckoutTransactionCreate");
     expect(source).toContain("amountCharged: { amount: $amount, currency: $currency }");
   });
+
+  it("guards Magic and transactionProcess flows against charging the same Razorpay payment twice", () => {
+    const webhookSource = fs.readFileSync("src/pages/api/webhooks/razorpay.ts", "utf-8");
+    const processSource = fs.readFileSync("src/pages/api/webhooks/transaction-process-session.ts", "utf-8");
+
+    expect(webhookSource).toContain("findExistingChargedTransactionReference");
+    expect(processSource).toContain("findExistingChargedTransactionReference");
+  });
 });

@@ -17,6 +17,7 @@ import {
   toSaleorAddressInput,
   type SaleorAddressInput,
 } from "@/modules/magic-webhook-details";
+import { findExistingChargedTransactionReference } from "@/modules/razorpay-idempotency";
 
 type SaleorUserError = {
   field?: string | null;
@@ -494,6 +495,32 @@ async function handlePaymentCaptured(params: {
       });
 
       assertNoSaleorErrors("checkoutDeliveryMethodUpdate", deliveryMethodResult.checkoutDeliveryMethodUpdate.errors);
+    }
+
+    const existingReference = await findExistingChargedTransactionReference(
+      (query, variables) => saleorGraphQL(saleorApiUrl, token, query, variables),
+      checkoutId,
+      razorpayPaymentId
+    );
+
+    if (existingReference) {
+      await markPaymentCapturedCompleted(docClient, saleorApiUrl, razorpayPaymentId);
+      await logTransaction(docClient, saleorApiUrl, {
+        timestamp: new Date().toISOString(),
+        type: "webhook",
+        status: "success",
+        amount,
+        currency,
+        razorpayPaymentId,
+        razorpayOrderId,
+        saleorCheckoutId: checkoutId,
+        customerEmail: email,
+        customerPhone: phone,
+        rawResponse: `payment already recorded for ${existingReference}; skipped duplicate transactionCreate`,
+        mode,
+      });
+      console.log(`[MagicCheckout] Duplicate charged payment ignored for checkout ${checkoutId}: ${existingReference}`);
+      return;
     }
 
     const transactionResult = await saleorGraphQL<{
