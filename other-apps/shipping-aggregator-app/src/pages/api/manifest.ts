@@ -73,6 +73,9 @@ export default createManifestHandler({
                     userEmail
                     paymentStatus
                     shippingMethodName
+                    shippingMethod {
+                      id
+                    }
                     metadata {
                       key
                       value
@@ -134,6 +137,9 @@ export default createManifestHandler({
                     userEmail
                     paymentStatus
                     shippingMethodName
+                    shippingMethod {
+                      id
+                    }
                     metadata {
                       key
                       value

@@ -27,12 +27,28 @@ const logger = createLogger(notifyWebhook.webhookPath);
 
 const useCaseFactory = new SendEventMessagesUseCaseFactory();
 
-const handler: NextJsWebhookHandler<NotifySubscriptionPayload> = async (req, res, context) => {
+const handler: NextJsWebhookHandler<NotifySubscriptionPayload> = async (_req, res, context) => {
   logger.info("Webhook received");
 
   const { payload, authData } = context;
 
-  const { channel_slug: channel, recipient_email: recipientEmail } = payload.payload;
+  /*
+   * Cast to a broad type so we can safely probe fallback fields that may exist at runtime
+   * for events not in the NotifySubscriptionPayload union (e.g. order_confirmation sent by Saleor).
+   */
+  const rawPayload = payload.payload as unknown as {
+    channel_slug?: string;
+    recipient_email?: string;
+    user?: { email?: string };
+    order?: { email?: string };
+  };
+
+  const channel = rawPayload.channel_slug ?? "";
+  const recipientEmail =
+    rawPayload.recipient_email?.trim() ||
+    rawPayload.user?.email?.trim() ||
+    rawPayload.order?.email?.trim() ||
+    "";
 
   /**
    * Since NOTIFY can be send on events unrelated to this app, lack of mapping means the App does not support it
@@ -42,12 +58,12 @@ const handler: NextJsWebhookHandler<NotifySubscriptionPayload> = async (req, res
 
   loggerContext.set("event", event);
 
-  if (!recipientEmail?.length) {
-    logger.error(`The email recipient has not been specified in the event payload.`);
+  if (!recipientEmail) {
+    logger.info(`Skipping notify event — no recipient email found in payload.`, {
+      notify_event: payload.notify_event,
+    });
 
-    return res
-      .status(200)
-      .json({ error: "Email recipient has not been specified in the event payload." });
+    return res.status(200).json({ message: "Skipped — no recipient email in payload." });
   }
 
   if (!event) {
@@ -71,7 +87,7 @@ const handler: NextJsWebhookHandler<NotifySubscriptionPayload> = async (req, res
       })
       .then((result) =>
         result.match(
-          (r) => {
+          (_r) => {
             logger.info("Successfully sent email(s)");
 
             return res.status(200).json({ message: "The event has been handled" });

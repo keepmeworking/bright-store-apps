@@ -54,7 +54,54 @@ function sanitizeOrderId(value: string) {
   return `order-${Date.now()}`;
 }
 
-export function mapToShiprocketOrder(order: OrderDetails, pickupLocation: string) {
+/**
+ * Maps Indian pincode first-2-digits to state name.
+ * Used when Saleor countryArea is empty (Magic Checkout orders).
+ */
+export function stateFromPincode(pincode: string | number): string {
+  const digits = String(pincode || "").replace(/\D/g, "");
+  if (!digits) return "";
+  const prefix = parseInt(digits.slice(0, 2), 10);
+
+  const MAP: Record<number, string> = {
+    11: "Delhi",
+    12: "Haryana",      13: "Haryana",
+    14: "Punjab",       15: "Punjab",       16: "Punjab",
+    17: "Himachal Pradesh",
+    18: "Jammu and Kashmir", 19: "Jammu and Kashmir",
+    20: "Uttar Pradesh", 21: "Uttar Pradesh", 22: "Uttar Pradesh",
+    23: "Uttar Pradesh", 24: "Uttar Pradesh", 25: "Uttar Pradesh",
+    26: "Uttar Pradesh", 27: "Uttar Pradesh", 28: "Uttar Pradesh",
+    30: "Rajasthan",    31: "Rajasthan",    32: "Rajasthan",
+    33: "Rajasthan",    34: "Rajasthan",
+    36: "Gujarat",      37: "Gujarat",      38: "Gujarat",      39: "Gujarat",
+    40: "Maharashtra",  41: "Maharashtra",  42: "Maharashtra",
+    43: "Maharashtra",  44: "Maharashtra",
+    45: "Madhya Pradesh", 46: "Madhya Pradesh",
+    47: "Madhya Pradesh", 48: "Madhya Pradesh",
+    49: "Chhattisgarh",
+    50: "Telangana",    51: "Telangana",
+    52: "Andhra Pradesh", 53: "Andhra Pradesh",
+    56: "Karnataka",    57: "Karnataka",    58: "Karnataka",    59: "Karnataka",
+    60: "Tamil Nadu",   61: "Tamil Nadu",   62: "Tamil Nadu",
+    63: "Tamil Nadu",   64: "Tamil Nadu",   65: "Tamil Nadu",
+    67: "Kerala",       68: "Kerala",       69: "Kerala",
+    70: "West Bengal",  71: "West Bengal",  72: "West Bengal",
+    73: "West Bengal",  74: "West Bengal",
+    75: "Odisha",       76: "Odisha",       77: "Odisha",
+    78: "Assam",        79: "Assam",
+    80: "Bihar",        81: "Bihar",        82: "Jharkhand",
+    83: "Jharkhand",    84: "Bihar",        85: "Bihar",
+  };
+
+  return MAP[prefix] ?? "";
+}
+
+export function mapToShiprocketOrder(
+  order: OrderDetails,
+  pickupLocation: string,
+  dimensions?: { length?: number; breadth?: number; height?: number },
+) {
   const address = order.shipping_address;
   const { firstName, lastName } = splitName(address.name || "Customer");
   const now = new Date();
@@ -72,6 +119,13 @@ export function mapToShiprocketOrder(order: OrderDetails, pickupLocation: string
     const normalizedUnitPrice =
       unitPrice !== undefined ? unitPrice : totalPrice !== undefined ? totalPrice / quantity : 0;
 
+    if (normalizedUnitPrice === 0 && unitPrice === undefined && totalPrice === undefined) {
+      console.warn(
+        `[Shiprocket] Product "${line.name}" (SKU: ${line.sku}) has no price in Saleor. ` +
+          `selling_price will be 0. Set pricing on this variant in Saleor Dashboard.`,
+      );
+    }
+
     return {
       name: line.name,
       sku: line.sku,
@@ -87,6 +141,8 @@ export function mapToShiprocketOrder(order: OrderDetails, pickupLocation: string
   const shippingCharges = toPositiveNumber(order.shipping_charges, 0);
   const orderTotal = toPositiveNumber(order.total_price, computedSubtotal + shippingCharges);
 
+  const resolvedState = address.state || stateFromPincode(address.pincode) || "Delhi";
+
   return {
     order_id: sanitizeOrderId(order.number || order.id),
     order_date: orderDate,
@@ -97,7 +153,7 @@ export function mapToShiprocketOrder(order: OrderDetails, pickupLocation: string
     billing_address_2: address.street2 || "",
     billing_city: address.city,
     billing_pincode: toValidPincode(address.pincode),
-    billing_state: address.state || "Delhi",
+    billing_state: resolvedState,
     billing_country: "India",
     billing_email: address.email || "support@daikcell.in",
     billing_phone: address.phone,
@@ -107,7 +163,7 @@ export function mapToShiprocketOrder(order: OrderDetails, pickupLocation: string
     shipping_address_2: address.street2 || "",
     shipping_city: address.city,
     shipping_pincode: toValidPincode(address.pincode),
-    shipping_state: address.state || "Delhi",
+    shipping_state: resolvedState,
     shipping_country: "India",
     shipping_email: address.email || "support@daikcell.in",
     shipping_phone: address.phone,
@@ -119,9 +175,9 @@ export function mapToShiprocketOrder(order: OrderDetails, pickupLocation: string
     transaction_charges: 0,
     total_discount: 0,
     sub_total: Number(Math.max(computedSubtotal, orderTotal - shippingCharges).toFixed(2)),
-    length: 10,
-    breadth: 10,
-    height: 10,
+    length: dimensions?.length ?? 10,
+    breadth: dimensions?.breadth ?? 10,
+    height: dimensions?.height ?? 10,
     weight: Number(Math.max(totalWeight, 0.5).toFixed(3)),
   };
 }

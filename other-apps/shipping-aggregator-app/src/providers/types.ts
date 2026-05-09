@@ -25,6 +25,7 @@ export interface OrderDetails {
   shipping_charges?: number;
   total_price?: number;
   currency?: string;
+  courier_id?: string;
   shipping_address: {
     name: string;
     street1: string;

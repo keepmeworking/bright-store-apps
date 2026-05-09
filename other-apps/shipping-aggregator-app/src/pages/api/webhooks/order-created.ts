@@ -12,6 +12,9 @@ type OrderWebhookPayload = {
     userEmail?: string | null;
     paymentStatus?: string | null;
     shippingMethodName?: string | null;
+    shippingMethod?: {
+      id?: string | null;
+    } | null;
     metadata?: Array<{ key: string; value?: string | null }> | null;
     total?: {
       gross?: {
@@ -225,10 +228,19 @@ function toOrderDetails(payload: OrderWebhookPayload): OrderDetails | null {
   const paymentStatus = (order.paymentStatus || "").toUpperCase();
   const paymentMethod: "COD" | "Prepaid" = paymentStatus === "NOT_CHARGED" ? "COD" : "Prepaid";
 
+  // shippingMethod.id is formatted as "configId:courierId" by the shipping-methods webhook
+  const shippingMethodId = pickString(order.shippingMethod?.id) ?? "";
+  const methodParts = shippingMethodId.split(":");
+  const courierId =
+    methodParts.length >= 2 && /^\d+$/.test(methodParts[methodParts.length - 1])
+      ? methodParts[methodParts.length - 1]
+      : undefined;
+
   return {
     id: order.id,
     number: pickString(order.number) || order.id,
     payment_method: paymentMethod,
+    courier_id: courierId,
     shipping_charges: order.shippingPrice?.gross?.amount || 0,
     total_price: order.total?.gross?.amount || undefined,
     currency: pickString(order.total?.gross?.currency) || "INR",
@@ -237,7 +249,7 @@ function toOrderDetails(payload: OrderWebhookPayload): OrderDetails | null {
       street1: shippingAddress.streetAddress1,
       street2: shippingAddress.streetAddress2 || undefined,
       city: shippingAddress.city,
-      state: pickString(shippingAddress.countryArea) || "Delhi",
+      state: pickString(shippingAddress.countryArea) || "",
       pincode: shippingAddress.postalCode,
       country: pickString(shippingAddress.country?.code) || "IN",
       phone: normalizePhone(shippingAddress.phone),

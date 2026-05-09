@@ -8,6 +8,9 @@ type ShiprocketProviderOptions = {
   pickupPincode?: string;
   pickupLocation?: string;
   enableCod?: boolean;
+  defaultLength?: number;
+  defaultBreadth?: number;
+  defaultHeight?: number;
 };
 
 function toNumeric(value: unknown, fallback = 0) {
@@ -56,17 +59,23 @@ export class ShiprocketProvider implements ShippingProvider {
   private pickupPincode: string;
   private pickupLocation: string;
   private enableCod: boolean;
+  private defaultLength: number;
+  private defaultBreadth: number;
+  private defaultHeight: number;
 
   constructor(options: ShiprocketProviderOptions = {}) {
     this.client = new ShiprocketClient(options.email, options.password);
     this.pickupPincode = options.pickupPincode ?? process.env.SHIPROCKET_PICKUP_PINCODE ?? "110001";
     this.pickupLocation = options.pickupLocation ?? process.env.SHIPROCKET_PICKUP_LOCATION ?? "Primary";
     this.enableCod = options.enableCod ?? false;
+    this.defaultLength = options.defaultLength ?? (Number(process.env.SHIPROCKET_DEFAULT_LENGTH) || 10);
+    this.defaultBreadth = options.defaultBreadth ?? (Number(process.env.SHIPROCKET_DEFAULT_BREADTH) || 10);
+    this.defaultHeight = options.defaultHeight ?? (Number(process.env.SHIPROCKET_DEFAULT_HEIGHT) || 10);
   }
 
   async getRates(payload: RateRequest): Promise<ShippingRate[]> {
     console.log("Fetching rates from Shiprocket", payload);
-    
+
     try {
         const response = (await this.client.getServiceability({
             pickup_postcode: this.pickupPincode,
@@ -95,9 +104,13 @@ export class ShiprocketProvider implements ShippingProvider {
 
   async createShipment(order: OrderDetails): Promise<ShipmentResult> {
      console.log("Creating shipment in Shiprocket", order);
-     
+
      try {
-         const orderPayload = mapToShiprocketOrder(order, this.pickupLocation);
+         const orderPayload = mapToShiprocketOrder(order, this.pickupLocation, {
+           length: this.defaultLength,
+           breadth: this.defaultBreadth,
+           height: this.defaultHeight,
+         });
          const response = (await this.client.createOrder(orderPayload)) as Record<string, any>;
 
          const shipmentId = resolveShipmentId(response);
@@ -115,7 +128,7 @@ export class ShiprocketProvider implements ShippingProvider {
 
          if (!awbCode && shipmentId) {
             try {
-              const awbResponse = await this.client.assignAwb(shipmentId);
+              const awbResponse = await this.client.assignAwb(shipmentId, order.courier_id);
               awbCode = resolveAwbCode(awbResponse);
             } catch (awbError) {
               console.warn("Shiprocket AWB assignment failed, continuing with shipment id", awbError);

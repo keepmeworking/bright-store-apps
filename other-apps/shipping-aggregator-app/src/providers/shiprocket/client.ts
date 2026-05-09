@@ -70,19 +70,6 @@ export class ShiprocketClient {
     return payload;
   }
 
-  async checkServiceability(payload: {
-    pickup_postcode: number;
-    delivery_postcode: number;
-    weight: number;
-    cod: 0 | 1;
-  }) {
-    // /v1/external/courier/serviceability/
-    return this.request("/v1/external/courier/serviceability/", "GET") 
-    // Note: GET request with body is non-standard, Shiprocket uses query params usually or POST for some.
-    // Actually Shiprocket serviceability is a GET request with query params.
-    // Let's refactor to use query params.
-  }
-
   async getServiceability(params: {
     pickup_postcode: string;
     delivery_postcode: string;
@@ -97,13 +84,15 @@ export class ShiprocketClient {
     return this.request("/v1/external/orders/create/adhoc", "POST", orderPayload);
   }
 
-  async assignAwb(shipmentId: string | number) {
+  async assignAwb(shipmentId: string | number, courierId?: string | number) {
     const shipmentIdAsNumber = Number(shipmentId);
+    const courierIdNumber = courierId !== undefined ? Number(courierId) : undefined;
+    const courierPayload = courierIdNumber ? { courier_id: courierIdNumber } : {};
 
     const attemptPayloads = [
-      { shipment_id: shipmentIdAsNumber },
-      { shipment_id: [shipmentIdAsNumber] },
-      { shipment_id: [String(shipmentId)] },
+      { ...courierPayload, shipment_id: shipmentIdAsNumber },
+      { ...courierPayload, shipment_id: [shipmentIdAsNumber] },
+      { ...courierPayload, shipment_id: [String(shipmentId)] },
     ];
 
     let lastError: unknown;
