@@ -139,11 +139,16 @@ export default transactionProcessSessionWebhook.createHandler(async (req, res, c
       console.log("[Razorpay Process] Signature verified successfully for payment:", processData.razorpay_payment_id);
     }
 
-    const existingReference = await findExistingChargedTransactionReference(
-      saleorGraphQL,
-      payload.sourceObject?.id,
-      processData.razorpay_payment_id
-    );
+    let existingReference: string | null = null;
+    try {
+      existingReference = await findExistingChargedTransactionReference(
+        saleorGraphQL,
+        payload.sourceObject?.id,
+        processData.razorpay_payment_id
+      );
+    } catch (idempotencyError) {
+      console.warn("[Razorpay Process] Idempotency check failed (non-fatal), proceeding with CHARGE_SUCCESS:", idempotencyError);
+    }
 
     if (existingReference) {
       console.log(

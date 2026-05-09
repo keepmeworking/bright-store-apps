@@ -14,33 +14,46 @@ type SaleorNodeWithTransactions = {
 
 type SaleorGraphQLExecutor = <TData>(query: string, variables: Record<string, unknown>) => Promise<TData>;
 
-const GET_SOURCE_TRANSACTIONS = /* GraphQL */ `
-  query GetSourceTransactions($id: ID!) {
-    node(id: $id) {
-      __typename
-      ... on Checkout {
-        id
-        transactions {
-          pspReference
-          chargedAmount {
-            amount
-            currency
-          }
-        }
-      }
-      ... on Order {
-        id
-        transactions {
-          pspReference
-          chargedAmount {
-            amount
-            currency
-          }
+const GET_CHECKOUT_TRANSACTIONS = /* GraphQL */ `
+  query GetCheckoutTransactions($id: ID!) {
+    checkout(id: $id) {
+      id
+      transactions {
+        pspReference
+        chargedAmount {
+          amount
+          currency
         }
       }
     }
   }
 `;
+
+const GET_ORDER_TRANSACTIONS = /* GraphQL */ `
+  query GetOrderTransactions($id: ID!) {
+    order(id: $id) {
+      id
+      transactions {
+        pspReference
+        chargedAmount {
+          amount
+          currency
+        }
+      }
+    }
+  }
+`;
+
+function detectSourceType(id: string): "checkout" | "order" | "unknown" {
+  try {
+    const decoded = Buffer.from(id, "base64").toString("utf8");
+    if (decoded.startsWith("Checkout:")) return "checkout";
+    if (decoded.startsWith("Order:")) return "order";
+  } catch {
+    // ignore decode errors
+  }
+  return "unknown";
+}
 
 export function hasChargedTransactionWithPspReference(
   transactions: SaleorTransactionLike[] = [],
@@ -68,13 +81,38 @@ export async function findExistingChargedTransactionReference(
     return null;
   }
 
-  const result = await executeGraphQL<{
-    node?: SaleorNodeWithTransactions | null;
-  }>(GET_SOURCE_TRANSACTIONS, {
-    id: sourceId,
-  });
+  const sourceType = detectSourceType(sourceId);
 
-  const transactions = result.node?.transactions || [];
+  let transactions: SaleorTransactionLike[] = [];
+
+  if (sourceType === "checkout") {
+    const result = await executeGraphQL<{
+      checkout?: SaleorNodeWithTransactions | null;
+    }>(GET_CHECKOUT_TRANSACTIONS, { id: sourceId });
+    transactions = result.checkout?.transactions || [];
+  } else if (sourceType === "order") {
+    const result = await executeGraphQL<{
+      order?: SaleorNodeWithTransactions | null;
+    }>(GET_ORDER_TRANSACTIONS, { id: sourceId });
+    transactions = result.order?.transactions || [];
+  } else {
+    // Unknown type — try checkout first, then order
+    try {
+      const result = await executeGraphQL<{
+        checkout?: SaleorNodeWithTransactions | null;
+      }>(GET_CHECKOUT_TRANSACTIONS, { id: sourceId });
+      transactions = result.checkout?.transactions || [];
+    } catch {
+      try {
+        const result = await executeGraphQL<{
+          order?: SaleorNodeWithTransactions | null;
+        }>(GET_ORDER_TRANSACTIONS, { id: sourceId });
+        transactions = result.order?.transactions || [];
+      } catch {
+        return null;
+      }
+    }
+  }
 
   return hasChargedTransactionWithPspReference(transactions, pspReference) ? pspReference : null;
 }
