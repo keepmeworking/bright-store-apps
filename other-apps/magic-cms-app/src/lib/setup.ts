@@ -125,6 +125,11 @@ export type SetupMenuStatus = {
   missingItems: number;
 };
 
+const FOOTER_LINK_MENU_SLUGS = new Set([
+  "magic-navbar-footer-links1",
+  "magic-navbar-footer-links2",
+]);
+
 export type SetupResult = {
   steps: string[];
   errors: string[];
@@ -850,6 +855,28 @@ const countMissingSeedMenuItems = (
   return missing;
 };
 
+const hasAnyMenuItems = (items: ManagedMenuItem[]) =>
+  items.some((item) => item.children.length > 0 || Boolean(normalizeMenuItemName(item.name)));
+
+const shouldSkipSeedMenuItems = (menuSlug: string, existingMenu?: ManagedMenu) =>
+  FOOTER_LINK_MENU_SLUGS.has(menuSlug) && Boolean(existingMenu && hasAnyMenuItems(existingMenu.items || []));
+
+const getPendingSeedMenuItemCount = (
+  menuSlug: string,
+  existingMenu: ManagedMenu | undefined,
+  seedItems: Array<{ name: string; children?: any[] }>,
+) => {
+  if (!existingMenu) {
+    return countSeedMenuItems(seedItems);
+  }
+
+  if (shouldSkipSeedMenuItems(menuSlug, existingMenu)) {
+    return 0;
+  }
+
+  return countMissingSeedMenuItems(existingMenu.items || [], seedItems);
+};
+
 const buildMenuStatuses = (
   existingMenuBySlug: Map<string, ManagedMenu>,
   canManageMenus: boolean,
@@ -871,9 +898,7 @@ const buildMenuStatuses = (
       slug: menuDef.slug,
       name: menuDef.name,
       exists: Boolean(existingMenu),
-      missingItems: !existingMenu
-        ? countSeedMenuItems(seeds)
-        : countMissingSeedMenuItems(existingMenu.items || [], seeds),
+      missingItems: getPendingSeedMenuItemCount(menuDef.slug, existingMenu, seeds),
     };
   });
 
@@ -1038,10 +1063,7 @@ export async function performSetup(client: Client, options: SetupOptions = {}): 
           return total;
         }
         const existingMenu = existingMenuBySlug.get(menuDef.slug);
-        if (!existingMenu) {
-          return total + countSeedMenuItems(seeds);
-        }
-        return total + countMissingSeedMenuItems(existingMenu.items || [], seeds);
+        return total + getPendingSeedMenuItemCount(menuDef.slug, existingMenu, seeds);
       }, 0)
     : 0;
 
@@ -1745,12 +1767,15 @@ export async function performSetup(client: Client, options: SetupOptions = {}): 
       }
 
       if (dryRun) {
-        const pendingSeeds = menuNode
-          ? countMissingSeedMenuItems(menuNode.items || [], seedItems)
-          : countSeedMenuItems(seedItems);
+        const pendingSeeds = getPendingSeedMenuItemCount(menuDef.slug, menuNode, seedItems);
         if (pendingSeeds > 0) {
           steps.push(`[Plan] Seed ${pendingSeeds} menu item(s) into ${menuDef.slug}`);
         }
+        continue;
+      }
+
+      if (shouldSkipSeedMenuItems(menuDef.slug, menuNode || undefined)) {
+        steps.push(`Menu item seeding skipped for ${menuDef.slug}: existing custom footer links detected`);
         continue;
       }
 
