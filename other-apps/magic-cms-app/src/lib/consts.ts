@@ -101,6 +101,7 @@ export const CMS_ATTRIBUTES: CmsAttributeDefinition[] = [
   { slug: "magic-module-attr-email", name: "Magic Module Email", type: "PLAIN_TEXT" },
   { slug: "magic-module-attr-map-embed", name: "Magic Module Map Embed", type: "PLAIN_TEXT" },
   { slug: "magic-module-attr-working-hours", name: "Magic Module Working Hours", type: "RICH_TEXT" },
+  { slug: "magic-module-attr-distributor-list", name: "Magic Module Distributor List", type: "PLAIN_TEXT" },
   { slug: "magic-module-attr-ld-json-schema", name: "Ld json schema", type: "PLAIN_TEXT" },
   { slug: "magic-module-attr-social-facebook", name: "Magic Module Social Facebook", type: "PLAIN_TEXT" },
   { slug: "magic-module-attr-social-instagram", name: "Magic Module Social Instagram", type: "PLAIN_TEXT" },
@@ -315,6 +316,11 @@ export const CMS_PAGE_TYPES: CmsPageTypeDefinition[] = [
     attributes: ["magic-module-attr-ld-json-schema", "magic-ref-widget"],
   },
   {
+    slug: "magiccms-module-ty-distributor",
+    name: "MagicCMS: Module Type Distributor",
+    attributes: ["magic-module-attr-distributor-list"],
+  },
+  {
     slug: "magiccms-storefront-settings",
     name: "MagicCMS: Storefront Settings",
     attributes: [
@@ -425,72 +431,23 @@ export const CMS_DEFAULT_PAGES: CmsDefaultPageDefinition[] = [
     }),
   },
   {
-    title: "Distribution",
-    slug: "distribution-page",
-    pageTypeSlug: "magiccms-module-ty-distribution",
+    title: "Distributor Network",
+    slug: "distributor-network",
+    pageTypeSlug: "magiccms-module-ty-distributor",
     isPublished: true,
     content: JSON.stringify({
       blocks: [
         {
-          type: "header",
-          data: {
-            text: "Become a Daikcell Distribution Partner",
-            level: 2,
-          },
-        },
-        {
           type: "paragraph",
           data: {
-            text: "Daikcell works with channel partners who can represent our stabilizer, inverter, battery, and power-backup portfolio in local markets with consistent service and after-sales support.",
-          },
-        },
-        {
-          type: "header",
-          data: {
-            text: "Who should apply",
-            level: 2,
-          },
-        },
-        {
-          type: "paragraph",
-          data: {
-            text: "This page is suited for distributors, dealers, regional partners, and businesses that already handle electrical, appliance, or energy-related products and want to expand with a structured power-solutions catalog.",
-          },
-        },
-        {
-          type: "header",
-          data: {
-            text: "What Daikcell looks for",
-            level: 2,
-          },
-        },
-        {
-          type: "list",
-          data: {
-            style: "unordered",
-            items: [
-              "Strong local market presence and channel reach",
-              "Ability to handle product positioning and service coordination",
-              "Operational readiness for enquiries, orders, and follow-up",
-              "Commitment to long-term brand building in the assigned region",
-            ],
-          },
-        },
-        {
-          type: "header",
-          data: {
-            text: "How to proceed",
-            level: 2,
-          },
-        },
-        {
-          type: "paragraph",
-          data: {
-            text: "Use this page as the CMS-managed distribution information page. If you want lead capture, we can attach a widget form or a dedicated enquiry module without changing the page model.",
+            text: "Find authorized Daikcell dealers, distributors, and service centers in your region.",
           },
         },
       ],
     }),
+    attributeValues: {
+      "magic-module-attr-distributor-list": JSON.stringify([], null, 2),
+    },
   },
   {
     title: "Terms & Conditions",
@@ -534,7 +491,7 @@ export const CMS_MENU_STRUCTURES: CmsMenuDefinition[] = [
     items: [
       { name: "Order Tracking", url: "/order-tracking" },
       { name: "Support", url: "/support" },
-      { name: "Distribution", url: "/distribution" },
+      { name: "Distributor Network", url: "/pages/distributor-network" },
     ],
   },
   {
