@@ -41,6 +41,14 @@ function toOptionalPositiveNumber(value: unknown) {
   return undefined;
 }
 
+function toOptionalPositiveDimension(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return value;
+  }
+
+  return undefined;
+}
+
 function sanitizeOrderId(value: string) {
   const normalized = value
     .replace(/[^a-zA-Z0-9_-]/g, "-")
@@ -141,7 +149,10 @@ export function mapToShiprocketOrder(
   const shippingCharges = toPositiveNumber(order.shipping_charges, 0);
   const orderTotal = toPositiveNumber(order.total_price, computedSubtotal + shippingCharges);
 
-  const resolvedState = address.state || stateFromPincode(address.pincode) || "Delhi";
+  const resolvedState = address.state || stateFromPincode(address.pincode) || "";
+  const length = toOptionalPositiveDimension(dimensions?.length);
+  const breadth = toOptionalPositiveDimension(dimensions?.breadth);
+  const height = toOptionalPositiveDimension(dimensions?.height);
 
   return {
     order_id: sanitizeOrderId(order.number || order.id),
@@ -175,9 +186,9 @@ export function mapToShiprocketOrder(
     transaction_charges: 0,
     total_discount: 0,
     sub_total: Number(Math.max(computedSubtotal, orderTotal - shippingCharges).toFixed(2)),
-    length: dimensions?.length ?? 10,
-    breadth: dimensions?.breadth ?? 10,
-    height: dimensions?.height ?? 10,
+    ...(length !== undefined ? { length } : {}),
+    ...(breadth !== undefined ? { breadth } : {}),
+    ...(height !== undefined ? { height } : {}),
     weight: Number(Math.max(totalWeight, 0.5).toFixed(3)),
   };
 }

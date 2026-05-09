@@ -47,12 +47,15 @@
     "@graphql-codegen/typescript-urql": "^3.7.3",
     "@graphql-codegen/urql-introspection": "^3.0.1",
     "@graphql-typed-document-node/core": "^3.2.0",
+    "@saleor/eslint-plugin-saleor-app": "0.2.0",
     "@types/node": "^18.11.18",
     "@types/react": "^18.2.6",
     "@types/react-dom": "^18.2.4",
     "@vitejs/plugin-react": "4.2.1",
     "eslint": "8.31.0",
     "eslint-config-next": "14.0.0",
+    "eslint-config-prettier": "10.1.1",
+    "eslint-plugin-simple-import-sort": "12.1.1",
     "graphql": "^16.8.1",
     "graphql-tag": "^2.12.6",
     "jsdom": "^20.0.3",
@@ -63,6 +66,7 @@
     "vite-tsconfig-paths": "5.1.4",
     "vitest": "1.5.2"
   },
+  "packageManager": "pnpm@10.28.1",
   "engines": {
     "node": ">=22.0.0 <23.0.0",
     "npm": ">=10.0.0 <11.0.0",
