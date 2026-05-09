@@ -118,6 +118,13 @@ type MenuLoadResult = {
   missingPermission: boolean;
 };
 
+export type SetupMenuStatus = {
+  slug: string;
+  name: string;
+  exists: boolean;
+  missingItems: number;
+};
+
 export type SetupResult = {
   steps: string[];
   errors: string[];
@@ -125,6 +132,7 @@ export type SetupResult = {
   dryRun: boolean;
   hasPendingChanges: boolean;
   counts: SetupCounts;
+  menuStatuses: SetupMenuStatus[];
 };
 
 export type SetupOpsMode = "backup" | "restore" | "cleanup";
@@ -842,6 +850,33 @@ const countMissingSeedMenuItems = (
   return missing;
 };
 
+const buildMenuStatuses = (
+  existingMenuBySlug: Map<string, ManagedMenu>,
+  canManageMenus: boolean,
+): SetupMenuStatus[] =>
+  CMS_MENU_STRUCTURES.map((menuDef) => {
+    const seeds = menuDef.items || [];
+    const existingMenu = existingMenuBySlug.get(menuDef.slug);
+
+    if (!canManageMenus) {
+      return {
+        slug: menuDef.slug,
+        name: menuDef.name,
+        exists: Boolean(existingMenu),
+        missingItems: 0,
+      };
+    }
+
+    return {
+      slug: menuDef.slug,
+      name: menuDef.name,
+      exists: Boolean(existingMenu),
+      missingItems: !existingMenu
+        ? countSeedMenuItems(seeds)
+        : countMissingSeedMenuItems(existingMenu.items || [], seeds),
+    };
+  });
+
 const ensureSeedMenuItems = async (
   client: Client,
   menuId: string,
@@ -983,6 +1018,7 @@ export async function performSetup(client: Client, options: SetupOptions = {}): 
   const existingMenuBySlug = new Map<string, ManagedMenu>(
     existingMenus.map((menu: ManagedMenu): [string, ManagedMenu] => [menu.slug, menu])
   );
+  const menuStatuses = buildMenuStatuses(existingMenuBySlug, canManageMenus);
 
   const missingAttributeDefs = CMS_ATTRIBUTES.filter((attr) => !existingAttributeBySlug.has(attr.slug));
   const missingPageTypeDefs = CMS_PAGE_TYPES.filter((pageType) => !existingPageTypeBySlug.has(pageType.slug));
@@ -1917,6 +1953,7 @@ export async function performSetup(client: Client, options: SetupOptions = {}): 
     dryRun,
     hasPendingChanges,
     counts,
+    menuStatuses,
   };
 }
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BarChart3, Layout, MessageSquare, Video, CheckCircle } from "lucide-react";
 import type { SetupOpsJobSummary, SetupOpsJobType } from "@/lib/setup-ops-jobs";
+import type { SetupMenuStatus } from "@/lib/setup";
 
 const ModuleCard = ({ title, description, href, icon: Icon }: { title: string, description: string, href: string, icon?: any }) => {
   const router = useRouter();
@@ -46,6 +47,9 @@ export default function IndexPage() {
   const [setupErrors, setSetupErrors] = useState<string[]>([]);
   const [showLogs, setShowLogs] = useState(false);
   const [hasPendingChanges, setHasPendingChanges] = useState(false);
+  const [setupCounts, setSetupCounts] = useState<{ missingMenus: number; missingMenuItems: number } | null>(null);
+  const [setupMenuStatuses, setSetupMenuStatuses] = useState<SetupMenuStatus[]>([]);
+  const [initializationTab, setInitializationTab] = useState<"schema" | "footer-links">("schema");
   const [opsJobs, setOpsJobs] = useState<SetupOpsJobSummary[]>([]);
   const [opsLoading, setOpsLoading] = useState(false);
   const [opsError, setOpsError] = useState("");
@@ -67,6 +71,18 @@ export default function IndexPage() {
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [opsJobs],
   );
+  const footerMenuStatuses = useMemo(
+    () =>
+      setupMenuStatuses.filter(
+        (menu) => menu.slug === "magic-navbar-footer-links1" || menu.slug === "magic-navbar-footer-links2",
+      ),
+    [setupMenuStatuses],
+  );
+  const footerLinksMissingCount = useMemo(
+    () => footerMenuStatuses.reduce((total, menu) => total + menu.missingItems, 0),
+    [footerMenuStatuses],
+  );
+  const footerLinksReady = footerMenuStatuses.length > 0 && footerLinksMissingCount === 0;
 
   const fetchSetupOpsJobs = useCallback(async () => {
     setOpsLoading(true);
@@ -106,6 +122,8 @@ export default function IndexPage() {
       const data = await res.json();
       setSetupMode(data.mode || "initialize");
       setHasPendingChanges(Boolean(data.hasPendingChanges));
+      setSetupCounts(data.counts || null);
+      setSetupMenuStatuses(data.menuStatuses || []);
       setSetupStatus("idle");
     } catch {
       setSetupStatus("idle");
@@ -196,6 +214,8 @@ export default function IndexPage() {
       setSetupErrors(data.errors || []);
       setSetupMode(data.mode || "initialize");
       setHasPendingChanges(Boolean(data.hasPendingChanges));
+      setSetupCounts(data.counts || null);
+      setSetupMenuStatuses(data.menuStatuses || []);
       
       if (data.errors?.length > 0) {
         setSetupStatus("error");
@@ -271,36 +291,129 @@ export default function IndexPage() {
         <Text as="p" size={3} color="default2" marginTop={2}>
           Select a module below to start managing your dynamic content.
         </Text>
-        {setupStatus === "checking" ? (
-          <Text as="p" size={2} color="default2" marginTop={2}>
-            Checking initialization state...
-          </Text>
-        ) : setupMode === "already_initialized" && !hasPendingChanges ? (
-          <Text as="p" size={2} color="default2" marginTop={2}>
-            Initialization state is up-to-date. No migration pending.
-          </Text>
-        ) : setupMode === "update" || hasPendingChanges ? (
-          <Text as="p" size={2} color="default2" marginTop={2}>
-            New migration detected. Run update initialization to sync latest schema.
-          </Text>
-        ) : (
-          <Text as="p" size={2} color="default2" marginTop={2}>
-            First-time initialization required for Magic CMS schema.
-          </Text>
-        )}
-        <Box display="flex" gap={4} marginTop={4}>
-            <Button
-              onClick={handleSetup}
-              variant={setupButtonVariant}
-              disabled={setupStatus === "loading" || setupStatus === "checking"}
-            >
-                {setupButtonLabel}
-            </Button>
-            {setupStatus !== "idle" && (
-                 <Button variant="tertiary" onClick={() => setShowLogs(!showLogs)}>
+        <Box marginTop={4} display="flex" gap={2}>
+          <Button
+            variant={initializationTab === "schema" ? "primary" : "secondary"}
+            onClick={() => setInitializationTab("schema")}
+          >
+            Schema
+          </Button>
+          <Button
+            variant={initializationTab === "footer-links" ? "primary" : "secondary"}
+            onClick={() => setInitializationTab("footer-links")}
+          >
+            Footer Links
+          </Button>
+        </Box>
+        <Box
+          marginTop={4}
+          borderStyle="solid"
+          borderWidth={1}
+          borderColor="default1"
+          borderRadius={4}
+          padding={5}
+          display="flex"
+          flexDirection="column"
+          gap={3}
+        >
+          {initializationTab === "schema" ? (
+            <>
+              {setupStatus === "checking" ? (
+                <Text as="p" size={2} color="default2">
+                  Checking initialization state...
+                </Text>
+              ) : setupMode === "already_initialized" && !hasPendingChanges ? (
+                <Text as="p" size={2} color="default2">
+                  Initialization state is up-to-date. No migration pending.
+                </Text>
+              ) : setupMode === "update" || hasPendingChanges ? (
+                <Text as="p" size={2} color="default2">
+                  New migration detected. Run update initialization to sync latest schema.
+                </Text>
+              ) : (
+                <Text as="p" size={2} color="default2">
+                  First-time initialization required for Magic CMS schema.
+                </Text>
+              )}
+              {setupCounts ? (
+                <Text as="p" size={1} color="default2">
+                  Pending menus: {setupCounts.missingMenus} · Pending menu items: {setupCounts.missingMenuItems}
+                </Text>
+              ) : null}
+              <Box display="flex" gap={4} __flexWrap="wrap">
+                <Button
+                  onClick={handleSetup}
+                  variant={setupButtonVariant}
+                  disabled={setupStatus === "loading" || setupStatus === "checking"}
+                >
+                  {setupButtonLabel}
+                </Button>
+                {setupStatus !== "idle" && (
+                  <Button variant="tertiary" onClick={() => setShowLogs(!showLogs)}>
                     {showLogs ? "Hide Logs" : "Show Setup Logs"}
-                 </Button>
-            )}
+                  </Button>
+                )}
+              </Box>
+            </>
+          ) : (
+            <>
+              <Text as="h3" size={5} fontWeight="bold">
+                Footer Links Initialization
+              </Text>
+              <Text as="p" size={2} color="default2">
+                Seeds footer menu structures only when links are missing. Existing footer links are skipped.
+              </Text>
+              {footerMenuStatuses.length > 0 ? (
+                <Box display="flex" flexDirection="column" gap={2}>
+                  {footerMenuStatuses.map((menu) => (
+                    <Box
+                      key={menu.slug}
+                      borderStyle="solid"
+                      borderWidth={1}
+                      borderColor="default1"
+                      borderRadius={4}
+                      padding={3}
+                      display="flex"
+                      justifyContent="space-between"
+                      alignItems="center"
+                    >
+                      <Box display="flex" flexDirection="column" gap={1}>
+                        <Text as="p" size={2} fontWeight="bold">
+                          {menu.name}
+                        </Text>
+                        <Text as="p" size={1} color="default2">
+                          {menu.missingItems > 0
+                            ? `${menu.missingItems} footer link item(s) pending`
+                            : "Already initialized"}
+                        </Text>
+                      </Box>
+                      <Text as="p" size={1} color={menu.missingItems > 0 ? "warning1" : "success1"}>
+                        {menu.missingItems > 0 ? "Needs setup" : "Ready"}
+                      </Text>
+                    </Box>
+                  ))}
+                </Box>
+              ) : (
+                <Text as="p" size={2} color="default2">
+                  Footer link status will appear after initialization check finishes.
+                </Text>
+              )}
+              <Box display="flex" gap={4} __flexWrap="wrap">
+                <Button
+                  onClick={handleSetup}
+                  variant={footerLinksReady ? "secondary" : "primary"}
+                  disabled={setupStatus === "loading" || setupStatus === "checking" || footerLinksReady}
+                >
+                  {footerLinksReady ? "Footer Links Ready" : "Initialize Footer Links"}
+                </Button>
+                {setupStatus !== "idle" && (
+                  <Button variant="tertiary" onClick={() => setShowLogs(!showLogs)}>
+                    {showLogs ? "Hide Logs" : "Show Setup Logs"}
+                  </Button>
+                )}
+              </Box>
+            </>
+          )}
         </Box>
       </Box>
 
