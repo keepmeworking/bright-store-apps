@@ -81,6 +81,24 @@ const OrderQuery = gql`
       productName
       variantName
       quantity
+      metadata {
+        key
+        value
+      }
+      variant {
+        attributes {
+          attribute {
+            slug
+            name
+          }
+          values {
+            slug
+            name
+            plainText
+            boolean
+          }
+        }
+      }
       totalPrice {
         ...RealInvoiceTaxedMoney
       }
@@ -159,7 +177,7 @@ async function main() {
 
   const invoiceNumber = new InvoiceNumberGenerator().generateFromOrder(
     order,
-    InvoiceNumberGenerationStrategy.localizedDate("en-US"),
+    InvoiceNumberGenerationStrategy.orderNumber(),
   );
   const outputDir = process.env.DUMMY_INVOICE_OUTPUT_DIR
     ? path.resolve(process.env.DUMMY_INVOICE_OUTPUT_DIR)

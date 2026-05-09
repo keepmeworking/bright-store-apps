@@ -91,6 +91,24 @@ const OrderQuery = gql`
       productName
       variantName
       quantity
+      metadata {
+        key
+        value
+      }
+      variant {
+        attributes {
+          attribute {
+            slug
+            name
+          }
+          values {
+            slug
+            name
+            plainText
+            boolean
+          }
+        }
+      }
       totalPrice {
         ...GenerateInvoiceService_TaxedMoney
       }
@@ -175,6 +193,24 @@ const OrdersByNumberQuery = gql`
       productName
       variantName
       quantity
+      metadata {
+        key
+        value
+      }
+      variant {
+        attributes {
+          attribute {
+            slug
+            name
+          }
+          values {
+            slug
+            name
+            plainText
+            boolean
+          }
+        }
+      }
       totalPrice {
         ...GenerateInvoiceService_TaxedMoneyByNumber
       }
@@ -259,6 +295,24 @@ const OrdersBySearchQuery = gql`
       productName
       variantName
       quantity
+      metadata {
+        key
+        value
+      }
+      variant {
+        attributes {
+          attribute {
+            slug
+            name
+          }
+          values {
+            slug
+            name
+            plainText
+            boolean
+          }
+        }
+      }
       totalPrice {
         ...GenerateInvoiceService_TaxedMoneyBySearch
       }

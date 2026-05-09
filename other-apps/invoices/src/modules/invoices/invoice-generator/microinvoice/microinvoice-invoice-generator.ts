@@ -15,6 +15,28 @@ type InvoiceRow = {
   amount: string;
 };
 
+type SummaryRow = {
+  label: string;
+  value: string;
+  bold?: boolean;
+  tall?: boolean;
+};
+
+type InvoiceOrderLine = OrderPayloadFragment["lines"][number] & {
+  metadata?: Array<{ key?: string | null; value?: string | null }> | null;
+  variant?: {
+    attributes?: Array<{
+      attribute?: { slug?: string | null; name?: string | null } | null;
+      values?: Array<{
+        slug?: string | null;
+        name?: string | null;
+        plainText?: string | null;
+        boolean?: boolean | null;
+      }> | null;
+    }> | null;
+  } | null;
+};
+
 const PAGE = {
   width: 595.28,
   height: 841.89,
@@ -41,6 +63,7 @@ const TABLE = {
 } as const;
 
 const DEFAULT_SIGNATURE_NAME = "Authorised Signatory";
+const INSTALLATION_SERVICE_UNIT_AMOUNT = 499;
 
 function toSingleLine(value?: string | null) {
   return (value || "")
@@ -62,6 +85,120 @@ function formatMoney(amount: number, currency: string, locale: string) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount) + ` ${currency}`;
+}
+
+function normalizeToken(value?: string | null) {
+  return toSingleLine(value).toLowerCase();
+}
+
+function isAffirmativeInstallationValue(value?: string | null | boolean) {
+  if (value === true) return true;
+  if (value === false) return false;
+
+  const normalized = normalizeToken(value);
+  if (!normalized || normalized.includes("without installation")) {
+    return false;
+  }
+
+  return normalized === "yes" || normalized === "true" || normalized.includes("with installation");
+}
+
+function lineHasSelectedInstallation(line: InvoiceOrderLine) {
+  const metadata = line.metadata || [];
+  const installationMetadata = metadata.find((entry) => {
+    const key = normalizeToken(entry?.key);
+    return key === "installation_label" || key === "installation";
+  });
+
+  if (installationMetadata) {
+    return isAffirmativeInstallationValue(installationMetadata.value);
+  }
+
+  const installationAttribute = line.variant?.attributes?.find((entry) => {
+    const slug = normalizeToken(entry?.attribute?.slug);
+    const name = normalizeToken(entry?.attribute?.name);
+    return slug === "installation" || name === "installation";
+  });
+
+  return Boolean(
+    installationAttribute?.values?.some((value) =>
+      isAffirmativeInstallationValue(value.boolean ?? value.slug ?? value.name ?? value.plainText),
+    ),
+  );
+}
+
+export function buildInvoiceRows(order: OrderPayloadFragment, currency: string, locale: string) {
+  let goodsSubtotalAmount = 0;
+  let additionalServiceAmount = 0;
+  let nextSerial = 1;
+  const rows: InvoiceRow[] = [];
+
+  (order.lines ?? []).forEach((line) => {
+    const invoiceLine = line as InvoiceOrderLine;
+    const quantity = invoiceLine.quantity || 0;
+    const amount = invoiceLine.totalPrice?.gross?.amount ?? 0;
+    const installationAmount = lineHasSelectedInstallation(invoiceLine)
+      ? INSTALLATION_SERVICE_UNIT_AMOUNT * quantity
+      : 0;
+    const productAmount = Math.max(amount - installationAmount, 0);
+    const productUnitPrice = quantity > 0 ? productAmount / quantity : productAmount;
+
+    goodsSubtotalAmount += productAmount;
+    additionalServiceAmount += installationAmount;
+
+    rows.push({
+      serial: String(nextSerial++),
+      description: wrapDescription(
+        [toSingleLine(invoiceLine.productName), toSingleLine(invoiceLine.variantName)].filter(Boolean).join(" - "),
+      ),
+      quantity: String(quantity),
+      unitPrice: formatMoney(productUnitPrice, currency, locale),
+      amount: formatMoney(productAmount, currency, locale),
+    });
+
+    if (installationAmount > 0) {
+      rows.push({
+        serial: String(nextSerial++),
+        description: "Additional Service Cost - Installation",
+        quantity: String(quantity),
+        unitPrice: formatMoney(INSTALLATION_SERVICE_UNIT_AMOUNT, currency, locale),
+        amount: formatMoney(installationAmount, currency, locale),
+      });
+    }
+  });
+
+  rows.push({
+    serial: String(nextSerial),
+    description: wrapDescription(toSingleLine(order.shippingMethodName) || "Shipping"),
+    quantity: "-",
+    unitPrice: formatMoney(order.shippingPrice?.gross?.amount ?? 0, currency, locale),
+    amount: formatMoney(order.shippingPrice?.gross?.amount ?? 0, currency, locale),
+  });
+
+  return {
+    rows,
+    goodsSubtotalAmount,
+    additionalServiceAmount,
+    subtotalAmount: goodsSubtotalAmount + additionalServiceAmount,
+  };
+}
+
+export function buildInvoiceSummaryRows(
+  order: OrderPayloadFragment,
+  invoiceRows: ReturnType<typeof buildInvoiceRows>,
+  currency: string,
+  locale: string,
+): SummaryRow[] {
+  const shippingAmount = order.shippingPrice?.gross?.amount ?? 0;
+  const totalAmount = order.total?.gross?.amount ?? 0;
+  const taxAmount = order.total?.tax?.amount ?? 0;
+
+  return [
+    { label: "Subtotal", value: formatMoney(invoiceRows.subtotalAmount, currency, locale) },
+    { label: "Shipping", value: formatMoney(shippingAmount, currency, locale) },
+    { label: "Tax", value: formatMoney(taxAmount, currency, locale) },
+    { label: "TOTAL", value: formatMoney(totalAmount, currency, locale), bold: true, tall: true },
+  ];
 }
 
 function compactAddressLines(lines: Array<string | null | undefined>) {
@@ -328,38 +465,13 @@ export class MicroinvoiceInvoiceGenerator implements InvoiceGenerator {
       shippingAddress?.phone,
     ]);
 
-    const rows: InvoiceRow[] = [
-      ...(order.lines ?? []).map((line, index) => {
-        const quantity = line.quantity || 0;
-        const amount = line.totalPrice?.gross?.amount ?? 0;
-        const unitPrice = quantity > 0 ? amount / quantity : amount;
-
-        return {
-          serial: String(index + 1),
-          description: wrapDescription(
-            [toSingleLine(line.productName), toSingleLine(line.variantName)].filter(Boolean).join(" - "),
-          ),
-          quantity: String(quantity),
-          unitPrice: formatMoney(unitPrice, currency, this.settings.locale),
-          amount: formatMoney(amount, currency, this.settings.locale),
-        };
-      }),
-      {
-        serial: String((order.lines?.length ?? 0) + 1),
-        description: wrapDescription(toSingleLine(order.shippingMethodName) || "Shipping"),
-        quantity: "-",
-        unitPrice: formatMoney(order.shippingPrice?.gross?.amount ?? 0, currency, this.settings.locale),
-        amount: formatMoney(order.shippingPrice?.gross?.amount ?? 0, currency, this.settings.locale),
-      },
-    ];
-
-    const subtotalAmount = (order.lines ?? []).reduce(
-      (sum, line) => sum + (line.totalPrice?.gross?.amount ?? 0),
-      0,
+    const invoiceRows = buildInvoiceRows(
+      order,
+      currency,
+      this.settings.locale,
     );
-    const shippingAmount = order.shippingPrice?.gross?.amount ?? 0;
-    const totalAmount = order.total?.gross?.amount ?? 0;
-    const taxAmount = order.total?.tax?.amount ?? 0;
+    const { rows } = invoiceRows;
+    const summaryRows = buildInvoiceSummaryRows(order, invoiceRows, currency, this.settings.locale);
 
     const logoPath = path.resolve(process.cwd(), "public/daikcell-light-logo.png");
     const signaturePath = path.resolve(process.cwd(), "public/signature-daikcell.png");
@@ -472,12 +584,7 @@ export class MicroinvoiceInvoiceGenerator implements InvoiceGenerator {
       const summaryX = tableStartX + TABLE.serial + TABLE.description + TABLE.quantity;
       const summaryBottom = drawSummaryBox(
         doc,
-        [
-          { label: "Subtotal", value: formatMoney(subtotalAmount, currency, this.settings.locale) },
-          { label: "Shipping", value: formatMoney(shippingAmount, currency, this.settings.locale) },
-          { label: "Tax", value: formatMoney(taxAmount, currency, this.settings.locale) },
-          { label: "TOTAL", value: formatMoney(totalAmount, currency, this.settings.locale), bold: true, tall: true },
-        ],
+        summaryRows,
         summaryX,
         cursorY,
         TABLE.unitPrice,

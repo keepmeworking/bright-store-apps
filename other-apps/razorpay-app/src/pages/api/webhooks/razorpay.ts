@@ -17,7 +17,6 @@ import {
   toSaleorAddressInput,
   type SaleorAddressInput,
 } from "@/modules/magic-webhook-details";
-import { findExistingChargedTransactionReference } from "@/modules/razorpay-idempotency";
 
 type SaleorUserError = {
   field?: string | null;
@@ -160,6 +159,49 @@ const TRANSACTION_CREATE = /* GraphQL */ `
         message: $message
       }
     ) {
+      errors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const GET_CHECKOUT_TRANSACTION_IDS = /* GraphQL */ `
+  query GetCheckoutTransactionIds($id: ID!) {
+    checkout(id: $id) {
+      id
+      transactions {
+        id
+        pspReference
+        chargedAmount {
+          amount
+          currency
+        }
+      }
+    }
+  }
+`;
+
+const TRANSACTION_EVENT_REPORT = /* GraphQL */ `
+  mutation TransactionEventReport(
+    $id: ID!
+    $type: TransactionEventTypeEnum!
+    $amount: PositiveDecimal!
+    $pspReference: String!
+    $message: String
+    $availableActions: [TransactionActionEnum!]!
+  ) {
+    transactionEventReport(
+      id: $id
+      type: $type
+      amount: $amount
+      pspReference: $pspReference
+      message: $message
+      availableActions: $availableActions
+    ) {
+      alreadyProcessed
       errors {
         field
         message
@@ -497,50 +539,73 @@ async function handlePaymentCaptured(params: {
       assertNoSaleorErrors("checkoutDeliveryMethodUpdate", deliveryMethodResult.checkoutDeliveryMethodUpdate.errors);
     }
 
-    const existingReference = await findExistingChargedTransactionReference(
-      (query, variables) => saleorGraphQL(saleorApiUrl, token, query, variables),
-      checkoutId,
-      razorpayPaymentId
+    // Fetch existing checkout transactions to find the pending one from transactionInitialize
+    const checkoutTxData = await saleorGraphQL<{
+      checkout: {
+        id: string;
+        transactions: Array<{
+          id: string;
+          pspReference: string;
+          chargedAmount: { amount: number; currency: string };
+        }>;
+      } | null;
+    }>(saleorApiUrl, token, GET_CHECKOUT_TRANSACTION_IDS, { id: checkoutId });
+
+    const existingTransactions = checkoutTxData?.checkout?.transactions ?? [];
+
+    // Idempotency guard: skip if this payment is already recorded as charged
+    const alreadyCharged = existingTransactions.find(
+      (tx) => tx.pspReference === razorpayPaymentId && (tx.chargedAmount?.amount ?? 0) > 0,
     );
 
-    if (existingReference) {
-      await markPaymentCapturedCompleted(docClient, saleorApiUrl, razorpayPaymentId);
-      await logTransaction(docClient, saleorApiUrl, {
-        timestamp: new Date().toISOString(),
-        type: "webhook",
-        status: "success",
-        amount,
-        currency,
-        razorpayPaymentId,
-        razorpayOrderId,
-        saleorCheckoutId: checkoutId,
-        customerEmail: email,
-        customerPhone: phone,
-        rawResponse: `payment already recorded for ${existingReference}; skipped duplicate transactionCreate`,
-        mode,
-      });
-      console.log(`[MagicCheckout] Duplicate charged payment ignored for checkout ${checkoutId}: ${existingReference}`);
-      return;
+    if (!alreadyCharged) {
+      // Find the pending transaction created by transactionInitialize (chargedAmount = 0)
+      const pendingTx = existingTransactions.find((tx) => (tx.chargedAmount?.amount ?? 0) === 0);
+
+      if (pendingTx?.id) {
+        // Update the EXISTING transaction — no new transaction created, prevents double-charge
+        const reportResult = await saleorGraphQL<{
+          transactionEventReport: {
+            alreadyProcessed: boolean;
+            errors: SaleorUserError[];
+          };
+        }>(saleorApiUrl, token, TRANSACTION_EVENT_REPORT, {
+          id: pendingTx.id,
+          type: "CHARGE_SUCCESS",
+          amount,
+          pspReference: razorpayPaymentId || razorpayOrderId || `razorpay-magic-${checkoutId}`,
+          message: `Razorpay Magic Checkout payment captured${razorpayPaymentId ? `: ${razorpayPaymentId}` : ""}`,
+          availableActions: ["REFUND"],
+        });
+
+        assertNoSaleorErrors("transactionEventReport", reportResult.transactionEventReport.errors);
+        console.log(`[MagicCheckout] Updated existing transaction ${pendingTx.id} with CHARGE_SUCCESS`);
+      } else {
+        // Fallback: no pending transaction (transactionInitialize may have been skipped)
+        // Create a new transaction — should rarely happen in normal Magic Checkout flow
+        const transactionResult = await saleorGraphQL<{
+          transactionCreate: {
+            errors: SaleorUserError[];
+          };
+        }>(saleorApiUrl, token, TRANSACTION_CREATE, {
+          id: checkoutId,
+          amount,
+          currency,
+          pspReference: razorpayPaymentId || razorpayOrderId || `razorpay-magic-${checkoutId}`,
+          message: `Razorpay Magic Checkout payment captured${razorpayPaymentId ? `: ${razorpayPaymentId}` : ""}`,
+          metadata: [
+            ...(razorpayPaymentId ? [{ key: "razorpay_payment_id", value: razorpayPaymentId }] : []),
+            ...(razorpayOrderId ? [{ key: "razorpay_order_id", value: razorpayOrderId }] : []),
+            { key: "razorpay_source", value: "magic_checkout_webhook" },
+          ],
+        });
+
+        assertNoSaleorErrors("transactionCreate", transactionResult.transactionCreate.errors);
+        console.log(`[MagicCheckout] Created fallback transaction for checkout ${checkoutId}`);
+      }
+    } else {
+      console.log(`[MagicCheckout] Payment ${razorpayPaymentId} already charged on transaction ${alreadyCharged.id}; skipping`);
     }
-
-    const transactionResult = await saleorGraphQL<{
-      transactionCreate: {
-        errors: SaleorUserError[];
-      };
-    }>(saleorApiUrl, token, TRANSACTION_CREATE, {
-      id: checkoutId,
-      amount,
-      currency,
-      pspReference: razorpayPaymentId || razorpayOrderId || `razorpay-magic-${checkoutId}`,
-      message: `Razorpay Magic Checkout payment captured${razorpayPaymentId ? `: ${razorpayPaymentId}` : ""}`,
-      metadata: [
-        ...(razorpayPaymentId ? [{ key: "razorpay_payment_id", value: razorpayPaymentId }] : []),
-        ...(razorpayOrderId ? [{ key: "razorpay_order_id", value: razorpayOrderId }] : []),
-        { key: "razorpay_source", value: "magic_checkout_webhook" },
-      ],
-    });
-
-    assertNoSaleorErrors("transactionCreate", transactionResult.transactionCreate.errors);
 
     const completeResult = await saleorGraphQL<{
       checkoutComplete: {
