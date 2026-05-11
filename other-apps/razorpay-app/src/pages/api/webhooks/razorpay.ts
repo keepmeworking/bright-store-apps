@@ -559,8 +559,14 @@ async function handlePaymentCaptured(params: {
     );
 
     if (!alreadyCharged) {
-      // Find the pending transaction created by transactionInitialize (chargedAmount = 0)
-      const pendingTx = existingTransactions.find((tx) => (tx.chargedAmount?.amount ?? 0) === 0);
+      // Match by Razorpay order ID first — transactionInitialize sets pspReference = razorpayOrderId.
+      // Falling back to "first pending" picks the wrong transaction when the checkout has multiple
+      // pending txs (e.g. user retried), causing a different transaction to be charged than the
+      // one transactionProcess will use → double CHARGE_SUCCESS on two separate transactions.
+      const pendingTx =
+        existingTransactions.find(
+          (tx) => tx.pspReference === razorpayOrderId && (tx.chargedAmount?.amount ?? 0) === 0,
+        ) || existingTransactions.find((tx) => (tx.chargedAmount?.amount ?? 0) === 0);
 
       if (pendingTx?.id) {
         // Update the EXISTING transaction — no new transaction created, prevents double-charge

@@ -436,11 +436,12 @@ export async function markPaymentCapturedCompleted(
           SK: getPaymentCaptureSK(razorpayPaymentId),
         },
         UpdateExpression:
-          "SET #status = :completed, #updatedAt = :updatedAt, #expiresAt = :expiresAt, ttl = :ttl",
+          "SET #status = :completed, #updatedAt = :updatedAt, #expiresAt = :expiresAt, #ttl = :ttl",
         ExpressionAttributeNames: {
           "#status": "status",
           "#updatedAt": "updatedAt",
           "#expiresAt": "expiresAt",
+          "#ttl": "ttl",
         },
         ExpressionAttributeValues: {
           ":completed": "completed",
