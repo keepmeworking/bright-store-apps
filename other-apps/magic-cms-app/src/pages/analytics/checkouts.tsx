@@ -54,10 +54,20 @@ const getLineCount = (checkout: CheckoutListNode) => checkout.quantity;
 const isCompletedOnline = (checkout: CheckoutListNode) =>
   checkout.chargeStatus === "FULL" || checkout.chargeStatus === "OVERCHARGED";
 
-const isRecoverableCart = (checkout: CheckoutListNode) =>
-  hasCustomerContact(checkout) && getLineCount(checkout) > 0 && !isCompletedOnline(checkout);
+const hasPendingAuthorization = (checkout: CheckoutListNode) =>
+  checkout.authorizeStatus !== "NONE";
 
-const isOpenLead = (checkout: CheckoutListNode) => hasCustomerContact(checkout) && !isCompletedOnline(checkout) && !isRecoverableCart(checkout);
+const isRecoverableCart = (checkout: CheckoutListNode) =>
+  hasPendingAuthorization(checkout) &&
+  hasCustomerContact(checkout) &&
+  getLineCount(checkout) > 0 &&
+  !isCompletedOnline(checkout);
+
+const isOpenLead = (checkout: CheckoutListNode) =>
+  hasPendingAuthorization(checkout) &&
+  hasCustomerContact(checkout) &&
+  !isCompletedOnline(checkout) &&
+  !isRecoverableCart(checkout);
 
 const isPermissionDeniedError = (message?: string) =>
   /need one of the following permissions|permission/i.test(message || "");

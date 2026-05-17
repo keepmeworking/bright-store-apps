@@ -14,6 +14,7 @@ import {
   extractAddressCandidateFromShippingDetail,
   extractMagicCheckoutIdentifiers,
   pickString,
+  resolveStateFromPincode,
   toSaleorAddressInput,
   type SaleorAddressInput,
 } from "@/modules/magic-webhook-details";
@@ -420,10 +421,13 @@ async function handlePaymentCaptured(params: {
     return;
   }
 
-  let address = toSaleorAddressInput(
-    extractAddressCandidateFromShippingDetail(asRecord(paymentEntity.shipping_detail)),
-    phone
-  );
+  const primaryCandidate = extractAddressCandidateFromShippingDetail(asRecord(paymentEntity.shipping_detail));
+
+  if (primaryCandidate && !primaryCandidate.state && primaryCandidate.zipcode) {
+    primaryCandidate.state = await resolveStateFromPincode(primaryCandidate.zipcode);
+  }
+
+  let address = toSaleorAddressInput(primaryCandidate, phone);
 
   if ((!address || !email || !phone) && razorpayOrderId) {
     try {
@@ -440,10 +444,15 @@ async function handlePaymentCaptured(params: {
       }
 
       if (!address) {
-        address = toSaleorAddressInput(
-          extractAddressCandidateFromShippingDetail(asRecord(customerDetails?.shipping_address)),
-          phone
+        const fallbackCandidate = extractAddressCandidateFromShippingDetail(
+          asRecord(customerDetails?.shipping_address)
         );
+
+        if (fallbackCandidate && !fallbackCandidate.state && fallbackCandidate.zipcode) {
+          fallbackCandidate.state = await resolveStateFromPincode(fallbackCandidate.zipcode);
+        }
+
+        address = toSaleorAddressInput(fallbackCandidate, phone);
       }
     } catch (error) {
       console.warn("[MagicCheckout] Could not fetch Razorpay order for fallback address:", error);

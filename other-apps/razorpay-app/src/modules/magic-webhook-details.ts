@@ -93,6 +93,38 @@ export function splitName(fullName?: string) {
   };
 }
 
+/**
+ * Resolves the Indian state name for a given pincode by calling the India Post API.
+ * Times out after 3 s so it never blocks the webhook handler meaningfully.
+ * Returns undefined on any error so callers can proceed without a state.
+ */
+export async function resolveStateFromPincode(postalCode: string): Promise<string | undefined> {
+  const digits = postalCode.replace(/\D/g, "");
+  if (digits.length < 6) return undefined;
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+
+    const res = await fetch(`https://api.postalpincode.in/pincode/${digits}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (!res.ok) return undefined;
+
+    const json = (await res.json()) as Array<{
+      Status: string;
+      PostOffice?: Array<{ State: string }>;
+    }>;
+
+    const state = json?.[0]?.PostOffice?.[0]?.State?.trim();
+    return state || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function normalizeCountry(country?: string) {
   const normalized = country?.trim().toUpperCase();
 
