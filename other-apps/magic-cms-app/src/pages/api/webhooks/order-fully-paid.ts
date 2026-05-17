@@ -81,6 +81,14 @@ function resolveSaleorApiUrl(req: NextApiRequest): string {
     "";
 }
 
+// Returns IST date string "YYYY-MM-DD" for consistent daily bucketing
+function getTodayKey(): string {
+  const now = new Date();
+  // IST = UTC+5:30
+  const ist = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+  return `sales_${ist.toISOString().slice(0, 10)}`;
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ message: "Method not allowed" });
@@ -94,7 +102,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ success: true, skipped: true });
   }
 
-  // Aggregate quantity per product (one order can have same product in multiple lines)
   const quantityByProductId = new Map<string, number>();
   for (const line of order.lines) {
     const productId = line?.variant?.product?.id;
@@ -115,36 +122,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const productIds = [...quantityByProductId.keys()];
+  const todayKey = getTodayKey(); // e.g. "sales_2026-05-17"
 
   try {
-    // Batch-read current sales_count for all products in order
+    // Batch-read today's bucket for all ordered products
     const metaData = await saleorGraphQL<{
       products: { edges: Array<{ node: { id: string; metadata: Array<{ key: string; value: string }> } }> };
     }>(saleorApiUrl, authData.token, GET_PRODUCTS_METADATA, { ids: productIds });
 
-    const currentCountMap = new Map<string, number>();
+    const todayCountMap = new Map<string, number>();
     for (const { node } of metaData.products.edges) {
-      const entry = node.metadata.find((m) => m.key === "sales_count");
-      currentCountMap.set(node.id, entry ? parseInt(entry.value, 10) || 0 : 0);
+      const entry = node.metadata.find((m) => m.key === todayKey);
+      todayCountMap.set(node.id, entry ? parseInt(entry.value, 10) || 0 : 0);
     }
 
-    // Parallel increment writes
+    // Parallel increment writes into today's date bucket
     await Promise.all(
       productIds.map((id) => {
-        const current = currentCountMap.get(id) ?? 0;
+        const current = todayCountMap.get(id) ?? 0;
         const added = quantityByProductId.get(id) ?? 0;
         return saleorGraphQL(saleorApiUrl, authData.token, UPDATE_PRODUCT_METADATA, {
           id,
-          input: [{ key: "sales_count", value: String(current + added) }],
+          input: [{ key: todayKey, value: String(current + added) }],
         });
       })
     );
 
-    console.log(`[BestSellers] Updated sales_count for ${productIds.length} products (order ${order.id})`);
-    return res.status(200).json({ success: true, updated: productIds.length });
+    console.log(`[BestSellers] Updated ${todayKey} for ${productIds.length} products (order ${order.id})`);
+    return res.status(200).json({ success: true, updated: productIds.length, key: todayKey });
   } catch (err) {
-    console.error("[BestSellers] Failed to update product sales_count:", err);
-    // Return 200 so Saleor doesn't retry — this is a non-critical side-effect
+    console.error("[BestSellers] Failed to update product sales buckets:", err);
     return res.status(200).json({ success: false, error: String(err) });
   }
 }
