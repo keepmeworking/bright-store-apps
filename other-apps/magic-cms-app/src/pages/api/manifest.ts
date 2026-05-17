@@ -57,7 +57,33 @@ export default createManifestHandler({
         "HANDLE_PAYMENTS",
         "MANAGE_CHANNELS",
       ],
-      webhooks: [],
+      webhooks: [
+        {
+          name: "Best Sellers Tracker",
+          asyncEvents: ["ORDER_FULLY_PAID"],
+          query: `
+            subscription {
+              event {
+                ... on OrderFullyPaid {
+                  order {
+                    id
+                    lines {
+                      quantity
+                      variant {
+                        product {
+                          id
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          `,
+          targetUrl: `${normalizedApiBaseURL}/api/webhooks/order-fully-paid`,
+          isActive: true,
+        },
+      ],
       author: "Brightcode Canvas",
       brand: {
         logo: {
