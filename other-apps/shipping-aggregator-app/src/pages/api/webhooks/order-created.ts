@@ -133,6 +133,22 @@ function resolveWebhookPayload(body: unknown): OrderWebhookPayload | null {
   return null;
 }
 
+async function resolveStateFromPincode(postalCode: string): Promise<string | undefined> {
+  const digits = postalCode.replace(/\D/g, "");
+  if (digits.length < 6) return undefined;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(`https://api.postalpincode.in/pincode/${digits}`, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return undefined;
+    const json = (await res.json()) as Array<{ Status: string; PostOffice?: Array<{ State: string }> }>;
+    return json?.[0]?.PostOffice?.[0]?.State?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function normalizeWeight(weightValue?: number | null, weightUnit?: string | null) {
   if (typeof weightValue !== "number" || !Number.isFinite(weightValue)) {
     return undefined;
@@ -175,7 +191,7 @@ function normalizePhone(phone?: string | null) {
   return digits;
 }
 
-function toOrderDetails(payload: OrderWebhookPayload): OrderDetails | null {
+async function toOrderDetails(payload: OrderWebhookPayload): Promise<OrderDetails | null> {
   const order = payload.order;
 
   if (!order?.id) {
@@ -249,7 +265,9 @@ function toOrderDetails(payload: OrderWebhookPayload): OrderDetails | null {
       street1: shippingAddress.streetAddress1,
       street2: shippingAddress.streetAddress2 || undefined,
       city: shippingAddress.city,
-      state: pickString(shippingAddress.countryArea) || "",
+      state:
+        pickString(shippingAddress.countryArea) ||
+        (shippingAddress.postalCode ? (await resolveStateFromPincode(shippingAddress.postalCode)) ?? "" : ""),
       pincode: shippingAddress.postalCode,
       country: pickString(shippingAddress.country?.code) || "IN",
       phone: normalizePhone(shippingAddress.phone),
@@ -355,7 +373,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ success: true, skipped: true, reason: "already_processed" });
     }
 
-    const mappedOrder = toOrderDetails(payload);
+    const mappedOrder = await toOrderDetails(payload);
     if (!mappedOrder) {
       console.warn(`[OrderCreated] Missing required order fields for shipment creation: ${order.id}`);
       return res.status(200).json({ success: true, skipped: true, reason: "insufficient_order_data" });
