@@ -280,6 +280,7 @@ query GetCheckoutsAnalyticsSummary(
         id
         created
         email
+        chargeStatus
         billingAddress {
           phone
         }
@@ -329,6 +330,12 @@ query GetCheckoutsList(
         quantity
         chargeStatus
         authorizeStatus
+        subtotalPrice {
+          gross {
+            amount
+            currency
+          }
+        }
         billingAddress {
           firstName
           lastName

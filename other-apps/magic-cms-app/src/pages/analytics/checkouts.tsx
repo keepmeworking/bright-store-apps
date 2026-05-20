@@ -12,6 +12,7 @@ import {
   useGetCheckoutsListQuery,
 } from "../../../generated/graphql";
 import { resolveRangeFromQuery, toDateQuery } from "@/lib/analytics-range";
+import { isOpenLead, isRecoverableCart } from "@/lib/checkout-analytics";
 
 type CheckoutListNode = NonNullable<NonNullable<GetCheckoutsListQuery["checkouts"]>["edges"][number]>["node"];
 type CheckoutViewMode = "recoverable" | "leads";
@@ -25,18 +26,19 @@ const joinName = (...parts: Array<string | null | undefined>) =>
     .filter(Boolean)
     .join(" ");
 
-const getCustomerName = (checkout: CheckoutListNode) =>
+const getCustomerName = (checkout: CheckoutCustomerNode) =>
   (
     joinName(checkout.billingAddress?.firstName, checkout.billingAddress?.lastName) ||
     joinName(checkout.shippingAddress?.firstName, checkout.shippingAddress?.lastName)
   ).trim() || "Guest";
 
-const getCustomerEmail = (checkout: CheckoutListNode) => checkout.email || "";
+const getCustomerEmail = (checkout: CheckoutCustomerNode) => checkout.email || "";
 
-const getCustomerPhone = (checkout: CheckoutListNode) =>
+const getCustomerPhone = (checkout: CheckoutCustomerNode) =>
   checkout.billingAddress?.phone || checkout.shippingAddress?.phone || "";
 
 type CheckoutDetailsNode = NonNullable<GetCheckoutDetailsQuery["checkout"]>;
+type CheckoutCustomerNode = CheckoutListNode | CheckoutDetailsNode;
 
 const getCustomerLocation = (checkout: CheckoutDetailsNode) =>
   [
@@ -46,28 +48,7 @@ const getCustomerLocation = (checkout: CheckoutDetailsNode) =>
     .filter(Boolean)
     .join(", ");
 
-const hasCustomerContact = (checkout: CheckoutListNode) =>
-  Boolean(getCustomerEmail(checkout) || getCustomerPhone(checkout));
-
-const getLineCount = (checkout: CheckoutListNode) => checkout.quantity;
-
-const isCompletedOnline = (checkout: CheckoutListNode) =>
-  checkout.chargeStatus === "FULL" || checkout.chargeStatus === "OVERCHARGED";
-
-const hasPendingAuthorization = (checkout: CheckoutListNode) =>
-  checkout.authorizeStatus !== "NONE";
-
-const isRecoverableCart = (checkout: CheckoutListNode) =>
-  hasPendingAuthorization(checkout) &&
-  hasCustomerContact(checkout) &&
-  getLineCount(checkout) > 0 &&
-  !isCompletedOnline(checkout);
-
-const isOpenLead = (checkout: CheckoutListNode) =>
-  hasPendingAuthorization(checkout) &&
-  hasCustomerContact(checkout) &&
-  !isCompletedOnline(checkout) &&
-  !isRecoverableCart(checkout);
+const getLineCount = (checkout: CheckoutCustomerNode) => checkout.quantity;
 
 const isPermissionDeniedError = (message?: string) =>
   /need one of the following permissions|permission/i.test(message || "");
@@ -151,6 +132,12 @@ export default function AnalyticsCheckoutsPage() {
   }, [viewMode]);
 
   useEffect(() => {
+    if (viewMode === "recoverable" && recoverableCheckouts.length === 0 && openLeads.length > 0) {
+      setViewMode("leads");
+    }
+  }, [openLeads.length, recoverableCheckouts.length, viewMode]);
+
+  useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
@@ -189,7 +176,7 @@ export default function AnalyticsCheckoutsPage() {
           <Text size={2} color="default2" marginTop={1} style={{ lineHeight: 1.35, maxWidth: 560 }}>
             {viewMode === "recoverable"
               ? "Only carts with contact details, items, and non-zero subtotal are shown here for active recovery."
-              : "Leads with contact details but without a valid recoverable cart stay here for manual follow-up."}
+              : "Open checkouts with contact details but without a recoverable cart stay here for manual follow-up."}
           </Text>
         </Box>
 

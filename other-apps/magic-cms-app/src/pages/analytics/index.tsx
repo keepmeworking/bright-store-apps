@@ -53,6 +53,7 @@ import {
   Legend,
 } from "recharts";
 import { AppliedRange, toDateQuery } from "@/lib/analytics-range";
+import { isOpenCheckout } from "@/lib/checkout-analytics";
 
 type PresetKey =
   | "today"
@@ -230,9 +231,6 @@ const formatCompactNumber = (value: number) => {
   return value.toFixed(0);
 };
 
-const hasCheckoutContact = (checkout: DashboardCheckout) =>
-  Boolean(checkout.email || checkout.billingAddress?.phone || checkout.shippingAddress?.phone);
-
 const isPermissionDeniedError = (message?: string) =>
   /need one of the following permissions|permission/i.test(message || "");
 
@@ -296,7 +294,7 @@ const aggregateOrdersAndCheckouts = (
     buckets.set(key, current);
   });
 
-  checkouts.filter(hasCheckoutContact).forEach((checkout) => {
+  checkouts.filter(isOpenCheckout).forEach((checkout) => {
     const key = bucketKeyForDate(parseISO(checkout.created), granularity);
     const current = buckets.get(key) || { sales: 0, orders: 0, checkouts: 0 };
     current.checkouts += 1;
@@ -466,8 +464,8 @@ export default function AnalyticsPage() {
           (e: NonNullable<GetCheckoutsAnalyticsSummaryQuery["checkouts"]>["edges"][number]) => e.node,
         ) || [];
 
-    const actionableCheckouts = checkouts.filter(hasCheckoutContact);
-    const previousActionableCheckouts = previousCheckouts.filter(hasCheckoutContact);
+    const actionableCheckouts = checkouts.filter(isOpenCheckout);
+    const previousActionableCheckouts = previousCheckouts.filter(isOpenCheckout);
 
     const totalOrders = orders.length;
     const totalSales = orders.reduce((sum, order) => sum + (order.total?.gross?.amount || 0), 0);
