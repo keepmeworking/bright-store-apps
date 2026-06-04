@@ -8,6 +8,7 @@ import {
   type GetOrdersExportPageQueryVariables,
 } from "../../../../generated/graphql";
 import { createClient as createSafeGraphQLClient } from "@/lib/create-graphql-client";
+import { resolveLastInvoiceUrl } from "@/lib/orders-export-invoice";
 import { normalizeSaleorApiUrl } from "@/lib/saleor-api-url";
 
 type ExportFormat = "csv" | "xlsx";
@@ -44,6 +45,7 @@ type ExportRow = {
   "Shipping Amount": number;
   "Total Amount": number;
   "Customer Note": string;
+  invoice_url: string;
 };
 
 const EXPORT_PAGE_SIZE = 100;
@@ -248,6 +250,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         "Shipping Amount": order.shippingPrice.gross.amount,
         "Total Amount": order.total.gross.amount,
         "Customer Note": order.customerNote || "",
+        invoice_url: resolveLastInvoiceUrl(order.invoices),
       });
 
       if (rows.length >= MAX_EXPORT_ORDERS) {
@@ -356,6 +359,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     "Shipping Amount": "",
     "Total Amount": "",
     "Customer Note": "",
+    invoice_url: "",
   });
   const csvHeader = headers.map((column) => toCsvCell(column)).join(",");
   const csvRows = csvRowsData.map((row) =>

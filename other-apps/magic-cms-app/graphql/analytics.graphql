@@ -64,6 +64,13 @@ query GetOrdersExportPage(
         paymentStatus
         userEmail
         customerNote
+        invoices {
+          id
+          url
+          externalUrl
+          createdAt
+          updatedAt
+        }
         channel {
           id
           name
