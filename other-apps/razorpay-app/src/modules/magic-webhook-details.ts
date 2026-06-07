@@ -13,6 +13,7 @@ export type SaleorAddressInput = {
 export type RazorpayPaymentLike = {
   email?: string;
   contact?: string;
+  method?: string;
   notes?: Record<string, unknown>;
 };
 
