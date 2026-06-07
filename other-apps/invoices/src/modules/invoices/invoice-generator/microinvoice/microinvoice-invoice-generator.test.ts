@@ -6,6 +6,7 @@ import { join } from "path";
 import rimraf from "rimraf";
 import { mockOrder } from "../../../../fixtures/mock-order";
 import { getMockAddress } from "../../../../fixtures/mock-address";
+import { readGstinFromAddress } from "../../gstin";
 
 const dirToSet = process.env.TEMP_PDF_STORAGE_DIR as string;
 const filePath = join(dirToSet || "_temp", "test-invoice.pdf");
@@ -199,5 +200,9 @@ describe("MicroinvoiceInvoiceGenerator", () => {
     ]);
     expect(summaryRows.map((row: { label: string }) => row.label)).not.toContain("Goods Subtotal");
     expect(summaryRows.map((row: { label: string }) => row.label)).not.toContain("Additional Service");
+  });
+
+  it("reads customer gstin from billing address metadata", () => {
+    expect(readGstinFromAddress(mockOrder.billingAddress)).toBe("07ABCDE1234F1Z5");
   });
 });

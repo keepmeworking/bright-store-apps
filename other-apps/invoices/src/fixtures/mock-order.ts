@@ -38,6 +38,7 @@ export const mockOrder: OrderPayloadFragment = {
     firstName: "Gaurav",
     lastName: "Khokkar",
     city: "New Delhi",
+    metadata: [{ key: "gstin", value: "07ABCDE1234F1Z5" }],
   },
   shippingAddress: {
     id: "QWRkcmVzczoxNzE4Ny==",
@@ -55,6 +56,7 @@ export const mockOrder: OrderPayloadFragment = {
     firstName: "Gaurav",
     lastName: "Khokkar",
     city: "New Delhi",
+    metadata: [],
   },
   created: "2022-12-02T15:05:56.637068+00:00",
   fulfillments: [],

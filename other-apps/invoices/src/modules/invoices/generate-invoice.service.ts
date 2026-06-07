@@ -41,6 +41,10 @@ const OrderQuery = gql`
     firstName
     lastName
     city
+    metadata {
+      key
+      value
+    }
   }
 
   fragment GenerateInvoiceService_Money on Money {
@@ -143,6 +147,10 @@ const OrdersByNumberQuery = gql`
     firstName
     lastName
     city
+    metadata {
+      key
+      value
+    }
   }
 
   fragment GenerateInvoiceService_MoneyByNumber on Money {
@@ -245,6 +253,10 @@ const OrdersBySearchQuery = gql`
     firstName
     lastName
     city
+    metadata {
+      key
+      value
+    }
   }
 
   fragment GenerateInvoiceService_MoneyBySearch on Money {

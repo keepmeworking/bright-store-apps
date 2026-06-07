@@ -33,6 +33,10 @@ const OrderQuery = gql`
     firstName
     lastName
     city
+    metadata {
+      key
+      value
+    }
   }
 
   fragment RealInvoiceMoney on Money {

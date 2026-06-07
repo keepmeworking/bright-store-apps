@@ -3097,6 +3097,9 @@ type Address implements Node {
 
   """Address is user's default billing address."""
   isDefaultBillingAddress: Boolean
+
+  """List of public metadata items."""
+  metadata: [MetadataItem!]!
 }
 
 type CountryDisplay {

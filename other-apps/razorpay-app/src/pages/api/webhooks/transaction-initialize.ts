@@ -9,6 +9,25 @@ import { getRazorpayClient } from "@/modules/razorpay-settings";
 import { logTransaction } from "@/modules/transaction-log";
 import { getDocClient } from "@/modules/dynamodb-helpers";
 
+function readStandardCheckoutGstin(data: unknown) {
+  if (!data || typeof data !== "object") {
+    return undefined;
+  }
+
+  const notes = (data as { notes?: unknown }).notes;
+  if (!notes || typeof notes !== "object") {
+    return undefined;
+  }
+
+  const gstin = (notes as { gstin?: unknown }).gstin;
+  if (typeof gstin !== "string") {
+    return undefined;
+  }
+
+  const normalized = gstin.trim().toUpperCase();
+  return normalized || undefined;
+}
+
 function normalizeMagicCheckoutData(data: unknown) {
   if (!data || typeof data !== "object") {
     return null;
@@ -150,6 +169,7 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
   const amount = payload.action?.amount || 0;
   const currency = payload.action?.currency || "INR";
   const magicCheckoutData = normalizeMagicCheckoutData(payload.data);
+  const standardCheckoutGstin = readStandardCheckoutGstin(payload.data);
 
   const docClient = getDocClient();
   let mode: "test" | "live" = "test";
@@ -180,6 +200,10 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
     }
 
     const useMagicCheckout = settings.magicCheckout && magicCheckoutData?.checkout_flow === "magic";
+
+    if (!useMagicCheckout && standardCheckoutGstin) {
+      orderNotes.gstin = standardCheckoutGstin;
+    }
 
     const razorpayOrder = await client.orders.create({
       amount: Math.round(amount * 100), // convert to paise

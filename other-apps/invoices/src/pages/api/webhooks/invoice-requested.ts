@@ -32,6 +32,10 @@ const OrderPayload = gql`
     firstName
     lastName
     city
+    metadata {
+      key
+      value
+    }
   }
 
   fragment Money on Money {

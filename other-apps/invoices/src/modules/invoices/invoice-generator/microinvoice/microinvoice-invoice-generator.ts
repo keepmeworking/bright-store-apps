@@ -4,6 +4,7 @@ import PDFDocument from "pdfkit";
 import { OrderPayloadFragment } from "../../../../../generated/graphql";
 import { AddressV2Shape } from "../../../app-configuration/schema-v2/app-config-schema.v2";
 import { InvoiceGenerator } from "../invoice-generator";
+import { formatCustomerGstinLine, readGstinFromAddress } from "../../gstin";
 
 type PdfDocument = InstanceType<typeof PDFDocument>;
 
@@ -445,9 +446,12 @@ export class MicroinvoiceInvoiceGenerator implements InvoiceGenerator {
       companyAddressData.email ? `Email: ${toSingleLine(companyAddressData.email)}` : undefined,
     ]);
 
+    const customerGstin = readGstinFromAddress(billingAddress);
+
     const customerLines = compactAddressLines([
       billingName,
       billingAddress?.companyName,
+      formatCustomerGstinLine(customerGstin),
       billingAddress?.streetAddress1,
       billingAddress?.streetAddress2,
       `${billingAddress?.city ?? ""}, ${billingAddress?.postalCode ?? ""}`,
