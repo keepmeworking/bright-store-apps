@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   extractAddressCandidateFromShippingDetail,
+  extractGstinFromPayment,
   extractMagicCheckoutIdentifiers,
+  isCodPaymentMethod,
   toSaleorAddressInput,
 } from "@/modules/magic-webhook-details";
 
@@ -100,5 +102,31 @@ describe("Razorpay Magic webhook helpers", () => {
 
     expect(webhookSource).toContain("findExistingChargedTransactionReference");
     expect(processSource).toContain("findExistingChargedTransactionReference");
+  });
+
+  it("extracts GSTIN and COD payment method details from Magic Checkout payloads", () => {
+    expect(
+      extractGstinFromPayment({
+        notes: {
+          gstin: "07abCDE1234f1z5",
+        },
+      }),
+    ).toBe("07ABCDE1234F1Z5");
+
+    expect(
+      extractGstinFromPayment(
+        { notes: {} },
+        {
+          customer_details: {
+            billing_address: {
+              gstin: "29ABCDE1234F1Z5",
+            },
+          },
+        },
+      ),
+    ).toBe("29ABCDE1234F1Z5");
+
+    expect(isCodPaymentMethod({ method: "cod" })).toBe(true);
+    expect(isCodPaymentMethod({ method: "upi" })).toBe(false);
   });
 });

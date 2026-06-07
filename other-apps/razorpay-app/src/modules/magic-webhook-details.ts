@@ -76,6 +76,34 @@ export function extractMagicCheckoutIdentifiers(
   };
 }
 
+export function extractGstinFromPayment(
+  payment: RazorpayPaymentLike | null | undefined,
+  orderDetails?: Record<string, unknown> | null
+) {
+  const notes = asRecord(payment?.notes);
+  const customerDetails = asRecord(orderDetails?.customer_details);
+  const billingAddress =
+    asRecord(customerDetails?.billing_address) ||
+    asRecord(customerDetails?.billingAddress) ||
+    asRecord(asRecord(payment)?.billing_address);
+
+  return pickFirstString(
+    notes?.gstin,
+    notes?.GSTIN,
+    notes?.customer_gstin,
+    customerDetails?.gstin,
+    customerDetails?.GSTIN,
+    billingAddress?.gstin,
+    billingAddress?.GSTIN,
+    billingAddress?.customer_gstin
+  )?.toUpperCase();
+}
+
+export function isCodPaymentMethod(payment: RazorpayPaymentLike | null | undefined) {
+  const method = pickString(asRecord(payment)?.method)?.toLowerCase();
+  return method === "cod";
+}
+
 export function splitName(fullName?: string) {
   if (!fullName) {
     return { firstName: "Customer", lastName: "" };

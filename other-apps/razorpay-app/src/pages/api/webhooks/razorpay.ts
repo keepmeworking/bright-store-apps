@@ -12,7 +12,9 @@ import {
 import { getDocClient } from "@/modules/dynamodb-helpers";
 import {
   extractAddressCandidateFromShippingDetail,
+  extractGstinFromPayment,
   extractMagicCheckoutIdentifiers,
+  isCodPaymentMethod,
   pickString,
   resolveStateFromPincode,
   toSaleorAddressInput,
@@ -41,6 +43,7 @@ type RazorpayPaymentEntity = {
   currency?: string;
   email?: string;
   contact?: string;
+  method?: string;
   notes?: Record<string, unknown>;
   shipping_detail?: Record<string, unknown>;
 };
@@ -352,8 +355,9 @@ async function handlePaymentCaptured(params: {
   saleorApiUrl: string;
   event: RazorpayWebhookEvent;
   signatureMode: "test" | "live";
+  sourceEvent?: string;
 }) {
-  const { saleorApiUrl, event, signatureMode } = params;
+  const { saleorApiUrl, event, signatureMode, sourceEvent = event.event || "payment.captured" } = params;
   const docClient = getDocClient();
   const paymentEntity = event.payload?.payment?.entity;
 
@@ -363,6 +367,7 @@ async function handlePaymentCaptured(params: {
 
   const razorpayPaymentId = pickString(paymentEntity.id);
   const razorpayOrderId = pickString(paymentEntity.order_id);
+  const isCodPayment = isCodPaymentMethod(paymentEntity);
   const amount = (typeof paymentEntity.amount === "number" ? paymentEntity.amount : 0) / 100;
   const currency = pickString(paymentEntity.currency) || "INR";
   const mode = signatureMode || inferMode(razorpayPaymentId, razorpayOrderId);
@@ -428,8 +433,9 @@ async function handlePaymentCaptured(params: {
   }
 
   let address = toSaleorAddressInput(primaryCandidate, phone);
+  let gstin = extractGstinFromPayment(paymentEntity);
 
-  if ((!address || !email || !phone) && razorpayOrderId) {
+  if ((!address || !email || !phone || !gstin) && razorpayOrderId) {
     try {
       const { client } = await getRazorpayClient(docClient, saleorApiUrl);
       const razorpayOrder = await client.orders.fetch(razorpayOrderId as string);
@@ -441,6 +447,10 @@ async function handlePaymentCaptured(params: {
 
       if (!phone) {
         phone = pickString(customerDetails?.contact) || phone;
+      }
+
+      if (!gstin) {
+        gstin = extractGstinFromPayment(paymentEntity, { customer_details: customerDetails });
       }
 
       if (!address) {
@@ -510,7 +520,10 @@ async function handlePaymentCaptured(params: {
         };
       }>(saleorApiUrl, token, CHECKOUT_BILLING_ADDRESS_UPDATE, {
         id: checkoutId,
-        address,
+        address: {
+          ...address,
+          ...(gstin ? { metadata: [{ key: "gstin", value: gstin }] } : {}),
+        },
       });
 
       assertNoSaleorErrors("checkoutBillingAddressUpdate", billingAddressResult.checkoutBillingAddressUpdate.errors);
@@ -589,7 +602,7 @@ async function handlePaymentCaptured(params: {
           type: "CHARGE_SUCCESS",
           amount,
           pspReference: razorpayPaymentId || razorpayOrderId || `razorpay-magic-${checkoutId}`,
-          message: `Razorpay Magic Checkout payment captured${razorpayPaymentId ? `: ${razorpayPaymentId}` : ""}`,
+          message: `${isCodPayment ? "Razorpay Magic Checkout COD order" : "Razorpay Magic Checkout payment captured"}${razorpayPaymentId ? `: ${razorpayPaymentId}` : ""}`,
           availableActions: ["REFUND"],
         });
 
@@ -607,11 +620,13 @@ async function handlePaymentCaptured(params: {
           amount,
           currency,
           pspReference: razorpayPaymentId || razorpayOrderId || `razorpay-magic-${checkoutId}`,
-          message: `Razorpay Magic Checkout payment captured${razorpayPaymentId ? `: ${razorpayPaymentId}` : ""}`,
+          message: `${isCodPayment ? "Razorpay Magic Checkout COD order" : "Razorpay Magic Checkout payment captured"}${sourceEvent === "payment.pending" ? " (pending)" : ""}${razorpayPaymentId ? `: ${razorpayPaymentId}` : ""}`,
           metadata: [
             ...(razorpayPaymentId ? [{ key: "razorpay_payment_id", value: razorpayPaymentId }] : []),
             ...(razorpayOrderId ? [{ key: "razorpay_order_id", value: razorpayOrderId }] : []),
             { key: "razorpay_source", value: "magic_checkout_webhook" },
+            ...(isCodPayment ? [{ key: "razorpay_payment_method", value: "cod" }] : []),
+            ...(gstin ? [{ key: "gstin", value: gstin }] : []),
           ],
         });
 
@@ -796,7 +811,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log("Razorpay Webhook Received:", event.event);
 
-    if (event.event === "payment.captured" || event.event === "order.paid") {
+    if (event.event === "payment.captured" || event.event === "order.paid" || event.event === "payment.pending") {
       const paymentEntity = event.payload?.payment?.entity;
       const signatureMode = inferMode(pickString(paymentEntity?.id), pickString(paymentEntity?.order_id));
 
@@ -804,6 +819,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         saleorApiUrl,
         event,
         signatureMode,
+        sourceEvent: event.event,
       });
     } else if (event.event === "payment.failed") {
       const paymentEntity = event.payload?.payment?.entity;
