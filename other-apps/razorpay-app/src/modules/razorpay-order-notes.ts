@@ -1,3 +1,5 @@
+import type Razorpay from "razorpay";
+
 const NOTE_KEY_PATTERN = /^[a-zA-Z0-9_]+$/;
 const NOTE_VALUE_MAX_LENGTH = 256;
 const RECEIPT_MAX_LENGTH = 40;
@@ -65,15 +67,8 @@ export const readStorefrontGatewayNotes = (data: unknown): Record<string, string
   return sanitizeRazorpayNotes(notes as RazorpayOrderNoteInput);
 };
 
-type RazorpayOrdersClient = {
-  orders: {
-    edit: (orderId: string, payload: { notes: Record<string, string> }) => Promise<unknown>;
-    fetch: (orderId: string) => Promise<{ notes?: Record<string, string> | null }>;
-  };
-};
-
 export const backfillRazorpayOrderWithSaleorOrder = async (
-  client: RazorpayOrdersClient,
+  client: Razorpay,
   razorpayOrderId: string,
   args: { orderNumber: string; orderId?: string },
 ) => {
@@ -86,7 +81,7 @@ export const backfillRazorpayOrderWithSaleorOrder = async (
 
   try {
     const existingOrder = await client.orders.fetch(razorpayOrderId);
-    existingNotes = sanitizeRazorpayNotes(existingOrder.notes || {});
+    existingNotes = sanitizeRazorpayNotes((existingOrder.notes || {}) as RazorpayOrderNoteInput);
   } catch {
     existingNotes = {};
   }
