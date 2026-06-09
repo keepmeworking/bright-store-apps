@@ -85,6 +85,7 @@ query GetOrdersExportPage(
           streetAddress2
           city
           postalCode
+          countryArea
           country {
             country
             code
@@ -98,10 +99,41 @@ query GetOrdersExportPage(
           streetAddress2
           city
           postalCode
+          countryArea
           country {
             country
             code
           }
+        }
+        transactions {
+          id
+          pspReference
+          name
+          chargedAmount {
+            amount
+          }
+          createdBy {
+            ... on App {
+              identifier
+              name
+            }
+            ... on User {
+              email
+              firstName
+              lastName
+            }
+          }
+          events {
+            type
+            pspReference
+          }
+        }
+        payments {
+          id
+          gateway
+          pspReference
+          isActive
+          chargeStatus
         }
         subtotal {
           gross {

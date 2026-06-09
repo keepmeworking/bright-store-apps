@@ -10,6 +10,7 @@ import {
   releasePaymentCapturedProcessing,
 } from "@/modules/transaction-log";
 import { getDocClient } from "@/modules/dynamodb-helpers";
+import { backfillRazorpayOrderWithSaleorOrder } from "@/modules/razorpay-order-notes";
 import {
   extractAddressCandidateFromShippingDetail,
   extractGstinFromPayment,
@@ -701,6 +702,18 @@ async function handlePaymentCaptured(params: {
     console.log(
       `[MagicCheckout] Order created successfully: #${checkoutCompletePayload.order.number || ""} (${checkoutCompletePayload.order.id})`
     );
+
+    if (razorpayOrderId && checkoutCompletePayload.order.number) {
+      try {
+        const { client } = await getRazorpayClient(docClient, saleorApiUrl);
+        await backfillRazorpayOrderWithSaleorOrder(client, razorpayOrderId, {
+          orderNumber: String(checkoutCompletePayload.order.number),
+          orderId: checkoutCompletePayload.order.id,
+        });
+      } catch (error) {
+        console.warn("[MagicCheckout] Failed to backfill Razorpay order notes:", error);
+      }
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown auto-complete error";
 

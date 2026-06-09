@@ -9,6 +9,7 @@ import {
 } from "../../../../generated/graphql";
 import { createClient as createSafeGraphQLClient } from "@/lib/create-graphql-client";
 import { resolveLastInvoiceUrl } from "@/lib/orders-export-invoice";
+import { resolvePaymentId, resolvePaymentProvider } from "@/lib/orders-export-payment";
 import { normalizeSaleorApiUrl } from "@/lib/saleor-api-url";
 
 type ExportFormat = "csv" | "xlsx";
@@ -28,6 +29,8 @@ type ExportRow = {
   "Order Status": string;
   "Charge Status": string;
   "Payment Status": string;
+  "Payment Provider": string;
+  "Payment ID": string;
   "Channel Name": string;
   "Channel Slug": string;
   Currency: string;
@@ -40,6 +43,8 @@ type ExportRow = {
   "Shipping Name": string;
   "Shipping Phone": string;
   "Shipping Address": string;
+  "Shipping State": string;
+  "Shipping Pincode": string;
   "Line Items": string;
   "Subtotal Amount": number;
   "Shipping Amount": number;
@@ -216,6 +221,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         "Order Status": order.statusDisplay || order.status,
         "Charge Status": order.chargeStatus,
         "Payment Status": order.paymentStatus,
+        "Payment Provider": resolvePaymentProvider(order),
+        "Payment ID": resolvePaymentId(order),
         "Channel Name": order.channel.name,
         "Channel Slug": order.channel.slug,
         Currency: order.total.gross.currency || order.channel.currencyCode,
@@ -245,6 +252,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .trim(),
         "Shipping Phone": order.shippingAddress?.phone || "",
         "Shipping Address": formatAddress(order.shippingAddress),
+        "Shipping State": order.shippingAddress?.countryArea || "",
+        "Shipping Pincode": order.shippingAddress?.postalCode || "",
         "Line Items": formatLineItems(order.lines),
         "Subtotal Amount": order.subtotal.gross.amount,
         "Shipping Amount": order.shippingPrice.gross.amount,
@@ -342,6 +351,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     "Order Status": "",
     "Charge Status": "",
     "Payment Status": "",
+    "Payment Provider": "",
+    "Payment ID": "",
     "Channel Name": "",
     "Channel Slug": "",
     Currency: "",
@@ -354,6 +365,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     "Shipping Name": "",
     "Shipping Phone": "",
     "Shipping Address": "",
+    "Shipping State": "",
+    "Shipping Pincode": "",
     "Line Items": "",
     "Subtotal Amount": "",
     "Shipping Amount": "",

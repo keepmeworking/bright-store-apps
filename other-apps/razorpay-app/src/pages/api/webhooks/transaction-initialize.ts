@@ -8,6 +8,12 @@ import { saleorApp } from "@/saleor-app";
 import { getRazorpayClient } from "@/modules/razorpay-settings";
 import { logTransaction } from "@/modules/transaction-log";
 import { getDocClient } from "@/modules/dynamodb-helpers";
+import {
+  backfillRazorpayOrderWithSaleorOrder,
+  buildRazorpayReceipt,
+  mergeRazorpayOrderNotes,
+  readStorefrontGatewayNotes,
+} from "@/modules/razorpay-order-notes";
 
 function readStandardCheckoutGstin(data: unknown) {
   if (!data || typeof data !== "object") {
@@ -188,16 +194,16 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
     const paymentCapture = true;
 
     // 1. Create Razorpay Order
-    // Razorpay receipt max length is 40 chars; Saleor IDs are base64 and longer
-    const receipt = (orderId || "").slice(0, 40);
-    const orderNotes: Record<string, string> = {};
-
-    if (orderId) {
-      orderNotes.cart_id = orderId;
-    }
-    if (saleorApiUrl) {
-      orderNotes.saleor_api_url = saleorApiUrl;
-    }
+    const receipt = buildRazorpayReceipt(orderId || "");
+    const storefrontNotes = readStorefrontGatewayNotes(payload.data);
+    const orderNotes = mergeRazorpayOrderNotes(
+      {
+        cart_id: orderId,
+        checkout_id: orderId,
+        saleor_api_url: saleorApiUrl,
+      },
+      storefrontNotes,
+    );
 
     const useMagicCheckout = settings.magicCheckout && magicCheckoutData?.checkout_flow === "magic";
 
@@ -205,12 +211,14 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
       orderNotes.gstin = standardCheckoutGstin;
     }
 
+    const sanitizedOrderNotes = mergeRazorpayOrderNotes(orderNotes);
+
     const razorpayOrder = await client.orders.create({
       amount: Math.round(amount * 100), // convert to paise
       currency,
       receipt,
       payment_capture: paymentCapture,
-      ...(Object.keys(orderNotes).length ? { notes: orderNotes } : {}),
+      ...(Object.keys(sanitizedOrderNotes).length ? { notes: sanitizedOrderNotes } : {}),
       ...(useMagicCheckout && magicCheckoutData?.line_items?.length
         ? {
             line_items_total: magicCheckoutData.line_items_total ?? Math.round(amount * 100),
@@ -308,7 +316,7 @@ export default transactionInitializeWebhook.createHandler(async (req, res, ctx) 
         status: "failed",
         amount,
         currency,
-        receipt: (orderId || "").slice(0, 40),
+        receipt: buildRazorpayReceipt(orderId || ""),
         saleorCheckoutId: orderId,
         saleorOrderId: orderId,
         error: message,

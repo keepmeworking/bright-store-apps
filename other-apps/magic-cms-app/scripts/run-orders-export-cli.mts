@@ -10,6 +10,7 @@ import {
 } from "../generated/graphql.js";
 import { createClient as createSafeGraphQLClient } from "../src/lib/create-graphql-client.ts";
 import { resolveLastInvoiceUrl } from "../src/lib/orders-export-invoice.ts";
+import { resolvePaymentId, resolvePaymentProvider } from "../src/lib/orders-export-payment.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -131,6 +132,8 @@ while (true) {
       "Order Status": order.statusDisplay || order.status,
       "Charge Status": order.chargeStatus,
       "Payment Status": order.paymentStatus,
+      "Payment Provider": resolvePaymentProvider(order),
+      "Payment ID": resolvePaymentId(order),
       "Channel Name": order.channel.name,
       "Channel Slug": order.channel.slug,
       Currency: order.total.gross.currency || order.channel.currencyCode,
@@ -159,6 +162,8 @@ while (true) {
           .trim(),
       "Shipping Phone": order.shippingAddress?.phone || "",
       "Shipping Address": formatAddress(order.shippingAddress),
+      "Shipping State": order.shippingAddress?.countryArea || "",
+      "Shipping Pincode": order.shippingAddress?.postalCode || "",
       "Line Items": formatLineItems(order.lines),
       "Subtotal Amount": order.subtotal.gross.amount,
       "Shipping Amount": order.shippingPrice.gross.amount,
