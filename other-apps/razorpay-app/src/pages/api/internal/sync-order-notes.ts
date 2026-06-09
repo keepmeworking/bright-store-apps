@@ -26,6 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const body = req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>) : {};
   const razorpayOrderId = pickString(body.razorpayOrderId);
+  const razorpayPaymentId = pickString(body.razorpayPaymentId);
   const orderNumber = pickString(body.orderNumber);
   const orderId = pickString(body.orderId);
   const saleorApiUrl =
@@ -43,6 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await backfillRazorpayOrderWithSaleorOrder(client, razorpayOrderId, {
       orderNumber,
       orderId,
+      razorpayPaymentId,
     });
 
     return res.status(200).json({ ok: true });

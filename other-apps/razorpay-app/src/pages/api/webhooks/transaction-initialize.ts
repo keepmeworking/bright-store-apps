@@ -9,7 +9,6 @@ import { getRazorpayClient } from "@/modules/razorpay-settings";
 import { logTransaction } from "@/modules/transaction-log";
 import { getDocClient } from "@/modules/dynamodb-helpers";
 import {
-  backfillRazorpayOrderWithSaleorOrder,
   buildRazorpayReceipt,
   mergeRazorpayOrderNotes,
   readStorefrontGatewayNotes,

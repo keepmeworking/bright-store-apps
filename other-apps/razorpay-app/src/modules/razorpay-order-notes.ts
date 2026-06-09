@@ -67,30 +67,112 @@ export const readStorefrontGatewayNotes = (data: unknown): Record<string, string
   return sanitizeRazorpayNotes(notes as RazorpayOrderNoteInput);
 };
 
+export const buildSaleorOrderNotePayload = (
+  orderNumber: string,
+  orderId?: string,
+): Record<string, string> => {
+  const normalizedOrderNumber = orderNumber.trim().replace(/^#+/, "");
+  if (!normalizedOrderNumber) {
+    return {};
+  }
+
+  return sanitizeRazorpayNotes({
+    saleor_order_number: normalizedOrderNumber,
+    order_ref: `#${normalizedOrderNumber}`,
+    ...(orderId ? { saleor_order_id: orderId } : {}),
+  });
+};
+
+const mergeExistingNotes = (
+  existingNotes: RazorpayOrderNoteInput | undefined,
+  saleorOrderNotes: Record<string, string>,
+): Record<string, string> =>
+  sanitizeRazorpayNotes({
+    ...sanitizeRazorpayNotes(existingNotes || {}),
+    ...saleorOrderNotes,
+  });
+
 export const backfillRazorpayOrderWithSaleorOrder = async (
   client: Razorpay,
   razorpayOrderId: string,
-  args: { orderNumber: string; orderId?: string },
+  args: { orderNumber: string; orderId?: string; razorpayPaymentId?: string },
 ) => {
   const orderNumber = args.orderNumber.trim();
   if (!razorpayOrderId.trim() || !orderNumber) {
     return;
   }
 
-  let existingNotes: Record<string, string> = {};
+  const saleorOrderNotes = buildSaleorOrderNotePayload(orderNumber, args.orderId);
+  if (!Object.keys(saleorOrderNotes).length) {
+    return;
+  }
+
+  let existingOrderNotes: Record<string, string> = {};
 
   try {
     const existingOrder = await client.orders.fetch(razorpayOrderId);
-    existingNotes = sanitizeRazorpayNotes((existingOrder.notes || {}) as RazorpayOrderNoteInput);
+    existingOrderNotes = sanitizeRazorpayNotes((existingOrder.notes || {}) as RazorpayOrderNoteInput);
   } catch {
-    existingNotes = {};
+    existingOrderNotes = {};
   }
 
   await client.orders.edit(razorpayOrderId, {
-    notes: sanitizeRazorpayNotes({
-      ...existingNotes,
-      saleor_order_number: orderNumber,
-      ...(args.orderId ? { saleor_order_id: args.orderId } : {}),
-    }),
+    notes: mergeExistingNotes(existingOrderNotes, saleorOrderNotes),
   });
+
+  const razorpayPaymentId = args.razorpayPaymentId?.trim();
+  if (!razorpayPaymentId) {
+    return;
+  }
+
+  let existingPaymentNotes: Record<string, string> = {};
+
+  try {
+    const existingPayment = await client.payments.fetch(razorpayPaymentId);
+    existingPaymentNotes = sanitizeRazorpayNotes(
+      (existingPayment.notes || {}) as RazorpayOrderNoteInput,
+    );
+  } catch {
+    existingPaymentNotes = {};
+  }
+
+  await client.payments.edit(razorpayPaymentId, {
+    notes: mergeExistingNotes(existingPaymentNotes, saleorOrderNotes),
+  });
+};
+
+export const syncSaleorOrderToRazorpayNotes = async (
+  client: Razorpay,
+  args: {
+    orderNumber: string;
+    orderId: string;
+    razorpayPaymentId?: string;
+    razorpayOrderId?: string;
+  },
+) => {
+  let razorpayOrderId = args.razorpayOrderId?.trim();
+  const razorpayPaymentId = args.razorpayPaymentId?.trim();
+
+  if (razorpayPaymentId && !razorpayOrderId) {
+    try {
+      const payment = await client.payments.fetch(razorpayPaymentId);
+      if (typeof payment.order_id === "string" && payment.order_id.trim()) {
+        razorpayOrderId = payment.order_id.trim();
+      }
+    } catch {
+      // Non-fatal: order notes can still be updated when order id is known.
+    }
+  }
+
+  if (!razorpayOrderId) {
+    return { synced: false as const, reason: "missing_razorpay_order_id" as const };
+  }
+
+  await backfillRazorpayOrderWithSaleorOrder(client, razorpayOrderId, {
+    orderNumber: args.orderNumber,
+    orderId: args.orderId,
+    razorpayPaymentId,
+  });
+
+  return { synced: true as const };
 };

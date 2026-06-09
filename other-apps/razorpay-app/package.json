@@ -1,6 +1,6 @@
 {
   "name": "saleor-app-payment-razorpay",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "private": true,
   "license": "(BSD-3-Clause AND CC-BY-4.0)",
   "type": "module",

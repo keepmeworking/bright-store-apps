@@ -709,6 +709,7 @@ async function handlePaymentCaptured(params: {
         await backfillRazorpayOrderWithSaleorOrder(client, razorpayOrderId, {
           orderNumber: String(checkoutCompletePayload.order.number),
           orderId: checkoutCompletePayload.order.id,
+          razorpayPaymentId,
         });
       } catch (error) {
         console.warn("[MagicCheckout] Failed to backfill Razorpay order notes:", error);

@@ -6,6 +6,7 @@ import { transactionProcessSessionWebhook } from "./webhooks/transaction-process
 import { paymentGatewayInitializeSessionWebhook } from "./webhooks/payment-gateway-initialize-session";
 import { transactionChargeRequestedWebhook } from "./webhooks/transaction-charge-requested";
 import { transactionRefundRequestedWebhook } from "./webhooks/transaction-refund-requested";
+import { orderCreatedWebhook } from "./webhooks/order-created";
 
 import { env } from "@/env";
 
@@ -35,6 +36,7 @@ export default createManifestHandler({
         transactionRefundRequestedWebhook.getWebhookManifest(normalizedApiBaseURL),
         // Modern Session Webhooks (Saleor 3.x)
         paymentGatewayInitializeSessionWebhook.getWebhookManifest(normalizedApiBaseURL),
+        orderCreatedWebhook.getWebhookManifest(normalizedApiBaseURL),
       ],
       author: "Brightcode Canvas",
       brand: {

@@ -3,6 +3,12 @@ fragment OrderCreatedWebhookPayload on OrderCreated {
     userEmail
     id
     number
+    transactions {
+      pspReference
+      chargedAmount {
+        amount
+      }
+    }
     user {
       email
       firstName
