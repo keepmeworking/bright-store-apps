@@ -2,6 +2,7 @@ import { Client } from "urql";
 
 import { WebhookEventTypeAsyncEnum } from "../../../generated/graphql";
 import { createLogger } from "../../logger";
+import { fulfillmentTrackingNumberUpdatedWebhook } from "../../pages/api/webhooks/fulfillment-tracking-number-updated";
 import { giftCardSentWebhook } from "../../pages/api/webhooks/gift-card-sent";
 import { invoiceSentWebhook } from "../../pages/api/webhooks/invoice-sent";
 import { notifyWebhook } from "../../pages/api/webhooks/notify";
@@ -22,6 +23,7 @@ export const AppWebhooks = {
   orderCancelledWebhook,
   orderConfirmedWebhook,
   orderCreatedWebhook,
+  fulfillmentTrackingNumberUpdatedWebhook,
   orderFulfilledWebhook,
   orderFullyPaidWebhook,
   orderRefundedWebhook,
@@ -43,7 +45,7 @@ export const eventToWebhookMapping: Record<MessageEventTypes, AppWebhook> = {
   ORDER_FULFILLED: "orderFulfilledWebhook",
   ORDER_FULLY_PAID: "orderFullyPaidWebhook",
   ORDER_REFUNDED: "orderRefundedWebhook",
-  ORDER_FULFILLMENT_UPDATE: "notifyWebhook",
+  ORDER_FULFILLMENT_UPDATE: "fulfillmentTrackingNumberUpdatedWebhook",
 };
 
 const logger = createLogger("WebhookManagementService");

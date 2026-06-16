@@ -88,6 +88,10 @@ const OrderQuery = gql`
     total {
       ...GenerateInvoiceService_TaxedMoney
     }
+    metadata {
+      key
+      value
+    }
     channel {
       slug
     }
@@ -100,6 +104,7 @@ const OrderQuery = gql`
         value
       }
       variant {
+        sku
         attributes {
           attribute {
             slug
@@ -194,6 +199,10 @@ const OrdersByNumberQuery = gql`
     total {
       ...GenerateInvoiceService_TaxedMoneyByNumber
     }
+    metadata {
+      key
+      value
+    }
     channel {
       slug
     }
@@ -206,6 +215,7 @@ const OrdersByNumberQuery = gql`
         value
       }
       variant {
+        sku
         attributes {
           attribute {
             slug
@@ -300,6 +310,10 @@ const OrdersBySearchQuery = gql`
     total {
       ...GenerateInvoiceService_TaxedMoneyBySearch
     }
+    metadata {
+      key
+      value
+    }
     channel {
       slug
     }
@@ -312,6 +326,7 @@ const OrdersBySearchQuery = gql`
         value
       }
       variant {
+        sku
         attributes {
           attribute {
             slug

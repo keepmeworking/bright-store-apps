@@ -14,6 +14,9 @@ export const webhookStatusesFactory = ({
   orderCancelledWebhook: !!enabledWebhooks?.includes("orderCancelledWebhook"),
   orderConfirmedWebhook: !!enabledWebhooks?.includes("orderConfirmedWebhook"),
   orderCreatedWebhook: !!enabledWebhooks?.includes("orderCreatedWebhook"),
+  fulfillmentTrackingNumberUpdatedWebhook: !!enabledWebhooks?.includes(
+    "fulfillmentTrackingNumberUpdatedWebhook",
+  ),
   orderFulfilledWebhook: !!enabledWebhooks?.includes("orderFulfilledWebhook"),
   orderFullyPaidWebhook: !!enabledWebhooks?.includes("orderFullyPaidWebhook"),
   orderRefundedWebhook: !!enabledWebhooks?.includes("orderRefundedWebhook"),

@@ -202,6 +202,50 @@ describe("MicroinvoiceInvoiceGenerator", () => {
     expect(summaryRows.map((row: { label: string }) => row.label)).not.toContain("Additional Service");
   });
 
+  it("adds metadata-only upgrade row and final total", () => {
+    const buildInvoiceRows = (invoiceGeneratorModule as any).buildInvoiceRows;
+    const buildInvoiceSummaryRows = (invoiceGeneratorModule as any).buildInvoiceSummaryRows;
+    const orderWithMetadataUpgrade = {
+      ...mockOrder,
+      metadata: [
+        { key: "is_upgraded", value: "true" },
+        { key: "upgrade_amount", value: "43498" },
+        { key: "upgrade_description", value: "Extra payment for larger capacity" },
+      ],
+      total: {
+        ...mockOrder.total,
+        gross: {
+          amount: 100000,
+          currency: "INR",
+        },
+      },
+    };
+
+    const invoiceRows = buildInvoiceRows(orderWithMetadataUpgrade, "INR", "en-US");
+    const summaryRows = buildInvoiceSummaryRows(
+      orderWithMetadataUpgrade,
+      invoiceRows,
+      "INR",
+      "en-US",
+    );
+
+    expect(invoiceRows.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          description: "Extra payment for larger capacity",
+          quantity: "1",
+          amount: "43,498.00 INR",
+        }),
+      ]),
+    );
+    expect(summaryRows.at(-1)).toEqual({
+      label: "TOTAL",
+      value: "143,498.00 INR",
+      bold: true,
+      tall: true,
+    });
+  });
+
   it("reads customer gstin from billing address metadata", () => {
     expect(readGstinFromAddress(mockOrder.billingAddress)).toBe("07ABCDE1234F1Z5");
   });

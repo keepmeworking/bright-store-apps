@@ -5,6 +5,11 @@ import { OrderPayloadFragment } from "../../../../../generated/graphql";
 import { AddressV2Shape } from "../../../app-configuration/schema-v2/app-config-schema.v2";
 import { InvoiceGenerator } from "../invoice-generator";
 import { formatCustomerGstinLine, readGstinFromAddress } from "../../gstin";
+import {
+  resolveFinalAmount,
+  resolveMetadataOnlyUpgradeAmount,
+  resolveUpgradeDescription,
+} from "../../order-upgrade";
 
 type PdfDocument = InstanceType<typeof PDFDocument>;
 
@@ -168,6 +173,18 @@ export function buildInvoiceRows(order: OrderPayloadFragment, currency: string, 
     }
   });
 
+  const metadataUpgradeAmount = resolveMetadataOnlyUpgradeAmount(order);
+  if (metadataUpgradeAmount > 0) {
+    goodsSubtotalAmount += metadataUpgradeAmount;
+    rows.push({
+      serial: String(nextSerial++),
+      description: wrapDescription(resolveUpgradeDescription(order) || "Order Upgrade"),
+      quantity: "1",
+      unitPrice: formatMoney(metadataUpgradeAmount, currency, locale),
+      amount: formatMoney(metadataUpgradeAmount, currency, locale),
+    });
+  }
+
   rows.push({
     serial: String(nextSerial),
     description: wrapDescription(toSingleLine(order.shippingMethodName) || "Shipping"),
@@ -191,7 +208,7 @@ export function buildInvoiceSummaryRows(
   locale: string,
 ): SummaryRow[] {
   const shippingAmount = order.shippingPrice?.gross?.amount ?? 0;
-  const totalAmount = order.total?.gross?.amount ?? 0;
+  const totalAmount = resolveFinalAmount(order);
   const taxAmount = order.total?.tax?.amount ?? 0;
 
   return [
