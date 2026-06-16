@@ -11,6 +11,14 @@ import {
 import { createClient as createSafeGraphQLClient } from "../src/lib/create-graphql-client.ts";
 import { resolveLastInvoiceUrl } from "../src/lib/orders-export-invoice.ts";
 import { resolvePaymentId, resolvePaymentProvider } from "../src/lib/orders-export-payment.ts";
+import {
+  orderIsUpgraded,
+  resolveChargeStatusDisplay,
+  resolveFinalAmount,
+  resolveUpgradeAmount,
+  resolveUpgradeDescription,
+  resolveUpgradePspReference,
+} from "../src/lib/orders-export-upgrade.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -130,7 +138,7 @@ while (true) {
       "Order ID": order.id,
       "Created At": order.created,
       "Order Status": order.statusDisplay || order.status,
-      "Charge Status": order.chargeStatus,
+      "Charge Status": resolveChargeStatusDisplay(order) || order.chargeStatus,
       "Payment Status": order.paymentStatus,
       "Payment Provider": resolvePaymentProvider(order),
       "Payment ID": resolvePaymentId(order),
@@ -168,6 +176,11 @@ while (true) {
       "Subtotal Amount": order.subtotal.gross.amount,
       "Shipping Amount": order.shippingPrice.gross.amount,
       "Total Amount": order.total.gross.amount,
+      "Final Amount": resolveFinalAmount(order),
+      "Is Upgrade Order": orderIsUpgraded(order) ? "Yes" : "No",
+      "Upgrade Amount": orderIsUpgraded(order) ? resolveUpgradeAmount(order) : "",
+      "Upgrade Description": orderIsUpgraded(order) ? resolveUpgradeDescription(order) : "",
+      "Upgrade Payment Ref": orderIsUpgraded(order) ? resolveUpgradePspReference(order) : "",
       "Customer Note": order.customerNote || "",
       invoice_url: resolveLastInvoiceUrl(order.invoices),
     });

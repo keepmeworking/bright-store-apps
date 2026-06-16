@@ -10,6 +10,14 @@ import {
 import { createClient as createSafeGraphQLClient } from "@/lib/create-graphql-client";
 import { resolveLastInvoiceUrl } from "@/lib/orders-export-invoice";
 import { resolvePaymentId, resolvePaymentProvider } from "@/lib/orders-export-payment";
+import {
+  orderIsUpgraded,
+  resolveChargeStatusDisplay,
+  resolveFinalAmount,
+  resolveUpgradeAmount,
+  resolveUpgradeDescription,
+  resolveUpgradePspReference,
+} from "@/lib/orders-export-upgrade";
 import { normalizeSaleorApiUrl } from "@/lib/saleor-api-url";
 
 type ExportFormat = "csv" | "xlsx";
@@ -49,6 +57,11 @@ type ExportRow = {
   "Subtotal Amount": number;
   "Shipping Amount": number;
   "Total Amount": number;
+  "Final Amount": number;
+  "Is Upgrade Order": string;
+  "Upgrade Amount": number | "";
+  "Upgrade Description": string;
+  "Upgrade Payment Ref": string;
   "Customer Note": string;
   invoice_url: string;
 };
@@ -219,7 +232,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         "Order ID": order.id,
         "Created At": order.created,
         "Order Status": order.statusDisplay || order.status,
-        "Charge Status": order.chargeStatus,
+        "Charge Status": resolveChargeStatusDisplay(order) || order.chargeStatus,
         "Payment Status": order.paymentStatus,
         "Payment Provider": resolvePaymentProvider(order),
         "Payment ID": resolvePaymentId(order),
@@ -258,6 +271,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         "Subtotal Amount": order.subtotal.gross.amount,
         "Shipping Amount": order.shippingPrice.gross.amount,
         "Total Amount": order.total.gross.amount,
+        "Final Amount": resolveFinalAmount(order),
+        "Is Upgrade Order": orderIsUpgraded(order) ? "Yes" : "No",
+        "Upgrade Amount": orderIsUpgraded(order) ? resolveUpgradeAmount(order) : "",
+        "Upgrade Description": orderIsUpgraded(order) ? resolveUpgradeDescription(order) : "",
+        "Upgrade Payment Ref": orderIsUpgraded(order) ? resolveUpgradePspReference(order) : "",
         "Customer Note": order.customerNote || "",
         invoice_url: resolveLastInvoiceUrl(order.invoices),
       });
@@ -371,6 +389,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     "Subtotal Amount": "",
     "Shipping Amount": "",
     "Total Amount": "",
+    "Final Amount": "",
+    "Is Upgrade Order": "",
+    "Upgrade Amount": "",
+    "Upgrade Description": "",
+    "Upgrade Payment Ref": "",
     "Customer Note": "",
     invoice_url: "",
   });

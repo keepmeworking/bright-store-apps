@@ -64,6 +64,10 @@ query GetOrdersExportPage(
         paymentStatus
         userEmail
         customerNote
+        metadata {
+          key
+          value
+        }
         invoices {
           id
           url
