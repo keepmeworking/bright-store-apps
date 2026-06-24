@@ -223,6 +223,21 @@ function compactAddressLines(lines: Array<string | null | undefined>) {
   return lines.map((line) => toSingleLine(line)).filter(Boolean);
 }
 
+export function buildOrderAddressLines(
+  address: OrderPayloadFragment["billingAddress"],
+  leadingLines: Array<string | null | undefined> = [],
+) {
+  return compactAddressLines([
+    ...leadingLines,
+    address?.streetAddress1,
+    address?.streetAddress2,
+    `${address?.city ?? ""}, ${address?.postalCode ?? ""}`,
+    address?.countryArea,
+    address?.country?.country,
+    address?.phone,
+  ]);
+}
+
 function wrapDescription(value: string, maxCharsPerLine = 34, maxLines = 5) {
   const words = toSingleLine(value).split(" ").filter(Boolean);
   const lines: string[] = [];
@@ -465,25 +480,15 @@ export class MicroinvoiceInvoiceGenerator implements InvoiceGenerator {
 
     const customerGstin = readGstinFromAddress(billingAddress);
 
-    const customerLines = compactAddressLines([
+    const customerLines = buildOrderAddressLines(billingAddress, [
       billingName,
       billingAddress?.companyName,
       formatCustomerGstinLine(customerGstin),
-      billingAddress?.streetAddress1,
-      billingAddress?.streetAddress2,
-      `${billingAddress?.city ?? ""}, ${billingAddress?.postalCode ?? ""}`,
-      billingAddress?.country?.country,
-      billingAddress?.phone,
     ]);
 
-    const shippingLines = compactAddressLines([
+    const shippingLines = buildOrderAddressLines(shippingAddress, [
       shippingName,
       shippingAddress?.companyName,
-      shippingAddress?.streetAddress1,
-      shippingAddress?.streetAddress2,
-      `${shippingAddress?.city ?? ""}, ${shippingAddress?.postalCode ?? ""}`,
-      shippingAddress?.country?.country,
-      shippingAddress?.phone,
     ]);
 
     const invoiceRows = buildInvoiceRows(

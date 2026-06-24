@@ -246,6 +246,27 @@ describe("MicroinvoiceInvoiceGenerator", () => {
     });
   });
 
+  it("includes state and country in order address lines", () => {
+    const buildOrderAddressLines = (invoiceGeneratorModule as any).buildOrderAddressLines;
+    const lines = buildOrderAddressLines({
+      streetAddress1: "AT - Jangalpur",
+      city: "JAMTARA",
+      postalCode: "815352",
+      countryArea: "Jharkhand",
+      country: { country: "India", code: "IN" },
+      phone: "+919122414994",
+    }, ["Mukesh BASKEY"]);
+
+    expect(lines).toEqual([
+      "Mukesh BASKEY",
+      "AT - Jangalpur",
+      "JAMTARA, 815352",
+      "Jharkhand",
+      "India",
+      "+919122414994",
+    ]);
+  });
+
   it("reads customer gstin from billing address metadata", () => {
     expect(readGstinFromAddress(mockOrder.billingAddress)).toBe("07ABCDE1234F1Z5");
   });
