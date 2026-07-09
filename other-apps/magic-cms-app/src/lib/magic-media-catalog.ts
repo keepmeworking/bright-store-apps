@@ -3,6 +3,7 @@ import {
   buildPublicMediaUrl,
   deleteObjectKey,
   getMediaStorageConfig,
+  getObjectBuffer,
   putObjectBuffer,
   type MediaStorageConfig,
 } from "@/lib/r2-media-client";
