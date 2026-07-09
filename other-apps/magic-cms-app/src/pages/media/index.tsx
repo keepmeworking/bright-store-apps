@@ -67,6 +67,9 @@ export default function MediaPage() {
   const [editAlt, setEditAlt] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const authHeaders = useMemo(
     () => ({
@@ -83,6 +86,10 @@ export default function MediaPage() {
     return { queued, uploading, done, failed, total: queue.length };
   }, [queue]);
 
+  const pageIds = useMemo(() => items.map((item) => item.id), [items]);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
+  const selectedCount = selectedIds.length;
+
   const loadPage = useCallback(
     async (nextPage: number) => {
       if (!token) return;
@@ -96,12 +103,14 @@ export default function MediaPage() {
         if (!response.ok) {
           throw new Error(payload.message || "Unable to load media.");
         }
-        setItems(payload.items || []);
+        const nextItems = payload.items || [];
+        setItems(nextItems);
         setPage(payload.page || nextPage);
         setTotal(payload.total || 0);
         setTotalPages(payload.totalPages || 1);
         setHasPrev(Boolean(payload.hasPrev));
         setHasNext(Boolean(payload.hasNext));
+        setSelectedIds((prev) => prev.filter((id) => nextItems.some((item) => item.id === id)));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to load media.");
       } finally {
@@ -287,25 +296,55 @@ export default function MediaPage() {
     }
   };
 
-  const deleteItem = async (item: MagicMediaItem) => {
-    if (!token) return;
-    const confirmed = window.confirm(`Delete ${item.fileName}? This cannot be undone.`);
-    if (!confirmed) return;
-    setDeletingId(item.id);
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]));
+  };
+
+  const toggleSelectAllPage = () => {
+    if (allPageSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.includes(id)));
+      return;
+    }
+    setSelectedIds((prev) => [...new Set([...prev, ...pageIds])]);
+  };
+
+  const clearSelection = () => setSelectedIds([]);
+
+  const requestDelete = (ids: string[]) => {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (!unique.length) return;
+    setPendingDeleteIds(unique);
+  };
+
+  const confirmDelete = async () => {
+    if (!token || pendingDeleteIds.length === 0) return;
+    const ids = [...pendingDeleteIds];
+    setBulkDeleting(true);
+    setDeletingId(ids.length === 1 ? ids[0] : "bulk");
     setError("");
     try {
-      const response = await fetch(`/api/media/item?id=${encodeURIComponent(item.id)}`, {
-        method: "DELETE",
-        headers: authHeaders,
+      const response = await fetch("/api/media/item", {
+        method: "POST",
+        headers: {
+          ...authHeaders,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "bulk-delete",
+          ids,
+        }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(payload.message || "Unable to delete media.");
       }
+      setPendingDeleteIds([]);
+      setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)));
       await loadPage(page);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to delete media.");
     } finally {
+      setBulkDeleting(false);
       setDeletingId("");
     }
   };
@@ -449,13 +488,27 @@ export default function MediaPage() {
         </Box>
       ) : null}
 
-      <Box display="flex" justifyContent="space-between" alignItems="center">
+      <Box display="flex" justifyContent="space-between" alignItems="center" gap={3} style={{ flexWrap: "wrap" }}>
         <Text size={3} color="default2">
           {total === 0
             ? "No media yet"
             : `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} of ${total}`}
         </Text>
-        <Box display="flex" gap={2} alignItems="center">
+        <Box display="flex" gap={2} alignItems="center" style={{ flexWrap: "wrap" }}>
+          <Button variant="secondary" disabled={items.length === 0 || loading} onClick={toggleSelectAllPage}>
+            {allPageSelected ? "Unselect page" : "Select all"}
+          </Button>
+          <Button variant="tertiary" disabled={selectedCount === 0} onClick={clearSelection}>
+            Clear ({selectedCount})
+          </Button>
+          <Button
+            variant="primary"
+            disabled={selectedCount === 0 || bulkDeleting}
+            onClick={() => requestDelete(selectedIds)}
+            style={{ background: selectedCount ? "#B42318" : undefined }}
+          >
+            Delete selected ({selectedCount})
+          </Button>
           <Button variant="secondary" disabled={!hasPrev || loading} onClick={() => void loadPage(page - 1)}>
             Prev
           </Button>
@@ -509,7 +562,21 @@ export default function MediaPage() {
               display="flex"
               flexDirection="column"
               gap={3}
+              style={{
+                outline: selectedIds.includes(item.id) ? "2px solid #28234A" : "none",
+                background: selectedIds.includes(item.id) ? "#F7F7FB" : "#fff",
+              }}
             >
+              <Box display="flex" justifyContent="space-between" alignItems="center">
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(item.id)}
+                    onChange={() => toggleSelect(item.id)}
+                  />
+                  <Text size={1}>Select</Text>
+                </label>
+              </Box>
               <Box
                 style={{
                   width: "100%",
@@ -563,8 +630,8 @@ export default function MediaPage() {
                 </Button>
                 <Button
                   variant="tertiary"
-                  disabled={deletingId === item.id}
-                  onClick={() => void deleteItem(item)}
+                  disabled={deletingId === item.id || bulkDeleting}
+                  onClick={() => requestDelete([item.id])}
                   style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#B42318" }}
                 >
                   <Trash2 size={14} /> Delete
@@ -574,6 +641,55 @@ export default function MediaPage() {
           ))}
         </Box>
       )}
+
+      {pendingDeleteIds.length > 0 ? (
+        <Box
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 220,
+            padding: 16,
+          }}
+          onClick={() => (!bulkDeleting ? setPendingDeleteIds([]) : null)}
+        >
+          <Box
+            backgroundColor="default1"
+            borderRadius={4}
+            padding={6}
+            display="flex"
+            flexDirection="column"
+            gap={4}
+            style={{ width: "min(460px, 100%)" }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <Text size={5} fontWeight="bold">
+              Delete media?
+            </Text>
+            <Text size={2} color="default2">
+              {pendingDeleteIds.length === 1
+                ? "This will permanently delete 1 selected image from storage and the media catalog."
+                : `This will permanently delete ${pendingDeleteIds.length} selected images from storage and the media catalog.`}
+            </Text>
+            <Box display="flex" justifyContent="flex-end" gap={2}>
+              <Button variant="secondary" disabled={bulkDeleting} onClick={() => setPendingDeleteIds([])}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                disabled={bulkDeleting}
+                onClick={() => void confirmDelete()}
+                style={{ background: "#B42318" }}
+              >
+                {bulkDeleting ? "Deleting..." : "Delete"}
+              </Button>
+            </Box>
+          </Box>
+        </Box>
+      ) : null}
 
       {editing ? (
         <Box

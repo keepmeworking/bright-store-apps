@@ -3,7 +3,8 @@ import sharp from "sharp";
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/jpg"]);
 
 const MAX_INPUT_BYTES = 12 * 1024 * 1024; // 12MB
-const MAX_EDGE_PX = 4096;
+const MAX_EDGE_PX = 2560;
+const QUALITY_STEPS = [78, 70, 62, 55];
 
 export type ConvertedMagicMediaImage = {
   buffer: Buffer;
@@ -27,11 +28,7 @@ export const assertAllowedImageUpload = (input: { mimeType?: string; sizeBytes: 
   }
 };
 
-/**
- * Compress and convert to WebP at high quality without visible quality loss.
- * Keeps original dimensions unless longer edge exceeds MAX_EDGE_PX.
- */
-export const convertImageToWebp = async (input: Buffer): Promise<ConvertedMagicMediaImage> => {
+const encodeWebp = async (input: Buffer, quality: number) => {
   const image = sharp(input, { failOn: "none", animated: false });
   const meta = await image.metadata();
   const width = meta.width || 0;
@@ -49,20 +46,43 @@ export const convertImageToWebp = async (input: Buffer): Promise<ConvertedMagicM
 
   const buffer = await pipeline
     .webp({
-      quality: 90,
-      alphaQuality: 100,
+      quality,
+      alphaQuality: Math.min(100, quality + 10),
       smartSubsample: true,
-      effort: 4,
+      effort: 6,
     })
     .toBuffer();
 
   const outMeta = await sharp(buffer).metadata();
-
   return {
     buffer,
-    contentType: "image/webp",
+    contentType: "image/webp" as const,
     width: outMeta.width || width,
     height: outMeta.height || height,
     sizeBytes: buffer.byteLength,
   };
+};
+
+/**
+ * Convert to WebP and keep the smallest candidate that stays visually strong.
+ * Prefer output smaller than the original upload when possible.
+ */
+export const convertImageToWebp = async (input: Buffer): Promise<ConvertedMagicMediaImage> => {
+  let best: ConvertedMagicMediaImage | null = null;
+
+  for (const quality of QUALITY_STEPS) {
+    const candidate = await encodeWebp(input, quality);
+    if (!best || candidate.sizeBytes < best.sizeBytes) {
+      best = candidate;
+    }
+    // Stop once we beat the original size (or get close enough on already-small files).
+    if (candidate.sizeBytes <= input.byteLength) {
+      return candidate;
+    }
+  }
+
+  if (!best) {
+    throw new Error("Unable to convert image.");
+  }
+  return best;
 };

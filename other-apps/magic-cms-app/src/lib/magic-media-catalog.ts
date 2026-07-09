@@ -180,8 +180,35 @@ export const removeMagicMediaItem = async (id: string) =>
     if (!existing) {
       throw new Error("Media item not found.");
     }
-    await deleteObjectKey(buildObjectKeyForFileName(existing.fileName, config), config);
+    try {
+      await deleteObjectKey(buildObjectKeyForFileName(existing.fileName, config), config);
+    } catch (error: any) {
+      const status = error?.$metadata?.httpStatusCode;
+      const code = error?.name || error?.Code;
+      // Object may already be gone; still remove catalog entry.
+      if (status !== 404 && code !== "NoSuchKey" && code !== "NotFound") {
+        throw error;
+      }
+    }
     catalog.items = catalog.items.filter((item) => item.id !== id);
     await writeMagicMediaCatalog(catalog, config);
     return existing;
   });
+
+export const removeMagicMediaItems = async (ids: string[]) => {
+  const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+  const deleted: MagicMediaItem[] = [];
+  const missing: string[] = [];
+  for (const id of uniqueIds) {
+    try {
+      deleted.push(await removeMagicMediaItem(id));
+    } catch (error) {
+      if (error instanceof Error && error.message === "Media item not found.") {
+        missing.push(id);
+        continue;
+      }
+      throw error;
+    }
+  }
+  return { deleted, missing };
+};
