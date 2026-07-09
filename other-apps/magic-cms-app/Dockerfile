@@ -16,6 +16,7 @@ RUN pnpm install --frozen-lockfile
 # Build the project
 FROM base AS builder
 WORKDIR /app
+RUN apk add --no-cache libc6-compat
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # `public` can be absent in this app; ensure it exists for runner COPY step.
@@ -38,6 +39,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+RUN apk add --no-cache libc6-compat
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 

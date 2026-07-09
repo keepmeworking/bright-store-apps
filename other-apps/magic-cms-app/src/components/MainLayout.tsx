@@ -1,6 +1,6 @@
 import { Box, Button, Text } from "@saleor/macaw-ui";
 import { useRouter } from "next/router";
-import { BarChart3, Layout, MessageSquare, Video, Home, Settings } from "lucide-react";
+import { BarChart3, Layout, MessageSquare, Video, Home, Settings, Image as ImageIcon } from "lucide-react";
 import { PropsWithChildren } from "react";
 
 export const MainLayout = ({ children }: PropsWithChildren) => {
@@ -13,6 +13,7 @@ export const MainLayout = ({ children }: PropsWithChildren) => {
     { label: "Widgets", href: "/widgets", icon: Layout },
     { label: "Reviews", href: "/reviews", icon: MessageSquare },
     { label: "Videos", href: "/videos", icon: Video },
+    { label: "Media", href: "/media", icon: ImageIcon },
     { label: "Settings", href: "/settings", icon: Settings },
   ];
 

@@ -86,6 +86,7 @@ export default {
     "shiprockets",
     "awb",
     "AWB",
+    "bymagic",
   ],
   language: "en-US",
   useGitignore: true,

@@ -3,7 +3,7 @@ import { useAppBridge } from "@saleor/app-sdk/app-bridge";
 import { Box, Button, Text } from "@saleor/macaw-ui";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BarChart3, Layout, MessageSquare, Video, CheckCircle } from "lucide-react";
+import { BarChart3, Layout, MessageSquare, Video, CheckCircle, Image as ImageIcon } from "lucide-react";
 import type { SetupOpsJobSummary, SetupOpsJobType } from "@/lib/setup-ops-jobs";
 import type { SetupMenuStatus } from "@/lib/setup";
 
@@ -674,6 +674,12 @@ export default function IndexPage() {
           description="Manage videos with tagged products and display rules."
           href="/videos"
           icon={Video}
+        />
+        <ModuleCard
+          title="Media"
+          description="Upload, edit, and manage Magic CMS images (WebP, bymagic-media-*)."
+          href="/media"
+          icon={ImageIcon}
         />
       </Box>
     </Box>

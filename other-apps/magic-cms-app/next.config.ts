@@ -5,6 +5,7 @@ const config: NextConfig = {
   reactStrictMode: true,
   output: "standalone",
   transpilePackages: ["@saleor/macaw-ui"],
+  serverExternalPackages: ["sharp", "@aws-sdk/client-s3"],
   async headers() {
     return [
       {
