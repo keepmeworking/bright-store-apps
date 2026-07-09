@@ -94,7 +94,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     const converted = await convertImageToWebp(parsed.buffer);
-    const named = buildMagicMediaFileName(parsed.fileName);
+    const named = buildMagicMediaFileName();
     const config = getMediaStorageConfig();
     const objectKey = buildObjectKeyForFileName(named.fileName, config);
 

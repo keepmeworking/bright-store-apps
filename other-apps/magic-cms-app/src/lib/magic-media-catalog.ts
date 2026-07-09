@@ -3,11 +3,9 @@ import {
   buildPublicMediaUrl,
   deleteObjectKey,
   getMediaStorageConfig,
-  getObjectBuffer,
   putObjectBuffer,
   type MediaStorageConfig,
 } from "@/lib/r2-media-client";
-import { buildMagicMediaFileName } from "@/lib/magic-media-name";
 
 export type MagicMediaItem = {
   id: string;
@@ -153,7 +151,6 @@ export const appendMagicMediaItem = async (input: {
 export const updateMagicMediaItem = async (input: {
   id: string;
   alt?: string;
-  displayName?: string;
 }) =>
   withCatalogLock(async () => {
     const config = getMediaStorageConfig();
@@ -164,37 +161,8 @@ export const updateMagicMediaItem = async (input: {
     }
 
     const current = catalog.items[index];
-    let nextFileName = current.fileName;
-    let nextUrl = current.url;
-
-    const displayName = (input.displayName || "").trim();
-    if (displayName) {
-      const renamed = buildMagicMediaFileName(displayName, current.id);
-      if (renamed.fileName !== current.fileName) {
-        const fromKey = buildObjectKeyForFileName(current.fileName, config);
-        const toKey = buildObjectKeyForFileName(renamed.fileName, config);
-        const body = await getObjectBuffer(fromKey, config);
-        if (!body) {
-          throw new Error("Media file missing in storage.");
-        }
-        await putObjectBuffer(
-          {
-            key: toKey,
-            body,
-            contentType: current.contentType || "image/webp",
-          },
-          config,
-        );
-        await deleteObjectKey(fromKey, config);
-        nextFileName = renamed.fileName;
-        nextUrl = buildPublicMediaUrl(renamed.fileName, config);
-      }
-    }
-
     const updated: MagicMediaItem = {
       ...current,
-      fileName: nextFileName,
-      url: nextUrl,
       alt: typeof input.alt === "string" ? input.alt.trim() : current.alt,
       updatedAt: new Date().toISOString(),
     };

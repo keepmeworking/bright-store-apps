@@ -5,7 +5,6 @@ import { removeMagicMediaItem, updateMagicMediaItem } from "@/lib/magic-media-ca
 type PatchBody = {
   id?: string;
   alt?: string;
-  displayName?: string;
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -21,7 +20,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const item = await updateMagicMediaItem({
         id,
         alt: body.alt,
-        displayName: body.displayName,
       });
       return res.status(200).json({ item });
     }

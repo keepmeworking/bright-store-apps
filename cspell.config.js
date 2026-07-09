@@ -87,6 +87,7 @@ export default {
     "awb",
     "AWB",
     "bymagic",
+    "daikcell",
   ],
   language: "en-US",
   useGitignore: true,

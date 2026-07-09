@@ -1,6 +1,6 @@
 import { useAppBridge } from "@saleor/app-sdk/app-bridge";
 import { Box, Button, Input, Spinner, Text } from "@saleor/macaw-ui";
-import { Copy, Edit, Eye, Image as ImageIcon, Trash2, Upload } from "lucide-react";
+import { Copy, Edit, Eye, Image as ImageIcon, Trash2, Upload, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import type { MagicMediaItem } from "@/lib/magic-media-catalog";
 
@@ -20,11 +20,14 @@ type UploadStatus = "queued" | "uploading" | "done" | "failed";
 type UploadQueueItem = {
   id: string;
   fileName: string;
+  sizeBytes: number;
   status: UploadStatus;
   error: string;
+  storedFileName?: string;
 };
 
 const PAGE_SIZE = 20;
+const MAX_CONCURRENT_UPLOADS = 3;
 
 const formatBytes = (value: number) => {
   if (!Number.isFinite(value) || value <= 0) return "0 B";
@@ -33,10 +36,21 @@ const formatBytes = (value: number) => {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+const createLocalId = () => `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+const statusLabel: Record<UploadStatus, string> = {
+  queued: "Queued",
+  uploading: "Uploading",
+  done: "Done",
+  failed: "Failed",
+};
+
 export default function MediaPage() {
   const { appBridgeState } = useAppBridge();
   const token = appBridgeState?.token || "";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadBusyRef = useRef(false);
+  const pendingFilesRef = useRef<Map<string, File>>(new Map());
 
   const [items, setItems] = useState<MagicMediaItem[]>([]);
   const [page, setPage] = useState(1);
@@ -51,7 +65,6 @@ export default function MediaPage() {
   const [copiedId, setCopiedId] = useState("");
   const [editing, setEditing] = useState<MagicMediaItem | null>(null);
   const [editAlt, setEditAlt] = useState("");
-  const [editDisplayName, setEditDisplayName] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState("");
 
@@ -61,6 +74,14 @@ export default function MediaPage() {
     }),
     [token],
   );
+
+  const queueStats = useMemo(() => {
+    const queued = queue.filter((item) => item.status === "queued").length;
+    const uploading = queue.filter((item) => item.status === "uploading").length;
+    const done = queue.filter((item) => item.status === "done").length;
+    const failed = queue.filter((item) => item.status === "failed").length;
+    return { queued, uploading, done, failed, total: queue.length };
+  }, [queue]);
 
   const loadPage = useCallback(
     async (nextPage: number) => {
@@ -94,50 +115,132 @@ export default function MediaPage() {
     void loadPage(1);
   }, [loadPage]);
 
-  const uploadFiles = async (files: FileList | File[]) => {
-    const list = Array.from(files || []).filter(Boolean);
-    if (!list.length || !token) return;
+  const processUploadQueue = useCallback(async () => {
+    if (!token || uploadBusyRef.current) return;
+    uploadBusyRef.current = true;
 
-    for (const file of list) {
-      const localId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      setQueue((prev) => [
-        { id: localId, fileName: file.name, status: "uploading", error: "" },
-        ...prev,
-      ]);
-
-      try {
-        const form = new FormData();
-        form.append("file", file, file.name);
-        const response = await fetch("/api/media/upload", {
-          method: "POST",
-          headers: authHeaders,
-          body: form,
+    let uploadedAny = false;
+    try {
+      while (true) {
+        const snapshot = await new Promise<UploadQueueItem[]>((resolve) => {
+          setQueue((prev) => {
+            resolve(prev);
+            return prev;
+          });
         });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(payload.message || "Upload failed.");
+
+        const uploadingCount = snapshot.filter((item) => item.status === "uploading").length;
+        const slots = Math.max(0, MAX_CONCURRENT_UPLOADS - uploadingCount);
+        const nextBatch = snapshot.filter((item) => item.status === "queued").slice(0, slots);
+
+        if (nextBatch.length === 0) {
+          if (uploadingCount === 0) break;
+          await new Promise((resolve) => window.setTimeout(resolve, 120));
+          continue;
         }
-        setQueue((prev) =>
-          prev.map((item) => (item.id === localId ? { ...item, status: "done" } : item)),
-        );
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Upload failed.";
+
         setQueue((prev) =>
           prev.map((item) =>
-            item.id === localId ? { ...item, status: "failed", error: message } : item,
+            nextBatch.some((batchItem) => batchItem.id === item.id)
+              ? { ...item, status: "uploading", error: "" }
+              : item,
           ),
         );
+
+        await Promise.all(
+          nextBatch.map(async (queueItem) => {
+            const file = pendingFilesRef.current.get(queueItem.id);
+            if (!file) {
+              setQueue((prev) =>
+                prev.map((item) =>
+                  item.id === queueItem.id
+                    ? { ...item, status: "failed", error: "File missing from queue." }
+                    : item,
+                ),
+              );
+              return;
+            }
+
+            try {
+              const form = new FormData();
+              form.append("file", file, file.name);
+              const response = await fetch("/api/media/upload", {
+                method: "POST",
+                headers: authHeaders,
+                body: form,
+              });
+              const payload = await response.json().catch(() => ({}));
+              if (!response.ok) {
+                throw new Error(payload.message || "Upload failed.");
+              }
+              uploadedAny = true;
+              const storedFileName =
+                typeof payload?.item?.fileName === "string" ? payload.item.fileName : undefined;
+              setQueue((prev) =>
+                prev.map((item) =>
+                  item.id === queueItem.id
+                    ? { ...item, status: "done", error: "", storedFileName }
+                    : item,
+                ),
+              );
+            } catch (err) {
+              const message = err instanceof Error ? err.message : "Upload failed.";
+              setQueue((prev) =>
+                prev.map((item) =>
+                  item.id === queueItem.id ? { ...item, status: "failed", error: message } : item,
+                ),
+              );
+            } finally {
+              pendingFilesRef.current.delete(queueItem.id);
+            }
+          }),
+        );
+      }
+    } finally {
+      uploadBusyRef.current = false;
+      if (uploadedAny) {
+        await loadPage(1);
       }
     }
+  }, [authHeaders, loadPage, token]);
 
-    await loadPage(1);
-  };
+  const enqueueFiles = useCallback(
+    (files: FileList | File[]) => {
+      const list = Array.from(files || []).filter(Boolean);
+      if (!list.length || !token) return;
+
+      const nextItems: UploadQueueItem[] = list.map((file) => {
+        const id = createLocalId();
+        pendingFilesRef.current.set(id, file);
+        return {
+          id,
+          fileName: file.name,
+          sizeBytes: file.size,
+          status: "queued",
+          error: "",
+        };
+      });
+
+      setQueue((prev) => [...nextItems, ...prev]);
+      void processUploadQueue();
+    },
+    [processUploadQueue, token],
+  );
 
   const onPickFiles = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files?.length) {
-      void uploadFiles(event.target.files);
+      enqueueFiles(event.target.files);
       event.target.value = "";
     }
+  };
+
+  const clearFinishedQueue = () => {
+    setQueue((prev) => prev.filter((item) => item.status === "queued" || item.status === "uploading"));
+  };
+
+  const removeQueueItem = (id: string) => {
+    pendingFilesRef.current.delete(id);
+    setQueue((prev) => prev.filter((item) => item.id !== id || item.status === "uploading"));
   };
 
   const copyLink = async (item: MagicMediaItem) => {
@@ -153,7 +256,6 @@ export default function MediaPage() {
   const openEdit = (item: MagicMediaItem) => {
     setEditing(item);
     setEditAlt(item.alt || "");
-    setEditDisplayName(item.fileName.replace(/^bymagic-media-/, "").replace(/_[a-z0-9]+\.webp$/i, ""));
   };
 
   const saveEdit = async () => {
@@ -170,7 +272,6 @@ export default function MediaPage() {
         body: JSON.stringify({
           id: editing.id,
           alt: editAlt,
-          displayName: editDisplayName,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -217,8 +318,8 @@ export default function MediaPage() {
             Media
           </Text>
           <Text as="p" size={3} color="default2" style={{ marginTop: 6 }}>
-            Upload images (auto WebP). Files are stored as cleaned `bymagic-media-*` names and indexed in
-            `magic-media/magic-media.json`.
+            Multi-file image upload with queue. Stored as `bymagic-media-daikcell-india-{"{id}"}.webp` and
+            indexed in `magic-media/magic-media.json`.
           </Text>
         </Box>
       </Box>
@@ -233,6 +334,7 @@ export default function MediaPage() {
           borderStyle: "dashed",
           background: dragOver ? "#F7F7FB" : "#fff",
           transition: "background 0.15s",
+          opacity: queueStats.uploading > 0 ? 0.95 : 1,
         }}
         onDragOver={(event) => {
           event.preventDefault();
@@ -243,17 +345,17 @@ export default function MediaPage() {
           event.preventDefault();
           setDragOver(false);
           if (event.dataTransfer.files?.length) {
-            void uploadFiles(event.dataTransfer.files);
+            enqueueFiles(event.dataTransfer.files);
           }
         }}
       >
         <Box display="flex" flexDirection="column" alignItems="center" gap={3}>
           <Upload size={28} />
           <Text size={4} fontWeight="bold">
-            Drag & drop images here
+            Drag & drop multiple images
           </Text>
           <Text size={2} color="default2">
-            JPG / PNG / WebP / GIF · max 12MB · converted to high-quality WebP
+            JPG / PNG / WebP / GIF · max 12MB each · auto WebP · up to {MAX_CONCURRENT_UPLOADS} parallel uploads
           </Text>
           <Button variant="primary" onClick={() => fileInputRef.current?.click()}>
             Choose files
@@ -270,23 +372,72 @@ export default function MediaPage() {
       </Box>
 
       {queue.length > 0 ? (
-        <Box display="flex" flexDirection="column" gap={2}>
-          {queue.slice(0, 6).map((item) => (
-            <Box
-              key={item.id}
-              display="flex"
-              justifyContent="space-between"
-              alignItems="center"
-              padding={3}
-              borderRadius={3}
-              style={{ background: "#FAFAFA" }}
+        <Box
+          borderStyle="solid"
+          borderWidth={1}
+          borderColor="default1"
+          borderRadius={4}
+          padding={4}
+          display="flex"
+          flexDirection="column"
+          gap={3}
+        >
+          <Box display="flex" justifyContent="space-between" alignItems="center" gap={3}>
+            <Text size={3} fontWeight="bold">
+              Upload queue · {queueStats.uploading} uploading · {queueStats.queued} queued · {queueStats.done}{" "}
+              done · {queueStats.failed} failed
+            </Text>
+            <Button
+              variant="tertiary"
+              disabled={queueStats.done + queueStats.failed === 0}
+              onClick={clearFinishedQueue}
             >
-              <Text size={2}>
-                {item.fileName} — {item.status}
-                {item.error ? ` (${item.error})` : ""}
-              </Text>
-            </Box>
-          ))}
+              Clear finished
+            </Button>
+          </Box>
+          <Box display="flex" flexDirection="column" gap={2} style={{ maxHeight: 260, overflowY: "auto" }}>
+            {queue.map((item) => (
+              <Box
+                key={item.id}
+                display="flex"
+                justifyContent="space-between"
+                alignItems="center"
+                gap={3}
+                padding={3}
+                borderRadius={3}
+                style={{
+                  background:
+                    item.status === "failed"
+                      ? "#FEECEC"
+                      : item.status === "done"
+                        ? "#F1F8F3"
+                        : "#FAFAFA",
+                }}
+              >
+                <Box display="flex" flexDirection="column" gap={1} style={{ minWidth: 0 }}>
+                  <Text size={2} style={{ wordBreak: "break-all" }}>
+                    {item.fileName} · {formatBytes(item.sizeBytes)}
+                  </Text>
+                  <Text size={1} color="default2">
+                    {statusLabel[item.status]}
+                    {item.storedFileName ? ` → ${item.storedFileName}` : ""}
+                    {item.error ? ` · ${item.error}` : ""}
+                  </Text>
+                </Box>
+                {item.status !== "uploading" ? (
+                  <Button
+                    variant="tertiary"
+                    onClick={() => removeQueueItem(item.id)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+                  >
+                    <X size={14} />
+                  </Button>
+                ) : (
+                  <Spinner />
+                )}
+              </Box>
+            ))}
+          </Box>
         </Box>
       ) : null}
 
@@ -338,7 +489,7 @@ export default function MediaPage() {
             No media uploaded
           </Text>
           <Text size={2} color="default2">
-            Upload your first image to populate the library.
+            Upload one or more images to populate the library.
           </Text>
         </Box>
       ) : (
@@ -382,6 +533,11 @@ export default function MediaPage() {
                 <Text size={1} color="default2">
                   {item.alt || "No alt text"} · {formatBytes(item.sizeBytes)} · {item.width}×{item.height}
                 </Text>
+                {item.originalName ? (
+                  <Text size={1} color="default2" style={{ wordBreak: "break-all" }}>
+                    Original: {item.originalName}
+                  </Text>
+                ) : null}
               </Box>
               <Box display="flex" flexWrap="wrap" gap={2}>
                 <Button
@@ -446,10 +602,9 @@ export default function MediaPage() {
             <Text size={5} fontWeight="bold">
               Edit media
             </Text>
-            <Box display="flex" flexDirection="column" gap={2}>
-              <Text size={2}>Display name (cleaned to bymagic-media-*)</Text>
-              <Input value={editDisplayName} onChange={(event) => setEditDisplayName(event.target.value)} />
-            </Box>
+            <Text size={2} color="default2" style={{ wordBreak: "break-all" }}>
+              {editing.fileName}
+            </Text>
             <Box display="flex" flexDirection="column" gap={2}>
               <Text size={2}>Alt text</Text>
               <Input value={editAlt} onChange={(event) => setEditAlt(event.target.value)} />
