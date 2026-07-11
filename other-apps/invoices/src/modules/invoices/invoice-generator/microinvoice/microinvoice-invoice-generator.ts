@@ -8,7 +8,7 @@ import { formatCustomerGstinLine, readGstinFromAddress } from "../../gstin";
 import {
   resolveFinalAmount,
   resolveMetadataOnlyUpgradeAmount,
-  resolveUpgradeDescription,
+  resolveUpgradeLineLabel,
 } from "../../order-upgrade";
 
 type PdfDocument = InstanceType<typeof PDFDocument>;
@@ -178,7 +178,7 @@ export function buildInvoiceRows(order: OrderPayloadFragment, currency: string, 
     goodsSubtotalAmount += metadataUpgradeAmount;
     rows.push({
       serial: String(nextSerial++),
-      description: wrapDescription(resolveUpgradeDescription(order) || "Order Upgrade"),
+      description: wrapDescription(resolveUpgradeLineLabel(order)),
       quantity: "1",
       unitPrice: formatMoney(metadataUpgradeAmount, currency, locale),
       amount: formatMoney(metadataUpgradeAmount, currency, locale),

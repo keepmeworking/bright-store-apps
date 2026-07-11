@@ -16,6 +16,7 @@ import {
   resolveFinalAmount,
   resolveUpgradeAmount,
   resolveUpgradeDescription,
+  resolveUpgradeProductName,
   resolveUpgradePspReference,
 } from "@/lib/orders-export-upgrade";
 import { normalizeSaleorApiUrl } from "@/lib/saleor-api-url";
@@ -60,6 +61,7 @@ type ExportRow = {
   "Final Amount": number;
   "Is Upgrade Order": string;
   "Upgrade Amount": number | "";
+  "Upgraded Product Name": string;
   "Upgrade Description": string;
   "Upgrade Payment Ref": string;
   "Customer Note": string;
@@ -274,6 +276,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         "Final Amount": resolveFinalAmount(order),
         "Is Upgrade Order": orderIsUpgraded(order) ? "Yes" : "No",
         "Upgrade Amount": orderIsUpgraded(order) ? resolveUpgradeAmount(order) : "",
+        "Upgraded Product Name": orderIsUpgraded(order) ? resolveUpgradeProductName(order) : "",
         "Upgrade Description": orderIsUpgraded(order) ? resolveUpgradeDescription(order) : "",
         "Upgrade Payment Ref": orderIsUpgraded(order) ? resolveUpgradePspReference(order) : "",
         "Customer Note": order.customerNote || "",
@@ -392,6 +395,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     "Final Amount": "",
     "Is Upgrade Order": "",
     "Upgrade Amount": "",
+    "Upgraded Product Name": "",
     "Upgrade Description": "",
     "Upgrade Payment Ref": "",
     "Customer Note": "",

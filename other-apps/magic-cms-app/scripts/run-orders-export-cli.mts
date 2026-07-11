@@ -17,6 +17,7 @@ import {
   resolveFinalAmount,
   resolveUpgradeAmount,
   resolveUpgradeDescription,
+  resolveUpgradeProductName,
   resolveUpgradePspReference,
 } from "../src/lib/orders-export-upgrade.ts";
 
@@ -179,6 +180,7 @@ while (true) {
       "Final Amount": resolveFinalAmount(order),
       "Is Upgrade Order": orderIsUpgraded(order) ? "Yes" : "No",
       "Upgrade Amount": orderIsUpgraded(order) ? resolveUpgradeAmount(order) : "",
+      "Upgraded Product Name": orderIsUpgraded(order) ? resolveUpgradeProductName(order) : "",
       "Upgrade Description": orderIsUpgraded(order) ? resolveUpgradeDescription(order) : "",
       "Upgrade Payment Ref": orderIsUpgraded(order) ? resolveUpgradePspReference(order) : "",
       "Customer Note": order.customerNote || "",

@@ -4,11 +4,13 @@ import * as assert from "node:assert/strict";
 import {
   ORDER_UPGRADE_AMOUNT_KEY,
   ORDER_UPGRADE_METADATA_KEY,
+  ORDER_UPGRADE_PRODUCT_NAME_KEY,
   ORDER_UPGRADE_SKU,
   resolveChargeStatusDisplay,
   resolveFinalAmount,
   resolveUpgradeAmount,
   resolveUpgradeDescription,
+  resolveUpgradeProductName,
   resolveUpgradePspReference,
 } from "./orders-export-upgrade.ts";
 
@@ -72,5 +74,14 @@ test("resolveUpgradeDescription and psp reference read metadata", () => {
       metadata: [{ key: "upgrade_psp_reference", value: "pay_abc123" }],
     }),
     "pay_abc123",
+  );
+});
+
+test("resolveUpgradeProductName reads upgraded product name metadata", () => {
+  assert.equal(
+    resolveUpgradeProductName({
+      metadata: [{ key: ORDER_UPGRADE_PRODUCT_NAME_KEY, value: "iPhone 16 Pro Max" }],
+    }),
+    "iPhone 16 Pro Max",
   );
 });

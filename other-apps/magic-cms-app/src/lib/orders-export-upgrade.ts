@@ -3,6 +3,7 @@ export const ORDER_UPGRADE_METADATA_KEY = "is_upgraded";
 export const ORDER_UPGRADE_AMOUNT_KEY = "upgrade_amount";
 export const ORDER_UPGRADE_PSP_KEY = "upgrade_psp_reference";
 export const ORDER_UPGRADE_DESCRIPTION_KEY = "upgrade_description";
+export const ORDER_UPGRADE_PRODUCT_NAME_KEY = "upgrade_product_name";
 
 type MetadataEntry = {
   key?: string | null;
@@ -62,6 +63,9 @@ export const resolveUpgradeAmount = (order: ExportOrderUpgradeSource) => {
 
 export const resolveUpgradeDescription = (order: ExportOrderUpgradeSource) =>
   pickMetadataValue(order.metadata, ORDER_UPGRADE_DESCRIPTION_KEY);
+
+export const resolveUpgradeProductName = (order: ExportOrderUpgradeSource) =>
+  pickMetadataValue(order.metadata, ORDER_UPGRADE_PRODUCT_NAME_KEY);
 
 export const resolveUpgradePspReference = (order: ExportOrderUpgradeSource) =>
   pickMetadataValue(order.metadata, ORDER_UPGRADE_PSP_KEY);

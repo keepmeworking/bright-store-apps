@@ -2,6 +2,7 @@ export const ORDER_UPGRADE_SKU = "ORDER-UPGRADE";
 export const ORDER_UPGRADE_METADATA_KEY = "is_upgraded";
 export const ORDER_UPGRADE_AMOUNT_KEY = "upgrade_amount";
 export const ORDER_UPGRADE_DESCRIPTION_KEY = "upgrade_description";
+export const ORDER_UPGRADE_PRODUCT_NAME_KEY = "upgrade_product_name";
 
 type MetadataEntry = {
   key?: string | null;
@@ -60,6 +61,12 @@ export const resolveUpgradeAmount = (order: InvoiceOrderUpgradeSource) => {
 
 export const resolveUpgradeDescription = (order: InvoiceOrderUpgradeSource) =>
   pickMetadataValue(order.metadata, ORDER_UPGRADE_DESCRIPTION_KEY);
+
+export const resolveUpgradeProductName = (order: InvoiceOrderUpgradeSource) =>
+  pickMetadataValue(order.metadata, ORDER_UPGRADE_PRODUCT_NAME_KEY);
+
+export const resolveUpgradeLineLabel = (order: InvoiceOrderUpgradeSource) =>
+  resolveUpgradeProductName(order) || resolveUpgradeDescription(order) || "Order Upgrade";
 
 export const resolveFinalAmount = (order: InvoiceOrderUpgradeSource) => {
   const orderTotal = order.total?.gross?.amount ?? 0;

@@ -7,6 +7,7 @@ import {
   resolveFinalAmount,
   resolveMetadataOnlyUpgradeAmount,
   resolveUpgradeAmount,
+  resolveUpgradeLineLabel,
 } from "./order-upgrade";
 
 describe("order-upgrade", () => {
@@ -41,5 +42,21 @@ describe("order-upgrade", () => {
     expect(resolveMetadataOnlyUpgradeAmount(order)).toBe(0);
     expect(resolveUpgradeAmount(order)).toBe(5000);
     expect(resolveFinalAmount(order)).toBe(15000);
+  });
+
+  it("prefers upgraded product name for invoice label", () => {
+    expect(
+      resolveUpgradeLineLabel({
+        metadata: [
+          { key: "upgrade_product_name", value: "Pixel 9 Pro" },
+          { key: "upgrade_description", value: "Capacity bump" },
+        ],
+      }),
+    ).toBe("Pixel 9 Pro");
+    expect(
+      resolveUpgradeLineLabel({
+        metadata: [{ key: "upgrade_description", value: "Capacity bump" }],
+      }),
+    ).toBe("Capacity bump");
   });
 });
