@@ -365,16 +365,75 @@ export default function ReviewDetailsPage() {
                     {/* Media */}
                     <Box style={{ borderTop: "1px solid #eee" }} paddingTop={4}>
                         <Text as="h3" size={3} fontWeight="bold" marginBottom={2}>Attached documents</Text>
-                        {data.page.attributes.find(a => a.attribute.slug === "magic-media")?.values[0]?.file ? (
-                            <img 
-                                src={data.page.attributes.find(a => a.attribute.slug === "magic-media")?.values[0]?.file?.url} 
-                                style={{ maxWidth: "100%", maxHeight: 400, borderRadius: 8, border: "1px solid #eee" }}
-                            />
-                        ) : (
-                            <Box padding={10} borderStyle="solid" borderWidth={1} borderColor="default1" borderRadius={4} display="flex" justifyContent="center">
+                        {(() => {
+                          const urls: string[] = [];
+                          const seen = new Set<string>();
+                          const push = (raw?: string | null) => {
+                            const url = String(raw || "").trim();
+                            if (!url || seen.has(url)) return;
+                            seen.add(url);
+                            urls.push(url);
+                          };
+
+                          const imagesAttr = data.page.attributes.find(
+                            (a) => a.attribute.slug === "magic-review-images",
+                          );
+                          const imagesRaw =
+                            imagesAttr?.values[0]?.plainText || imagesAttr?.values[0]?.name || "";
+                          if (imagesRaw) {
+                            try {
+                              const parsed = JSON.parse(imagesRaw) as unknown;
+                              if (Array.isArray(parsed)) {
+                                for (const item of parsed) push(String(item));
+                              } else {
+                                push(String(parsed));
+                              }
+                            } catch {
+                              for (const part of imagesRaw.split(/[\n,]+/)) push(part);
+                            }
+                          }
+
+                          push(
+                            data.page.attributes.find((a) => a.attribute.slug === "magic-media")
+                              ?.values[0]?.file?.url,
+                          );
+
+                          if (urls.length === 0) {
+                            return (
+                              <Box
+                                padding={10}
+                                borderStyle="solid"
+                                borderWidth={1}
+                                borderColor="default1"
+                                borderRadius={4}
+                                display="flex"
+                                justifyContent="center"
+                              >
                                 <Text color="default2">No media files attached to this review.</Text>
+                              </Box>
+                            );
+                          }
+
+                          return (
+                            <Box display="flex" style={{ gap: 12, flexWrap: "wrap" }}>
+                              {urls.map((url) => (
+                                <a key={url} href={url} target="_blank" rel="noreferrer">
+                                  <img
+                                    src={url}
+                                    alt="Review attachment"
+                                    style={{
+                                      maxWidth: 220,
+                                      maxHeight: 280,
+                                      borderRadius: 8,
+                                      border: "1px solid #eee",
+                                      objectFit: "cover",
+                                    }}
+                                  />
+                                </a>
+                              ))}
                             </Box>
-                        )}
+                          );
+                        })()}
                     </Box>
                 </Box>
             </Box>

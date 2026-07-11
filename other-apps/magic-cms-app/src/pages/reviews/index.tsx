@@ -479,7 +479,7 @@ const STOREFRONT_QUERY_HINT = `query StorefrontReviews($pageTypeIds: [ID!], $fir
 # storefront filtering guide:
 # 1) Keep only pages where attribute "magic-status" == "approved"
 # 2) For product page, keep rows where "magic-linked-products" reference == productId
-# 3) Use "magic-rating" for stars and "magic-media" file.url for images/videos`;
+# 3) Use "magic-rating" for stars and "magic-review-images" / "magic-media" for photos`;
 
 export default function ReviewsPage() {
   const router = useRouter();
@@ -731,6 +731,7 @@ export default function ReviewsPage() {
       statusAttrId: attrs.find((attribute) => attribute.slug === "magic-status")?.id,
       linkedProductsAttrId: attrs.find((attribute) => attribute.slug === "magic-linked-products")?.id,
       mediaAttrId: attrs.find((attribute) => attribute.slug === "magic-media")?.id,
+      imagesAttrId: attrs.find((attribute) => attribute.slug === "magic-review-images")?.id,
     };
   }, [pageTypeNode]);
 
@@ -1651,7 +1652,8 @@ export default function ReviewsPage() {
                 ["magic-rating", "Attribute (numeric)", "Rating value (1-5)"],
                 ["magic-status", "Attribute (dropdown)", "Moderation status (approved/rejected/pending)"],
                 ["magic-linked-products", "Attribute (reference)", "Linked Saleor product ID"],
-                ["magic-media", "Attribute (file)", "Review photo/video URL"],
+                ["magic-media", "Attribute (file)", "Primary review photo (first URL)"],
+                ["magic-review-images", "Attribute (plain text JSON)", "All review photo URLs as JSON array"],
                 ["slug", "Page.slug", "Auto-generated: magic-rw-{unique_id}"],
               ].map((item) => (
                 <Box

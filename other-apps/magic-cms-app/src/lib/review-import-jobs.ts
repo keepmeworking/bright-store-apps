@@ -38,6 +38,7 @@ type ReviewImportPayload = {
     statusAttrId?: string;
     linkedProductsAttrId?: string;
     mediaAttrId?: string;
+    imagesAttrId?: string;
   };
   productIdentifier: "product_id" | "product_handle";
   rows: ReviewImportPreparedRow[];
@@ -337,6 +338,12 @@ const processReviewImportJob = async (summary: ReviewImportJobSummary) => {
     }
     if (payload.reviewAttrIds.mediaAttrId && row.pictureUrls?.[0]) {
       attributes.push({ id: payload.reviewAttrIds.mediaAttrId, file: row.pictureUrls[0] });
+    }
+    if (payload.reviewAttrIds.imagesAttrId && row.pictureUrls?.length) {
+      attributes.push({
+        id: payload.reviewAttrIds.imagesAttrId,
+        plainText: JSON.stringify(row.pictureUrls),
+      });
     }
 
     const content = buildReviewBodyContent(row);

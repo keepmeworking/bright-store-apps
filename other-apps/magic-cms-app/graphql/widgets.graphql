@@ -21,6 +21,8 @@ fragment PageFragment on Page {
       slug
       value
       reference
+      plainText
+      boolean
       file {
         url
         contentType
