@@ -1,5 +1,6 @@
 import { type Client } from "urql";
 import { UpdateWidgetDocument } from "../../generated/graphql";
+import { isCoreShoppableWidgetSlug } from "./shoppable-video";
 import { MODULE_PAGE_TYPE_PREFIX } from "./widget-models";
 
 const MAGIC_REF_WIDGET_SLUG = "magic-ref-widget";
@@ -154,6 +155,30 @@ export const syncMagicRefWidgetOnModulePages = async (
 
   if (!widgetPageId) {
     return { updated, skipped, errors: ["Widget ID is missing for magic-ref-widget sync."] };
+  }
+
+  // Core Homepage/PDP widgets are resolved by fixed slug on the storefront — never broadcast.
+  try {
+    const pageLookup: any = await client
+      .query(
+        `
+          query ShoppableWidgetSlugById($id: ID!) {
+            page(id: $id) {
+              id
+              slug
+            }
+          }
+        `,
+        { id: widgetPageId },
+        { requestPolicy: "network-only" }
+      )
+      .toPromise();
+    const slug = pageLookup?.data?.page?.slug as string | undefined;
+    if (isCoreShoppableWidgetSlug(slug)) {
+      return { updated: 0, skipped: 1, errors: [] };
+    }
+  } catch {
+    // If lookup fails, continue — custom widget sync should not be blocked.
   }
 
   let modulePageTypeIds: string[] = [];

@@ -88,6 +88,8 @@ export default {
     "AWB",
     "bymagic",
     "daikcell",
+    "shoppable",
+    "idempotently",
   ],
   language: "en-US",
   useGitignore: true,

@@ -17,6 +17,7 @@ import { useClient } from "urql";
 import {
   type ShoppableVideoFileInfo,
   SH_VIDEO_ATTR_SLUGS,
+  SHOPPABLE_CORE_WIDGET_SLUGS,
   createVideoTitleFromFileName,
   formatBytes,
   formatUtcUploadLabel,
@@ -24,8 +25,10 @@ import {
   getFileUrlBySlug,
   getReferenceValuesBySlug,
   getTextValueBySlug,
+  isCoreShoppableWidgetSlug,
   parseFileInfo,
 } from "@/lib/shoppable-video";
+import { ensureCoreShoppableWidgets } from "@/lib/shoppable-core-widgets";
 import { extractVideoAsset, uploadFileToSaleor } from "@/lib/shoppable-video-upload";
 import { syncMagicRefWidgetOnModulePages } from "@/lib/module-widget-reference-sync";
 
@@ -206,6 +209,10 @@ export default function VideosPage() {
   const [widgetError, setWidgetError] = useState("");
   const [isSavingWidgetVideos, setIsSavingWidgetVideos] = useState(false);
   const [isCreatingWidget, setIsCreatingWidget] = useState(false);
+  const [isCreateWidgetPopupOpen, setIsCreateWidgetPopupOpen] = useState(false);
+  const [isEnsuringCoreWidgets, setIsEnsuringCoreWidgets] = useState(false);
+  const [deletingWidgetId, setDeletingWidgetId] = useState("");
+  const [widgetDeleteConfirmId, setWidgetDeleteConfirmId] = useState("");
 
   const [{ data: videoTypeData, fetching: fetchingVideoType }, reexecuteVideoType] = useGetPageTypesQuery({
     variables: { slug: "magiccms-shoppable-video" },
@@ -372,15 +379,27 @@ export default function VideosPage() {
             )
           : [];
         const linkedVideoCount = (refs.length > 0 ? refs : fallbackRefs).length;
+        const isCore = isCoreShoppableWidgetSlug(widget.slug);
         return {
           id: widget.id,
           title: widget.title,
           slug: widget.slug,
           displayName: configuredName || widget.title,
           linkedVideoCount,
+          isCore,
         };
       }),
     [widgets]
+  );
+  const coreWidgetListItems = useMemo(() => {
+    const bySlug = new Map(widgetListItems.filter((item) => item.isCore).map((item) => [item.slug, item]));
+    return SHOPPABLE_CORE_WIDGET_SLUGS.map((slug) => bySlug.get(slug)).filter(
+      (item): item is (typeof widgetListItems)[number] => Boolean(item)
+    );
+  }, [widgetListItems]);
+  const customWidgetListItems = useMemo(
+    () => widgetListItems.filter((item) => !item.isCore),
+    [widgetListItems]
   );
   const selectedWidgetListItem = useMemo(
     () => widgetListItems.find((item) => item.id === selectedWidgetId) || null,
@@ -413,6 +432,38 @@ export default function VideosPage() {
       setSelectedWidgetId("");
     }
   }, [selectedWidgetId, widgets]);
+
+  useEffect(() => {
+    if (activeTab !== "widgets") return;
+    let cancelled = false;
+
+    const run = async () => {
+      setIsEnsuringCoreWidgets(true);
+      try {
+        const result = await ensureCoreShoppableWidgets(gqlClient);
+        if (cancelled) return;
+        if (result.errors.length > 0) {
+          setWidgetError(result.errors[0]);
+        } else if (result.created.length > 0) {
+          setWidgetNotice(
+            `Core widgets ready: created ${result.created.join(", ")}. Add videos with Manage videos.`
+          );
+          await reexecuteWidgets({ requestPolicy: "network-only" });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setWidgetError(error instanceof Error ? error.message : "Failed to ensure core widgets.");
+        }
+      } finally {
+        if (!cancelled) setIsEnsuringCoreWidgets(false);
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, gqlClient, reexecuteWidgets]);
 
   const patchUploadJob = useCallback((jobId: string, updater: (job: VideoUploadJob) => VideoUploadJob) => {
     setUploadJobs((prev) => prev.map((job) => (job.id === jobId ? updater(job) : job)));
@@ -675,6 +726,10 @@ export default function VideosPage() {
     }
     const refs = Array.from(newWidgetVideoRefs);
     const finalSlug = buildWidgetSlug(title);
+    if (isCoreShoppableWidgetSlug(finalSlug)) {
+      setWidgetError("That name would create a reserved core widget slug. Choose another name.");
+      return;
+    }
     let selectedPageType: NonNullable<typeof shoppableWidgetPageType> | null = null;
     let widgetNameAttr: { id: string; slug?: string | null } | undefined;
     let refAttr: { id: string; slug?: string | null } | undefined;
@@ -747,6 +802,7 @@ export default function VideosPage() {
       return;
     }
 
+    // Custom widgets only — do not broadcast core widgets to every module page.
     const syncResult = await syncMagicRefWidgetOnModulePages(gqlClient, createdPage.id, "add");
 
     await reexecuteWidgets({ requestPolicy: "network-only" });
@@ -754,12 +810,47 @@ export default function VideosPage() {
     setSelectedVideoRefs(new Set(refs));
     setNewWidgetName("");
     setNewWidgetVideoRefs(new Set());
+    setIsCreateWidgetPopupOpen(false);
     setWidgetNotice(
       syncResult.errors.length > 0
         ? `Widget "${createdPage.title}" created. Warning: ${syncResult.errors[0]}`
-        : `Widget "${createdPage.title}" created with slug "${createdPage.slug}".`
+        : `Custom widget "${createdPage.title}" created.`
     );
     setIsCreatingWidget(false);
+  };
+
+  const deleteCustomWidget = async (widgetId: string, slug: string) => {
+    if (isCoreShoppableWidgetSlug(slug)) {
+      setWidgetError("Core Homepage/PDP widgets cannot be deleted.");
+      setWidgetDeleteConfirmId("");
+      return;
+    }
+
+    setDeletingWidgetId(widgetId);
+    setWidgetError("");
+    setWidgetNotice("");
+
+    const result = await deleteWidget({ id: widgetId });
+    const mutationErrors = result.data?.pageDelete?.errors || [];
+    if (result.error || mutationErrors.length > 0) {
+      setWidgetError(
+        result.error?.message ||
+          mutationErrors.map((error) => error.message).filter(Boolean).join(", ") ||
+          "Unable to delete widget."
+      );
+      setDeletingWidgetId("");
+      setWidgetDeleteConfirmId("");
+      return;
+    }
+
+    await syncMagicRefWidgetOnModulePages(gqlClient, widgetId, "remove");
+    if (selectedWidgetId === widgetId) {
+      setSelectedWidgetId("");
+    }
+    await reexecuteWidgets({ requestPolicy: "network-only" });
+    setWidgetNotice("Custom widget deleted.");
+    setDeletingWidgetId("");
+    setWidgetDeleteConfirmId("");
   };
 
   const saveWidgetVideoRefs = async () => {
@@ -1433,90 +1524,6 @@ export default function VideosPage() {
 
       {activeTab === "widgets" ? (
         <Box display="grid" gap={4}>
-          <Box borderStyle="solid" borderWidth={1} borderColor="default1" borderRadius={4} padding={4} display="grid" gap={3}>
-            <Text as="h3" size={6} fontWeight="bold">
-              Create shoppable widget
-            </Text>
-            <Text size={2} color="default2">
-              Widget type is fixed to `magic-widget-shoppable`. Slug is auto-generated with
-              `magic-widget-shoppable-*`.
-            </Text>
-
-            <Box display="grid" gap={1} style={{ maxWidth: 560 }}>
-              <Text size={1} color="default2">
-                Widget name
-              </Text>
-              <Input
-                value={newWidgetName}
-                onChange={(event) => setNewWidgetName(event.target.value)}
-                placeholder="Homepage reels"
-              />
-              <Text size={1} color="default2">
-                Stored in `magic-shoppable-widget-name`.
-              </Text>
-              <Text size={1} color="default2">
-                Slug is auto-created as `magic-widget-shoppable-&lt;name&gt;-&lt;unique_id&gt;`.
-              </Text>
-            </Box>
-
-            {!shoppableWidgetPageType ? (
-              <Box borderStyle="solid" borderWidth={1} borderColor="critical1" borderRadius={4} padding={3}>
-                <Text color="critical1">
-                  Page type `magic-widget-shoppable` not found. Run One-Click Initialization first.
-                </Text>
-              </Box>
-            ) : null}
-
-            {enrichedVideos.length === 0 ? (
-              <Text size={2} color="default2">
-                Upload videos first in Media tab.
-              </Text>
-            ) : (
-              <Box display="grid" gap={2}>
-                <Text size={2} color="default2">
-                  Select videos for new widget: {newWidgetVideoRefs.size}
-                </Text>
-                <Box display="grid" gap={2} style={{ maxHeight: 280, overflowY: "auto", paddingRight: 4 }}>
-                  {enrichedVideos.map((video) => (
-                    <label
-                      key={`new_${video.node.id}`}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        border: "1px solid #E4E7EC",
-                        borderRadius: 8,
-                        padding: "8px 10px",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={newWidgetVideoRefs.has(video.node.id)}
-                        onChange={() => toggleNewWidgetVideoRef(video.node.id)}
-                      />
-                      <Text size={2} style={{ flex: 1 }}>
-                        {video.node.title}
-                      </Text>
-                      <Text size={1} color="default2">
-                        {video.linkedProducts} products
-                      </Text>
-                    </label>
-                  ))}
-                </Box>
-              </Box>
-            )}
-
-            <Box display="flex" justifyContent="flex-end">
-              <Button
-                variant="primary"
-                onClick={() => void createShoppableWidget()}
-                disabled={isCreatingWidget || !shoppableWidgetPageType}
-              >
-                {isCreatingWidget ? "Creating..." : "Create widget"}
-              </Button>
-            </Box>
-          </Box>
-
           {widgetError ? (
             <Box borderStyle="solid" borderWidth={1} borderColor="critical1" borderRadius={4} padding={3}>
               <Text color="critical1">{widgetError}</Text>
@@ -1529,24 +1536,35 @@ export default function VideosPage() {
           ) : null}
 
           <Box borderStyle="solid" borderWidth={1} borderColor="default1" borderRadius={4} padding={4} display="grid" gap={3}>
-            <Text as="h3" size={6} fontWeight="bold">
-              Shoppable widgets list
-            </Text>
-            <Text size={2} color="default2">
-              Showing all widgets from page type `magic-widget-shoppable`.
-            </Text>
+            <Box display="flex" justifyContent="space-between" alignItems="center" style={{ gap: 12 }}>
+              <Box display="grid" gap={1}>
+                <Text as="h3" size={6} fontWeight="bold">
+                  Core widgets (locked)
+                </Text>
+                <Text size={2} color="default2">
+                  Homepage and PDP carousels. Always available — edit videos only, cannot delete.
+                </Text>
+              </Box>
+              {isEnsuringCoreWidgets ? <Spinner /> : null}
+            </Box>
 
-            {fetchingWidgets ? (
+            {!shoppableWidgetPageType ? (
+              <Box borderStyle="solid" borderWidth={1} borderColor="critical1" borderRadius={4} padding={3}>
+                <Text color="critical1">
+                  Page type `magic-widget-shoppable` not found. Run One-Click Initialization first.
+                </Text>
+              </Box>
+            ) : fetchingWidgets && coreWidgetListItems.length === 0 ? (
               <Box display="flex" justifyContent="center" padding={4}>
                 <Spinner />
               </Box>
-            ) : widgetListItems.length === 0 ? (
+            ) : coreWidgetListItems.length === 0 ? (
               <Text size={2} color="default2">
-                No shoppable widgets found yet.
+                Core widgets are being prepared… reopen this tab if they do not appear.
               </Text>
             ) : (
               <Box display="grid" gap={2}>
-                {widgetListItems.map((widget) => {
+                {coreWidgetListItems.map((widget) => {
                   const isActive = widget.id === selectedWidgetId;
                   return (
                     <Box
@@ -1563,7 +1581,10 @@ export default function VideosPage() {
                     >
                       <Box style={{ minWidth: 0 }}>
                         <Text size={2} fontWeight="bold">
-                          {widget.displayName}
+                          {widget.displayName}{" "}
+                          <Text as="span" size={1} color="default2">
+                            · Core
+                          </Text>
                         </Text>
                       </Box>
                       <Text
@@ -1590,6 +1611,106 @@ export default function VideosPage() {
             )}
           </Box>
 
+          <Box borderStyle="solid" borderWidth={1} borderColor="default1" borderRadius={4} padding={4} display="grid" gap={3}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" style={{ gap: 12 }}>
+              <Box display="grid" gap={1}>
+                <Text as="h3" size={6} fontWeight="bold">
+                  Custom widgets
+                </Text>
+                <Text size={2} color="default2">
+                  Optional playlists for other CMS pages. Create and delete via the popup.
+                </Text>
+              </Box>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setWidgetError("");
+                  setIsCreateWidgetPopupOpen(true);
+                }}
+                disabled={!shoppableWidgetPageType}
+              >
+                Add custom widget
+              </Button>
+            </Box>
+
+            {fetchingWidgets && customWidgetListItems.length === 0 ? (
+              <Box display="flex" justifyContent="center" padding={4}>
+                <Spinner />
+              </Box>
+            ) : customWidgetListItems.length === 0 ? (
+              <Text size={2} color="default2">
+                No custom widgets yet.
+              </Text>
+            ) : (
+              <Box display="grid" gap={2}>
+                {customWidgetListItems.map((widget) => {
+                  const isActive = widget.id === selectedWidgetId;
+                  const confirmingDelete = widgetDeleteConfirmId === widget.id;
+                  return (
+                    <Box
+                      key={widget.id}
+                      borderStyle="solid"
+                      borderWidth={1}
+                      borderColor="default1"
+                      borderRadius={4}
+                      padding={3}
+                      display="grid"
+                      __gridTemplateColumns="minmax(0, 1.2fr) minmax(0, 1fr) auto auto auto"
+                      alignItems="center"
+                      style={{ gap: 10, background: isActive ? "#F8FAFC" : "#fff" }}
+                    >
+                      <Box style={{ minWidth: 0 }}>
+                        <Text size={2} fontWeight="bold">
+                          {widget.displayName}
+                        </Text>
+                      </Box>
+                      <Text
+                        size={1}
+                        color="default2"
+                        style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                      >
+                        {widget.slug}
+                      </Text>
+                      <Text size={1} color="default2">
+                        {widget.linkedVideoCount} videos
+                      </Text>
+                      <Button
+                        size="small"
+                        variant={isActive ? "primary" : "secondary"}
+                        onClick={() => setSelectedWidgetId(widget.id)}
+                      >
+                        {isActive ? "Selected" : "Manage videos"}
+                      </Button>
+                      {confirmingDelete ? (
+                        <Box display="flex" style={{ gap: 6 }}>
+                          <Button
+                            size="small"
+                            variant="secondary"
+                            disabled={deletingWidgetId === widget.id}
+                            onClick={() => void deleteCustomWidget(widget.id, widget.slug)}
+                          >
+                            {deletingWidgetId === widget.id ? "Deleting…" : "Confirm"}
+                          </Button>
+                          <Button size="small" variant="secondary" onClick={() => setWidgetDeleteConfirmId("")}>
+                            Cancel
+                          </Button>
+                        </Box>
+                      ) : (
+                        <Button
+                          size="small"
+                          variant="secondary"
+                          onClick={() => setWidgetDeleteConfirmId(widget.id)}
+                        >
+                          Delete
+                        </Button>
+                      )}
+                    </Box>
+                  );
+                })}
+              </Box>
+            )}
+          </Box>
+
           {selectedWidgetId ? (
             <Box borderStyle="solid" borderWidth={1} borderColor="default1" borderRadius={4} padding={4} display="grid" gap={3}>
               {fetchingWidgets ? (
@@ -1604,6 +1725,7 @@ export default function VideosPage() {
                 <>
                   <Text as="h4" size={4} fontWeight="bold">
                     Edit videos for {selectedWidgetListItem?.displayName || selectedWidget?.title || "selected widget"}
+                    {selectedWidgetListItem?.isCore ? " (Core)" : ""}
                   </Text>
                   <Text size={2} color="default2">
                     Selected videos: {selectedVideoRefs.size}
@@ -1642,6 +1764,114 @@ export default function VideosPage() {
                   </Box>
                 </>
               )}
+            </Box>
+          ) : null}
+
+          {isCreateWidgetPopupOpen ? (
+            <Box
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 1000,
+                background: "rgba(15, 23, 42, 0.45)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 16,
+              }}
+              onClick={() => {
+                if (!isCreatingWidget) setIsCreateWidgetPopupOpen(false);
+              }}
+            >
+              <Box
+                borderStyle="solid"
+                borderWidth={1}
+                borderColor="default1"
+                borderRadius={4}
+                padding={4}
+                display="grid"
+                gap={3}
+                style={{ width: "min(640px, 100%)", maxHeight: "90vh", overflowY: "auto", background: "#fff" }}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <Text as="h3" size={6} fontWeight="bold">
+                  Add custom widget
+                </Text>
+                <Text size={2} color="default2">
+                  Core Homepage/PDP widgets stay locked. This creates an optional custom playlist.
+                </Text>
+
+                <Box display="grid" gap={1}>
+                  <Text size={1} color="default2">
+                    Widget name
+                  </Text>
+                  <Input
+                    value={newWidgetName}
+                    onChange={(event) => setNewWidgetName(event.target.value)}
+                    placeholder="Campaign reels"
+                  />
+                </Box>
+
+                {enrichedVideos.length === 0 ? (
+                  <Text size={2} color="default2">
+                    Upload videos first in Media tab.
+                  </Text>
+                ) : (
+                  <Box display="grid" gap={2}>
+                    <Text size={2} color="default2">
+                      Select videos (optional): {newWidgetVideoRefs.size}
+                    </Text>
+                    <Box display="grid" gap={2} style={{ maxHeight: 280, overflowY: "auto", paddingRight: 4 }}>
+                      {enrichedVideos.map((video) => (
+                        <label
+                          key={`new_${video.node.id}`}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            border: "1px solid #E4E7EC",
+                            borderRadius: 8,
+                            padding: "8px 10px",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={newWidgetVideoRefs.has(video.node.id)}
+                            onChange={() => toggleNewWidgetVideoRef(video.node.id)}
+                          />
+                          <Text size={2} style={{ flex: 1 }}>
+                            {video.node.title}
+                          </Text>
+                          <Text size={1} color="default2">
+                            {video.linkedProducts} products
+                          </Text>
+                        </label>
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+
+                <Box display="flex" justifyContent="flex-end" style={{ gap: 8 }}>
+                  <Button
+                    variant="secondary"
+                    disabled={isCreatingWidget}
+                    onClick={() => {
+                      setIsCreateWidgetPopupOpen(false);
+                      setNewWidgetName("");
+                      setNewWidgetVideoRefs(new Set());
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={() => void createShoppableWidget()}
+                    disabled={isCreatingWidget || !shoppableWidgetPageType}
+                  >
+                    {isCreatingWidget ? "Creating..." : "Create widget"}
+                  </Button>
+                </Box>
+              </Box>
             </Box>
           ) : null}
         </Box>

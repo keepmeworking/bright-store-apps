@@ -10,6 +10,30 @@ export const SH_VIDEO_ATTR_SLUGS = {
   legacyDisplayRules: "magic-display-rules",
 } as const;
 
+/** Fixed Saleor page slugs for Home + PDP shoppable carousels (never deletable). */
+export const SHOPPABLE_CORE_WIDGETS = [
+  {
+    role: "homepage" as const,
+    slug: "magic-widget-shoppable-homepage",
+    title: "Homepage Shoppable Videos",
+    widgetName: "Homepage Shoppable Videos",
+  },
+  {
+    role: "pdp" as const,
+    slug: "magic-widget-shoppable-pdp",
+    title: "PDP Shoppable Videos",
+    widgetName: "PDP Shoppable Videos",
+  },
+] as const;
+
+export const SHOPPABLE_CORE_WIDGET_SLUGS = SHOPPABLE_CORE_WIDGETS.map((widget) => widget.slug);
+
+export const isCoreShoppableWidgetSlug = (slug: string | null | undefined) =>
+  Boolean(slug && SHOPPABLE_CORE_WIDGET_SLUGS.includes(slug as (typeof SHOPPABLE_CORE_WIDGET_SLUGS)[number]));
+
+export const getCoreShoppableWidgetBySlug = (slug: string | null | undefined) =>
+  SHOPPABLE_CORE_WIDGETS.find((widget) => widget.slug === slug) || null;
+
 export type ShoppableVideoFileInfo = {
   originalFileName: string;
   uploadedBy: string;

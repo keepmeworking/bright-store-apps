@@ -335,6 +335,24 @@ export const CMS_PAGE_TYPES: CmsPageTypeDefinition[] = [
 
 export const CMS_DEFAULT_PAGES: CmsDefaultPageDefinition[] = [
   {
+    title: "Homepage Shoppable Videos",
+    slug: "magic-widget-shoppable-homepage",
+    pageTypeSlug: "magic-widget-shoppable",
+    isPublished: true,
+    attributeValues: {
+      "magic-shoppable-widget-name": "Homepage Shoppable Videos",
+    },
+  },
+  {
+    title: "PDP Shoppable Videos",
+    slug: "magic-widget-shoppable-pdp",
+    pageTypeSlug: "magic-widget-shoppable",
+    isPublished: true,
+    attributeValues: {
+      "magic-shoppable-widget-name": "PDP Shoppable Videos",
+    },
+  },
+  {
     title: "Home",
     slug: "home",
     pageTypeSlug: "magiccms-module-ty-home",
