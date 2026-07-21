@@ -8,6 +8,7 @@ import { saleorApp } from "@/saleor-app";
 import { getRazorpayClient } from "@/modules/razorpay-settings";
 import { logTransaction } from "@/modules/transaction-log";
 import { getDocClient } from "@/modules/dynamodb-helpers";
+import { resolveRazorpayRefundPaymentId } from "@/modules/resolve-razorpay-refund-payment-id";
 
 export const transactionRefundRequestedWebhook = new SaleorSyncWebhook<
   TransactionRefundRequestedEventFragment
@@ -24,13 +25,14 @@ export default transactionRefundRequestedWebhook.createHandler(async (req, res, 
   const saleorApiUrl = ctx.authData.saleorApiUrl;
 
   const transactionId = payload.transaction?.id;
-  const razorpayPaymentId = payload.transaction?.pspReference;
+  const pspReference = payload.transaction?.pspReference;
   const amount = payload.action?.amount || 0;
 
   const docClient = getDocClient();
   let mode: "test" | "live" = "test";
+  let razorpayPaymentId = String(pspReference || "").trim();
 
-  if (!razorpayPaymentId) {
+  if (!pspReference) {
     return res.status(400).json({
       errors: [{ message: "Missing Razorpay Payment ID (pspReference) for refund" }],
     });
@@ -40,11 +42,24 @@ export default transactionRefundRequestedWebhook.createHandler(async (req, res, 
     const { client, settings } = await getRazorpayClient(docClient, saleorApiUrl);
     mode = settings.mode;
 
-    if (settings.debugMode) {
-      console.log("[Razorpay Refund] Payment:", razorpayPaymentId, "Amount:", amount);
+    const resolved = await resolveRazorpayRefundPaymentId(pspReference, {
+      fetchOrderPayments: async (orderId) => client.orders.fetchPayments(orderId),
+    });
+    razorpayPaymentId = resolved.paymentId;
+
+    if (settings.debugMode || resolved.resolvedFrom !== "pspReference") {
+      console.log(
+        "[Razorpay Refund] Payment:",
+        razorpayPaymentId,
+        "Amount:",
+        amount,
+        "ResolvedFrom:",
+        resolved.resolvedFrom,
+        resolved.orderId ? `Order: ${resolved.orderId}` : "",
+      );
     }
 
-    // 1. Process Refund via Razorpay
+    // 1. Process Refund via Razorpay (always with pay_…)
     const refund = await client.payments.refund(razorpayPaymentId, {
       amount: Math.round(amount * 100), // paise
     });
@@ -92,7 +107,7 @@ export default transactionRefundRequestedWebhook.createHandler(async (req, res, 
     }
 
     return res.status(200).json({
-      pspReference: razorpayPaymentId,
+      pspReference: razorpayPaymentId || pspReference,
       result: "REFUND_FAILURE",
       amount: 0,
       message: `Refund failed: ${message}`,
