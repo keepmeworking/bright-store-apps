@@ -210,6 +210,7 @@ export default function VideosPage() {
   const [isSavingWidgetVideos, setIsSavingWidgetVideos] = useState(false);
   const [isCreatingWidget, setIsCreatingWidget] = useState(false);
   const [isCreateWidgetPopupOpen, setIsCreateWidgetPopupOpen] = useState(false);
+  const [isManageVideosPopupOpen, setIsManageVideosPopupOpen] = useState(false);
   const [isEnsuringCoreWidgets, setIsEnsuringCoreWidgets] = useState(false);
   const [deletingWidgetId, setDeletingWidgetId] = useState("");
   const [widgetDeleteConfirmId, setWidgetDeleteConfirmId] = useState("");
@@ -900,15 +901,30 @@ export default function VideosPage() {
     if (result.error || mutationErrors.length > 0) {
       setWidgetError(
         result.error?.message ||
-          mutationErrors.map((error) => error.message || error.code).filter(Boolean).join(", ") ||
+          mutationErrors.map((error) => error.message).filter(Boolean).join(", ") ||
           "Unable to link videos with widget."
       );
       setIsSavingWidgetVideos(false);
       return;
     }
 
-    setWidgetNotice(`Linked ${selectedRefs.length} video(s) to widget "${selectedWidget.title}".`);
+    await reexecuteWidgets({ requestPolicy: "network-only" });
+    setWidgetNotice(`Updated ${selectedRefs.length} video(s) on "${selectedWidget.title}".`);
     setIsSavingWidgetVideos(false);
+    setIsManageVideosPopupOpen(false);
+    setSelectedWidgetId("");
+  };
+
+  const openManageVideosPopup = (widgetId: string) => {
+    setWidgetError("");
+    setSelectedWidgetId(widgetId);
+    setIsManageVideosPopupOpen(true);
+  };
+
+  const closeManageVideosPopup = () => {
+    if (isSavingWidgetVideos) return;
+    setIsManageVideosPopupOpen(false);
+    setSelectedWidgetId("");
   };
 
   const enrichedVideos = useMemo(
@@ -1599,10 +1615,10 @@ export default function VideosPage() {
                       </Text>
                       <Button
                         size="small"
-                        variant={isActive ? "primary" : "secondary"}
-                        onClick={() => setSelectedWidgetId(widget.id)}
+                        variant="secondary"
+                        onClick={() => openManageVideosPopup(widget.id)}
                       >
-                        {isActive ? "Selected" : "Manage videos"}
+                        Manage videos
                       </Button>
                     </Box>
                   );
@@ -1676,10 +1692,10 @@ export default function VideosPage() {
                       </Text>
                       <Button
                         size="small"
-                        variant={isActive ? "primary" : "secondary"}
-                        onClick={() => setSelectedWidgetId(widget.id)}
+                        variant="secondary"
+                        onClick={() => openManageVideosPopup(widget.id)}
                       >
-                        {isActive ? "Selected" : "Manage videos"}
+                        Manage videos
                       </Button>
                       {confirmingDelete ? (
                         <Box display="flex" style={{ gap: 6 }}>
@@ -1711,59 +1727,111 @@ export default function VideosPage() {
             )}
           </Box>
 
-          {selectedWidgetId ? (
-            <Box borderStyle="solid" borderWidth={1} borderColor="default1" borderRadius={4} padding={4} display="grid" gap={3}>
-              {fetchingWidgets ? (
-                <Box display="flex" justifyContent="center">
-                  <Spinner />
+          {isManageVideosPopupOpen && selectedWidgetId ? (
+            <Box
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 1000,
+                background: "rgba(15, 23, 42, 0.45)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 16,
+              }}
+              onClick={() => closeManageVideosPopup()}
+            >
+              <Box
+                borderStyle="solid"
+                borderWidth={1}
+                borderColor="default1"
+                borderRadius={4}
+                padding={4}
+                display="grid"
+                gap={3}
+                style={{ width: "min(720px, 100%)", maxHeight: "90vh", overflowY: "auto", background: "#fff" }}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <Box display="flex" justifyContent="space-between" alignItems="flex-start" style={{ gap: 12 }}>
+                  <Box display="grid" gap={1}>
+                    <Text as="h3" size={6} fontWeight="bold">
+                      Manage videos
+                      {selectedWidgetListItem?.isCore ? " · Core" : ""}
+                    </Text>
+                    <Text size={2} color="default2">
+                      {selectedWidgetListItem?.displayName || selectedWidget?.title || "Widget"} — select or remove
+                      videos, then update.
+                    </Text>
+                  </Box>
+                  <Button size="small" variant="secondary" disabled={isSavingWidgetVideos} onClick={() => closeManageVideosPopup()}>
+                    Close
+                  </Button>
                 </Box>
-              ) : enrichedVideos.length === 0 ? (
-                <Text size={2} color="default2">
-                  Upload videos first in Media tab.
-                </Text>
-              ) : (
-                <>
-                  <Text as="h4" size={4} fontWeight="bold">
-                    Edit videos for {selectedWidgetListItem?.displayName || selectedWidget?.title || "selected widget"}
-                    {selectedWidgetListItem?.isCore ? " (Core)" : ""}
-                  </Text>
+
+                {widgetError ? (
+                  <Box borderStyle="solid" borderWidth={1} borderColor="critical1" borderRadius={4} padding={3}>
+                    <Text color="critical1">{widgetError}</Text>
+                  </Box>
+                ) : null}
+
+                {fetchingWidgets && !selectedWidget ? (
+                  <Box display="flex" justifyContent="center" padding={4}>
+                    <Spinner />
+                  </Box>
+                ) : enrichedVideos.length === 0 ? (
                   <Text size={2} color="default2">
-                    Selected videos: {selectedVideoRefs.size}
+                    Upload videos first in Media tab.
                   </Text>
-                  <Box display="grid" gap={2}>
-                    {enrichedVideos.map((video) => (
-                      <label
-                        key={video.node.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          border: "1px solid #E4E7EC",
-                          borderRadius: 8,
-                          padding: "8px 10px",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedVideoRefs.has(video.node.id)}
-                          onChange={() => toggleWidgetVideoRef(video.node.id)}
-                        />
-                        <Text size={2} style={{ flex: 1 }}>
-                          {video.node.title}
-                        </Text>
-                        <Text size={1} color="default2">
-                          {video.linkedProducts} products
-                        </Text>
-                      </label>
-                    ))}
-                  </Box>
-                  <Box display="flex" justifyContent="flex-end">
-                    <Button variant="primary" onClick={() => void saveWidgetVideoRefs()} disabled={isSavingWidgetVideos}>
-                      <Link2 size={14} /> {isSavingWidgetVideos ? "Saving..." : "Save widget video references"}
-                    </Button>
-                  </Box>
-                </>
-              )}
+                ) : (
+                  <>
+                    <Text size={2} color="default2">
+                      Selected videos: {selectedVideoRefs.size}
+                    </Text>
+                    <Box display="grid" gap={2} style={{ maxHeight: 420, overflowY: "auto", paddingRight: 4 }}>
+                      {enrichedVideos.map((video) => (
+                        <label
+                          key={video.node.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            border: "1px solid #E4E7EC",
+                            borderRadius: 8,
+                            padding: "8px 10px",
+                            background: selectedVideoRefs.has(video.node.id) ? "#F8FAFC" : "#fff",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedVideoRefs.has(video.node.id)}
+                            onChange={() => toggleWidgetVideoRef(video.node.id)}
+                          />
+                          <Text size={2} style={{ flex: 1 }}>
+                            {video.node.title}
+                          </Text>
+                          <Text size={1} color="default2">
+                            {video.linkedProducts} products
+                          </Text>
+                        </label>
+                      ))}
+                    </Box>
+                  </>
+                )}
+
+                <Box display="flex" justifyContent="flex-end" style={{ gap: 8 }}>
+                  <Button variant="secondary" disabled={isSavingWidgetVideos} onClick={() => closeManageVideosPopup()}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={() => void saveWidgetVideoRefs()}
+                    disabled={isSavingWidgetVideos || !selectedWidget}
+                  >
+                    <Link2 size={14} /> {isSavingWidgetVideos ? "Updating..." : "Update videos"}
+                  </Button>
+                </Box>
+              </Box>
             </Box>
           ) : null}
 
