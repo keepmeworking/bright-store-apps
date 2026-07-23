@@ -6,6 +6,7 @@ import {
   CreateWidgetDocument,
   GetProductsByHandlesDocument,
 } from "../../generated/graphql";
+import { saleorApp } from "../saleor-app";
 import { normalizeSaleorApiUrl } from "./saleor-api-url";
 import { parseImportReviewDateToIso } from "./review-date";
 
@@ -141,19 +142,21 @@ const toEditorJsContent = (text: string) =>
     version: "2.28.0",
   });
 
+const PRODUCT_PATH_SEGMENTS = new Set(["product", "products"]);
+
 const extractProductHandleFromUrl = (urlOrPath: string) => {
   const raw = urlOrPath.trim();
   if (!raw) return "";
   try {
     const parsed = new URL(raw);
     const segments = parsed.pathname.split("/").filter(Boolean);
-    const productIndex = segments.findIndex((segment) => segment.toLowerCase() === "products");
+    const productIndex = segments.findIndex((segment) => PRODUCT_PATH_SEGMENTS.has(segment.toLowerCase()));
     const candidate = productIndex >= 0 ? segments[productIndex + 1] : segments[segments.length - 1];
     return candidate ? decodeURIComponent(candidate) : "";
   } catch {
     const noQuery = raw.split("?")[0].split("#")[0];
     const segments = noQuery.split("/").filter(Boolean);
-    const productIndex = segments.findIndex((segment) => segment.toLowerCase() === "products");
+    const productIndex = segments.findIndex((segment) => PRODUCT_PATH_SEGMENTS.has(segment.toLowerCase()));
     const candidate = productIndex >= 0 ? segments[productIndex + 1] : segments[segments.length - 1];
     return candidate || "";
   }
@@ -165,6 +168,47 @@ const normalizeProductHandle = (value: string) =>
     .toLowerCase()
     .replace(/^\/+|\/+$/g, "")
     .replace(/[^a-z0-9-_]/g, "");
+
+/** Accept bare slugs, /product|/products paths, or full storefront URLs in handle fields. */
+const coerceProductHandle = (handleRaw: string, urlRaw = "") => {
+  const handle = handleRaw.trim();
+  const url = urlRaw.trim();
+  if (handle) {
+    if (/^https?:\/\//i.test(handle) || handle.includes("/")) {
+      return normalizeProductHandle(extractProductHandleFromUrl(handle));
+    }
+    return normalizeProductHandle(handle);
+  }
+  if (url) {
+    return normalizeProductHandle(extractProductHandleFromUrl(url));
+  }
+  return "";
+};
+
+const isSaleorProductId = (value: string) => {
+  const raw = value.trim();
+  if (!raw) return false;
+  if (raw.startsWith("Product:")) return true;
+  // Saleor global IDs are base64("Product:<id>")
+  if (/^UHJvZHVjdDo/i.test(raw)) return true;
+  try {
+    return Buffer.from(raw, "base64").toString("utf8").startsWith("Product:");
+  } catch {
+    return false;
+  }
+};
+
+const resolveWorkerSaleorToken = async (saleorApiUrl: string, fallbackToken: string) => {
+  try {
+    const authData = await saleorApp.apl.get(saleorApiUrl);
+    if (authData?.token) {
+      return authData.token;
+    }
+  } catch (error) {
+    console.warn("[review-import] Failed to load APL token, falling back to request token.", error);
+  }
+  return fallbackToken;
+};
 
 export const createReviewImportJob = async (payload: ReviewImportPayload) => {
   const store = await readStore();
@@ -238,11 +282,12 @@ const processReviewImportJob = async (summary: ReviewImportJobSummary) => {
     updatedAt: nowIso(),
   }));
 
+  const workerToken = await resolveWorkerSaleorToken(payload.saleorApiUrl, payload.token);
   const client = createClient({
     url: normalizeSaleorApiUrl(payload.saleorApiUrl),
     fetchOptions: {
       headers: {
-        Authorization: `Bearer ${payload.token}`,
+        Authorization: `Bearer ${workerToken}`,
       },
     },
     exchanges: [fetchExchange],
@@ -251,7 +296,14 @@ const processReviewImportJob = async (summary: ReviewImportJobSummary) => {
   const handlesToResolve = Array.from(
     new Set(
       payload.rows
-        .map((row) => normalizeProductHandle(row.productHandle || extractProductHandleFromUrl(row.productUrl)))
+        .flatMap((row) => {
+          const fromHandleOrUrl = coerceProductHandle(row.productHandle, row.productUrl);
+          const fromProductIdField =
+            row.productId && !isSaleorProductId(row.productId)
+              ? coerceProductHandle(row.productId, "")
+              : "";
+          return [fromHandleOrUrl, fromProductIdField];
+        })
         .filter(Boolean)
     )
   );
@@ -264,7 +316,15 @@ const processReviewImportJob = async (summary: ReviewImportJobSummary) => {
       const lookup = await client
         .query(GetProductsByHandlesDocument, { slugs: chunk, first: chunk.length })
         .toPromise();
-      lookup.data?.products?.edges.forEach((edge) => {
+      if (lookup.error) {
+        throw new Error(`Product lookup failed: ${lookup.error.message}`);
+      }
+      if (!lookup.data?.products) {
+        throw new Error(
+          "Product lookup returned no data. Re-open Magic CMS from the Saleor dashboard and retry the import."
+        );
+      }
+      lookup.data.products.edges.forEach((edge) => {
         handleToProductId.set(edge.node.slug.toLowerCase(), edge.node.id);
       });
     }
@@ -297,10 +357,12 @@ const processReviewImportJob = async (summary: ReviewImportJobSummary) => {
       continue;
     }
 
-    const normalizedHandle = normalizeProductHandle(
-      row.productHandle || extractProductHandleFromUrl(row.productUrl)
-    );
-    let resolvedProductId = row.productId || "";
+    const normalizedHandle = coerceProductHandle(row.productHandle, row.productUrl);
+    let resolvedProductId = isSaleorProductId(row.productId) ? row.productId.trim() : "";
+    if (!resolvedProductId && row.productId && !isSaleorProductId(row.productId)) {
+      const handleFromProductId = coerceProductHandle(row.productId, "");
+      resolvedProductId = (handleFromProductId && handleToProductId.get(handleFromProductId)) || "";
+    }
     if (!resolvedProductId && normalizedHandle) {
       resolvedProductId = handleToProductId.get(normalizedHandle) || "";
     }

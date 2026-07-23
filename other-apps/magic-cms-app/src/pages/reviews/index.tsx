@@ -189,20 +189,22 @@ const parseTokenFromExistingReview = (review: ReviewNode) => {
   return fallback || generateUniqueToken();
 };
 
+const PRODUCT_PATH_SEGMENTS = new Set(["product", "products"]);
+
 const extractProductHandleFromUrl = (urlOrPath: string) => {
   const raw = urlOrPath.trim();
   if (!raw) return "";
   try {
     const parsed = new URL(raw);
     const segments = parsed.pathname.split("/").filter(Boolean);
-    const productIndex = segments.findIndex((segment) => segment.toLowerCase() === "products");
+    const productIndex = segments.findIndex((segment) => PRODUCT_PATH_SEGMENTS.has(segment.toLowerCase()));
     const candidate = productIndex >= 0 ? segments[productIndex + 1] : segments[segments.length - 1];
     return candidate ? decodeURIComponent(candidate) : "";
   } catch {
     const noQuery = raw.split("?")[0].split("#")[0];
     const segments = noQuery.split("/").filter(Boolean);
     if (segments.length === 0) return "";
-    const productIndex = segments.findIndex((segment) => segment.toLowerCase() === "products");
+    const productIndex = segments.findIndex((segment) => PRODUCT_PATH_SEGMENTS.has(segment.toLowerCase()));
     const candidate = productIndex >= 0 ? segments[productIndex + 1] : segments[segments.length - 1];
     return candidate || "";
   }
@@ -214,6 +216,21 @@ const normalizeProductHandle = (value: string) =>
     .toLowerCase()
     .replace(/^\/+|\/+$/g, "")
     .replace(/[^a-z0-9-_]/g, "");
+
+const coerceProductHandle = (handleRaw: string, urlRaw = "") => {
+  const handle = handleRaw.trim();
+  const url = urlRaw.trim();
+  if (handle) {
+    if (/^https?:\/\//i.test(handle) || handle.includes("/")) {
+      return normalizeProductHandle(extractProductHandleFromUrl(handle));
+    }
+    return normalizeProductHandle(handle);
+  }
+  if (url) {
+    return normalizeProductHandle(extractProductHandleFromUrl(url));
+  }
+  return "";
+};
 
 const parsePictureUrls = (value: string) =>
   value
@@ -331,7 +348,7 @@ const toPreparedRows = (rows: Record<string, unknown>[], columnMap: ImportColumn
       const published = parsePublished(getMappedValue(row, columnMap, "published"));
 
       const ratingParsed = Number.parseInt(ratingRaw || "5", 10);
-      const productHandle = normalizeProductHandle(productHandleRaw || extractProductHandleFromUrl(productUrl));
+      const productHandle = coerceProductHandle(productHandleRaw, productUrl);
       const reviewDate = parseImportReviewDateToIso(reviewDateRaw) || reviewDateRaw;
 
       const hasAnyData = Boolean(
