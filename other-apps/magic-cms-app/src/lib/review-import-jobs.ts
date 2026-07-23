@@ -1,12 +1,12 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { createClient, fetchExchange } from "urql";
 import {
   type AttributeValueInput,
   CreateWidgetDocument,
   GetProductsByHandlesDocument,
 } from "../../generated/graphql";
 import { saleorApp } from "../saleor-app";
+import { createClient as createSafeGraphQLClient } from "./create-graphql-client";
 import { normalizeSaleorApiUrl } from "./saleor-api-url";
 import { parseImportReviewDateToIso } from "./review-date";
 
@@ -282,16 +282,10 @@ const processReviewImportJob = async (summary: ReviewImportJobSummary) => {
     updatedAt: nowIso(),
   }));
 
+  // Use the shared safe client: urql may issue GET for queries, and Saleor answers GET with
+  // GraphQL Playground HTML. createSafeGraphQLClient forces POST + JSON Accept/Content-Type.
   const workerToken = await resolveWorkerSaleorToken(payload.saleorApiUrl, payload.token);
-  const client = createClient({
-    url: normalizeSaleorApiUrl(payload.saleorApiUrl),
-    fetchOptions: {
-      headers: {
-        Authorization: `Bearer ${workerToken}`,
-      },
-    },
-    exchanges: [fetchExchange],
-  });
+  const client = createSafeGraphQLClient(normalizeSaleorApiUrl(payload.saleorApiUrl), () => workerToken);
 
   const handlesToResolve = Array.from(
     new Set(
@@ -317,7 +311,14 @@ const processReviewImportJob = async (summary: ReviewImportJobSummary) => {
         .query(GetProductsByHandlesDocument, { slugs: chunk, first: chunk.length })
         .toPromise();
       if (lookup.error) {
-        throw new Error(`Product lookup failed: ${lookup.error.message}`);
+        const raw = lookup.error.message || "Unknown network/GraphQL error";
+        const message =
+          /<!DOCTYPE|GraphQL Playground|text\/html/i.test(raw)
+            ? "Saleor API returned HTML instead of GraphQL JSON (invalid method/URL/auth)."
+            : raw.length > 300
+              ? `${raw.slice(0, 300)}…`
+              : raw;
+        throw new Error(`Product lookup failed: ${message}`);
       }
       if (!lookup.data?.products) {
         throw new Error(
