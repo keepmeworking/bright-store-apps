@@ -63,6 +63,7 @@ export const CMS_ATTRIBUTES: CmsAttributeDefinition[] = [
   { slug: "magic-rating", name: "Magic Rating", type: "NUMERIC" },
   { slug: "magic-position", name: "Magic Position", type: "PLAIN_TEXT" },
   { slug: "magic-status", name: "Magic Status", type: "DROPDOWN" }, // choices: pending, approved, rejected
+  { slug: "magic-admin-reply", name: "Magic Admin Reply", type: "PLAIN_TEXT" },
   { slug: "magic-linked-products", name: "Magic Linked Products", type: "REFERENCE", entity: "PRODUCT" },
   { slug: "magic-media", name: "Magic Media", type: "FILE" },
   { slug: "magic-review-images", name: "Magic Review Images", type: "PLAIN_TEXT" }, // JSON string array of image URLs
@@ -169,7 +170,14 @@ export const CMS_PAGE_TYPES: CmsPageTypeDefinition[] = [
   { 
     slug: "magiccms-review", 
     name: "MagicCMS: Review", 
-    attributes: ["magic-rating", "magic-status", "magic-linked-products", "magic-media", "magic-review-images"] 
+    attributes: [
+      "magic-rating",
+      "magic-status",
+      "magic-admin-reply",
+      "magic-linked-products",
+      "magic-media",
+      "magic-review-images",
+    ],
   },
   { 
     slug: "magiccms-shoppable-video", 

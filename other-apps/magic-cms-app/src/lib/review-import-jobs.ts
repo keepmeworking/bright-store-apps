@@ -37,6 +37,7 @@ type ReviewImportPayload = {
   reviewAttrIds: {
     ratingAttrId?: string;
     statusAttrId?: string;
+    adminReplyAttrId?: string;
     linkedProductsAttrId?: string;
     mediaAttrId?: string;
     imagesAttrId?: string;
@@ -406,6 +407,12 @@ const processReviewImportJob = async (summary: ReviewImportJobSummary) => {
       attributes.push({
         id: payload.reviewAttrIds.imagesAttrId,
         plainText: JSON.stringify(row.pictureUrls),
+      });
+    }
+    if (payload.reviewAttrIds.adminReplyAttrId && row.reply) {
+      attributes.push({
+        id: payload.reviewAttrIds.adminReplyAttrId,
+        plainText: row.reply,
       });
     }
 
