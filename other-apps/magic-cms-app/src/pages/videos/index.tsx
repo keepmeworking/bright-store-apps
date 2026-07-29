@@ -798,44 +798,59 @@ export default function VideosPage() {
     setWidgetNotice("");
     setIsCreatingWidget(true);
 
-    const createResult = await createWidget({
-      input: {
-        title,
-        slug: finalSlug,
-        pageType: selectedPageType.id,
-        isPublished: true,
-        attributes,
-      },
-    });
+    try {
+      const createResult = await createWidget({
+        input: {
+          title,
+          slug: finalSlug,
+          pageType: selectedPageType.id,
+          isPublished: true,
+          attributes,
+        },
+      });
 
-    const createErrors = createResult.data?.pageCreate?.errors || [];
-    const createdPage = createResult.data?.pageCreate?.page;
-    if (createResult.error || createErrors.length > 0 || !createdPage) {
-      setWidgetError(
-        createResult.error?.message ||
-          createErrors.map((error) => error.message || error.code).filter(Boolean).join(", ") ||
-          "Unable to create widget."
-      );
+      const createErrors = createResult.data?.pageCreate?.errors || [];
+      const createdPage = createResult.data?.pageCreate?.page;
+      if (createResult.error || createErrors.length > 0 || !createdPage) {
+        setWidgetError(
+          createResult.error?.message ||
+            createErrors.map((error) => error.message || error.code).filter(Boolean).join(", ") ||
+            "Unable to create widget."
+        );
+        return;
+      }
+
+      // Close popup immediately so long Magic Ref sync cannot leave UI stuck on "Creating..."
+      setSelectedWidgetId(createdPage.id);
+      setSelectedVideoRefs(new Set(refs));
+      setSelectedWidgetViewBy(normalizeShoppableViewBy(newWidgetViewBy));
+      setNewWidgetName("");
+      setNewWidgetVideoRefs(new Set());
+      setNewWidgetViewBy("carousel");
+      setIsCreateWidgetPopupOpen(false);
+      setWidgetNotice(`Custom widget "${createdPage.title}" created.`);
+
+      try {
+        const syncResult = await syncMagicRefWidgetOnModulePages(gqlClient, createdPage.id, "add");
+        if (syncResult.errors.length > 0) {
+          setWidgetNotice(
+            `Widget "${createdPage.title}" created. Warning: ${syncResult.errors[0]}`
+          );
+        }
+      } catch (syncError) {
+        setWidgetNotice(
+          `Widget "${createdPage.title}" created. Warning: ${
+            syncError instanceof Error ? syncError.message : "Magic Ref sync failed."
+          }`
+        );
+      }
+
+      await reexecuteWidgets({ requestPolicy: "network-only" });
+    } catch (error) {
+      setWidgetError(error instanceof Error ? error.message : "Unable to create widget.");
+    } finally {
       setIsCreatingWidget(false);
-      return;
     }
-
-    // Custom widgets only — do not broadcast core widgets to every module page.
-    const syncResult = await syncMagicRefWidgetOnModulePages(gqlClient, createdPage.id, "add");
-
-    await reexecuteWidgets({ requestPolicy: "network-only" });
-    setSelectedWidgetId(createdPage.id);
-    setSelectedVideoRefs(new Set(refs));
-    setNewWidgetName("");
-    setNewWidgetVideoRefs(new Set());
-    setNewWidgetViewBy("carousel");
-    setIsCreateWidgetPopupOpen(false);
-    setWidgetNotice(
-      syncResult.errors.length > 0
-        ? `Widget "${createdPage.title}" created. Warning: ${syncResult.errors[0]}`
-        : `Custom widget "${createdPage.title}" created.`
-    );
-    setIsCreatingWidget(false);
   };
 
   const deleteCustomWidget = async (widgetId: string, slug: string) => {
