@@ -92,6 +92,9 @@ export async function ensureCoreShoppableWidgets(client: Client): Promise<Ensure
   const widgetNameAttr = (pageType.attributes || []).find(
     (attribute: { slug?: string | null }) => attribute.slug === SH_VIDEO_ATTR_SLUGS.widgetName
   );
+  const viewByAttr = (pageType.attributes || []).find(
+    (attribute: { slug?: string | null }) => attribute.slug === SH_VIDEO_ATTR_SLUGS.widgetViewBy
+  );
 
   for (const core of SHOPPABLE_CORE_WIDGETS) {
     const existingRes = await client
@@ -108,9 +111,13 @@ export async function ensureCoreShoppableWidgets(client: Client): Promise<Ensure
       continue;
     }
 
-    const attributes = widgetNameAttr?.id
-      ? [{ id: widgetNameAttr.id, plainText: core.widgetName }]
-      : [];
+    const attributes: Array<{ id: string; plainText: string }> = [];
+    if (widgetNameAttr?.id) {
+      attributes.push({ id: widgetNameAttr.id, plainText: core.widgetName });
+    }
+    if (viewByAttr?.id) {
+      attributes.push({ id: viewByAttr.id, plainText: "carousel" });
+    }
 
     const createRes = await client
       .mutation(CREATE_PAGE_MUTATION, {

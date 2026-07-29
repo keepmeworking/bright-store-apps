@@ -5,10 +5,19 @@ export const SH_VIDEO_ATTR_SLUGS = {
   fileInfo: "magic-shoppable-file-info",
   widgetName: "magic-shoppable-widget-name",
   widgetVideoRefs: "magic-shoppable-video-refs",
+  widgetViewBy: "magic-shoppable-view-by",
   legacyVideoFile: "magic-media",
   legacyProducts: "magic-linked-products",
   legacyDisplayRules: "magic-display-rules",
 } as const;
+
+export const SHOPPABLE_VIEW_BY_OPTIONS = ["carousel", "auto-grid"] as const;
+export type ShoppableViewBy = (typeof SHOPPABLE_VIEW_BY_OPTIONS)[number];
+
+export const normalizeShoppableViewBy = (raw: string | null | undefined): ShoppableViewBy => {
+  const value = (raw || "").trim().toLowerCase();
+  return value === "auto-grid" ? "auto-grid" : "carousel";
+};
 
 /** Fixed Saleor page slugs for Home + PDP shoppable carousels (never deletable). */
 export const SHOPPABLE_CORE_WIDGETS = [

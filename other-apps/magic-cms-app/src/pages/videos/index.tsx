@@ -16,6 +16,7 @@ import { Check, Copy, Edit, Link2, Upload, Video } from "lucide-react";
 import { useClient } from "urql";
 import {
   type ShoppableVideoFileInfo,
+  type ShoppableViewBy,
   SH_VIDEO_ATTR_SLUGS,
   SHOPPABLE_CORE_WIDGET_SLUGS,
   createVideoTitleFromFileName,
@@ -26,6 +27,7 @@ import {
   getReferenceValuesBySlug,
   getTextValueBySlug,
   isCoreShoppableWidgetSlug,
+  normalizeShoppableViewBy,
   parseFileInfo,
 } from "@/lib/shoppable-video";
 import { ensureCoreShoppableWidgets } from "@/lib/shoppable-core-widgets";
@@ -203,8 +205,10 @@ export default function VideosPage() {
 
   const [selectedWidgetId, setSelectedWidgetId] = useState("");
   const [selectedVideoRefs, setSelectedVideoRefs] = useState<Set<string>>(new Set());
+  const [selectedWidgetViewBy, setSelectedWidgetViewBy] = useState<ShoppableViewBy>("carousel");
   const [newWidgetName, setNewWidgetName] = useState("");
   const [newWidgetVideoRefs, setNewWidgetVideoRefs] = useState<Set<string>>(new Set());
+  const [newWidgetViewBy, setNewWidgetViewBy] = useState<ShoppableViewBy>("carousel");
   const [widgetNotice, setWidgetNotice] = useState("");
   const [widgetError, setWidgetError] = useState("");
   const [isSavingWidgetVideos, setIsSavingWidgetVideos] = useState(false);
@@ -326,10 +330,11 @@ export default function VideosPage() {
     let attrs = pageType?.attributes || [];
     let widgetNameAttr = attrs.find((attribute) => attribute.slug === SH_VIDEO_ATTR_SLUGS.widgetName);
     let refAttr = attrs.find((attribute) => attribute.slug === SH_VIDEO_ATTR_SLUGS.widgetVideoRefs);
+    let viewByAttr = attrs.find((attribute) => attribute.slug === SH_VIDEO_ATTR_SLUGS.widgetViewBy);
     let displayRulesAttr = attrs.find((attribute) => attribute.slug === SH_VIDEO_ATTR_SLUGS.legacyDisplayRules);
 
-    if (pageType && widgetNameAttr && refAttr) {
-      return { pageType, widgetNameAttr, refAttr, displayRulesAttr };
+    if (pageType && widgetNameAttr && refAttr && viewByAttr) {
+      return { pageType, widgetNameAttr, refAttr, viewByAttr, displayRulesAttr };
     }
 
     const syncResult = await runSetupSync();
@@ -344,6 +349,7 @@ export default function VideosPage() {
     attrs = pageType?.attributes || [];
     widgetNameAttr = attrs.find((attribute) => attribute.slug === SH_VIDEO_ATTR_SLUGS.widgetName);
     refAttr = attrs.find((attribute) => attribute.slug === SH_VIDEO_ATTR_SLUGS.widgetVideoRefs);
+    viewByAttr = attrs.find((attribute) => attribute.slug === SH_VIDEO_ATTR_SLUGS.widgetViewBy);
     displayRulesAttr = attrs.find((attribute) => attribute.slug === SH_VIDEO_ATTR_SLUGS.legacyDisplayRules);
 
     if (!pageType) {
@@ -360,7 +366,7 @@ export default function VideosPage() {
           : `Widget attributes are missing and auto sync failed: ${syncResult.message}`
       );
     }
-    return { pageType, widgetNameAttr, refAttr, displayRulesAttr };
+    return { pageType, widgetNameAttr, refAttr, viewByAttr, displayRulesAttr };
   }, [gqlClient, runSetupSync, shoppableWidgetPageType]);
 
   const selectedWidget = useMemo(
@@ -410,8 +416,13 @@ export default function VideosPage() {
   useEffect(() => {
     if (!selectedWidget) {
       setSelectedVideoRefs(new Set());
+      setSelectedWidgetViewBy("carousel");
       return;
     }
+
+    setSelectedWidgetViewBy(
+      normalizeShoppableViewBy(getTextValueBySlug(selectedWidget, SH_VIDEO_ATTR_SLUGS.widgetViewBy))
+    );
 
     const refs = getReferenceValuesBySlug(selectedWidget, SH_VIDEO_ATTR_SLUGS.widgetVideoRefs);
     if (refs.length > 0) {
@@ -734,6 +745,7 @@ export default function VideosPage() {
     let selectedPageType: NonNullable<typeof shoppableWidgetPageType> | null = null;
     let widgetNameAttr: { id: string; slug?: string | null } | undefined;
     let refAttr: { id: string; slug?: string | null } | undefined;
+    let viewByAttr: { id: string; slug?: string | null } | undefined;
     let displayRulesAttr: { id: string; slug?: string | null } | undefined;
 
     try {
@@ -741,6 +753,7 @@ export default function VideosPage() {
       selectedPageType = resolved.pageType;
       widgetNameAttr = resolved.widgetNameAttr;
       refAttr = resolved.refAttr;
+      viewByAttr = resolved.viewByAttr;
       displayRulesAttr = resolved.displayRulesAttr;
     } catch (error) {
       setWidgetError(error instanceof Error ? error.message : "Unable to prepare widget schema.");
@@ -766,12 +779,16 @@ export default function VideosPage() {
         attributes.push({ id: refAttr.id, references: refs });
       }
     }
+    if (viewByAttr) {
+      attributes.push({ id: viewByAttr.id, plainText: normalizeShoppableViewBy(newWidgetViewBy) });
+    }
 
     if (displayRulesAttr) {
       attributes.push({
         id: displayRulesAttr.id,
         plainText: JSON.stringify({
           "magic-shoppable-video-ids": refs,
+          "magic-shoppable-view-by": normalizeShoppableViewBy(newWidgetViewBy),
           "magic-shoppable-widget-created-at": new Date().toISOString(),
         }),
       });
@@ -811,6 +828,7 @@ export default function VideosPage() {
     setSelectedVideoRefs(new Set(refs));
     setNewWidgetName("");
     setNewWidgetVideoRefs(new Set());
+    setNewWidgetViewBy("carousel");
     setIsCreateWidgetPopupOpen(false);
     setWidgetNotice(
       syncResult.errors.length > 0
@@ -859,6 +877,7 @@ export default function VideosPage() {
       return;
     }
     const videoRefAttr = getAttributeBySlug(selectedWidget, SH_VIDEO_ATTR_SLUGS.widgetVideoRefs);
+    const viewByAttr = getAttributeBySlug(selectedWidget, SH_VIDEO_ATTR_SLUGS.widgetViewBy);
     const displayRulesAttr = getAttributeBySlug(selectedWidget, SH_VIDEO_ATTR_SLUGS.legacyDisplayRules);
 
     if (!videoRefAttr) {
@@ -871,6 +890,7 @@ export default function VideosPage() {
     setIsSavingWidgetVideos(true);
 
     const selectedRefs = Array.from(selectedVideoRefs);
+    const viewBy = normalizeShoppableViewBy(selectedWidgetViewBy);
     const attributes: AttributeValueInput[] = [];
     if (videoRefAttr) {
       if (selectedRefs.length === 0) {
@@ -882,11 +902,19 @@ export default function VideosPage() {
       }
     }
 
+    if (viewByAttr) {
+      attributes.push({ id: viewByAttr.attribute.id, plainText: viewBy });
+    } else {
+      // Schema may be stale — attempt sync then retry attr lookup on next save.
+      void runSetupSync();
+    }
+
     if (displayRulesAttr) {
       const currentRules = safeParseJsonObject(getTextValueBySlug(selectedWidget, SH_VIDEO_ATTR_SLUGS.legacyDisplayRules));
       const nextRules = {
         ...currentRules,
         "magic-shoppable-video-ids": selectedRefs,
+        "magic-shoppable-view-by": viewBy,
         "magic-shoppable-widget-linked-at": new Date().toISOString(),
       };
       attributes.push({ id: displayRulesAttr.attribute.id, plainText: JSON.stringify(nextRules) });
@@ -1774,6 +1802,29 @@ export default function VideosPage() {
                   </Box>
                 ) : null}
 
+                <Box display="grid" gap={1}>
+                  <Text size={1} color="default2">
+                    View by
+                  </Text>
+                  <select
+                    value={selectedWidgetViewBy}
+                    onChange={(event) =>
+                      setSelectedWidgetViewBy(normalizeShoppableViewBy(event.target.value))
+                    }
+                    disabled={isSavingWidgetVideos}
+                    style={{
+                      height: 40,
+                      borderRadius: 8,
+                      border: "1px solid #E4E7EC",
+                      padding: "0 12px",
+                      background: "#fff",
+                    }}
+                  >
+                    <option value="carousel">Carousel</option>
+                    <option value="auto-grid">Auto-grid</option>
+                  </select>
+                </Box>
+
                 {fetchingWidgets && !selectedWidget ? (
                   <Box display="flex" justifyContent="center" padding={4}>
                     <Spinner />
@@ -1828,7 +1879,7 @@ export default function VideosPage() {
                     onClick={() => void saveWidgetVideoRefs()}
                     disabled={isSavingWidgetVideos || !selectedWidget}
                   >
-                    <Link2 size={14} /> {isSavingWidgetVideos ? "Updating..." : "Update videos"}
+                    <Link2 size={14} /> {isSavingWidgetVideos ? "Updating..." : "Update widget"}
                   </Button>
                 </Box>
               </Box>
@@ -1880,6 +1931,31 @@ export default function VideosPage() {
                   />
                 </Box>
 
+                <Box display="grid" gap={1}>
+                  <Text size={1} color="default2">
+                    View by
+                  </Text>
+                  <select
+                    value={newWidgetViewBy}
+                    onChange={(event) =>
+                      setNewWidgetViewBy(normalizeShoppableViewBy(event.target.value))
+                    }
+                    style={{
+                      height: 40,
+                      borderRadius: 8,
+                      border: "1px solid #E4E7EC",
+                      padding: "0 12px",
+                      background: "#fff",
+                    }}
+                  >
+                    <option value="carousel">Carousel</option>
+                    <option value="auto-grid">Auto-grid</option>
+                  </select>
+                  <Text size={1} color="default2">
+                    Carousel = horizontal scroll. Auto-grid = responsive grid for portrait and landscape.
+                  </Text>
+                </Box>
+
                 {enrichedVideos.length === 0 ? (
                   <Text size={2} color="default2">
                     Upload videos first in Media tab.
@@ -1927,6 +2003,7 @@ export default function VideosPage() {
                       setIsCreateWidgetPopupOpen(false);
                       setNewWidgetName("");
                       setNewWidgetVideoRefs(new Set());
+                      setNewWidgetViewBy("carousel");
                     }}
                   >
                     Cancel
@@ -1981,6 +2058,7 @@ export default function VideosPage() {
                   ["magic-shoppable-file-info", "Attribute (plain text JSON)", "Uploaded by/on, size, duration, mime, resolution"],
                   ["magic-shoppable-widget-name", "Widget attribute (plain text)", "Widget display name identifier"],
                   ["magic-shoppable-video-refs", "Widget attribute (reference)", "Selected video references in widget"],
+                  ["magic-shoppable-view-by", "Widget attribute (plain text)", "Layout: carousel | auto-grid"],
                   ["widget page type", "PageType.slug", "Fixed: magic-widget-shoppable"],
                   ["video slug", "Page.slug", "Auto-generated: magic-shoppable-{unique_id}"],
                   ["widget slug", "Page.slug", "Auto-generated/prefixed: magic-widget-shoppable-*"],

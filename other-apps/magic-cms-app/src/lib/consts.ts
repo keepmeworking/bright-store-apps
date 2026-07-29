@@ -75,6 +75,7 @@ export const CMS_ATTRIBUTES: CmsAttributeDefinition[] = [
   { slug: "magic-shoppable-file-info", name: "Magic Shoppable File Info", type: "PLAIN_TEXT" },
   { slug: "magic-shoppable-widget-name", name: "Magic Shoppable Widget Name", type: "PLAIN_TEXT" },
   { slug: "magic-shoppable-video-refs", name: "Magic Shoppable Video Refs", type: "REFERENCE", entity: "PAGE" },
+  { slug: "magic-shoppable-view-by", name: "Magic Shoppable View By", type: "PLAIN_TEXT" }, // carousel | auto-grid
   { slug: "magic-module-attr-heading", name: "Magic Module Heading", type: "RICH_TEXT" },
   { slug: "magic-module-attr-title", name: "Magic Module Attr Title", type: "PLAIN_TEXT" },
   { slug: "magic-module-attr-content", name: "Magic Module Attr Content", type: "RICH_TEXT" },
@@ -229,7 +230,7 @@ export const CMS_PAGE_TYPES: CmsPageTypeDefinition[] = [
   {
     slug: "magic-widget-shoppable",
     name: "MagicCMS: Shoppable Widget",
-    attributes: ["magic-shoppable-widget-name", "magic-shoppable-video-refs"],
+    attributes: ["magic-shoppable-widget-name", "magic-shoppable-video-refs", "magic-shoppable-view-by"],
   },
   {
     slug: "magiccms-module-ty-home",
@@ -349,6 +350,7 @@ export const CMS_DEFAULT_PAGES: CmsDefaultPageDefinition[] = [
     isPublished: true,
     attributeValues: {
       "magic-shoppable-widget-name": "Homepage Shoppable Videos",
+      "magic-shoppable-view-by": "carousel",
     },
   },
   {
@@ -358,6 +360,7 @@ export const CMS_DEFAULT_PAGES: CmsDefaultPageDefinition[] = [
     isPublished: true,
     attributeValues: {
       "magic-shoppable-widget-name": "PDP Shoppable Videos",
+      "magic-shoppable-view-by": "carousel",
     },
   },
   {
