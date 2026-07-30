@@ -65,7 +65,7 @@ type AttributeValue = {
 };
 
 type AttributeEntry = {
-  attribute: { id: string; slug?: string | null };
+  attribute: { id: string; slug?: string | null; inputType?: string | null };
   values: ReadonlyArray<AttributeValue>;
 };
 

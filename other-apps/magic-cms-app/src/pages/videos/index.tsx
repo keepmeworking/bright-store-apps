@@ -906,12 +906,9 @@ export default function VideosPage() {
     const viewBy = normalizeShoppableViewBy(selectedWidgetViewBy);
     const attributes: AttributeValueInput[] = [];
     if (videoRefAttr) {
+      // Always multi REFERENCE — never singular `reference` (silently drops 1-video saves).
       attributes.push(
-        buildReferenceAttributeInput(
-          videoRefAttr.attribute.id,
-          selectedRefs,
-          videoRefAttr.attribute.inputType
-        ) as AttributeValueInput
+        buildReferenceAttributeInput(videoRefAttr.attribute.id, selectedRefs) as AttributeValueInput
       );
     }
 
@@ -1107,11 +1104,7 @@ export default function VideosPage() {
         const refsAttr = getAttributeBySlug(widget, SH_VIDEO_ATTR_SLUGS.widgetVideoRefs);
         if (refsAttr && refsChanged) {
           attrs.push(
-            buildReferenceAttributeInput(
-              refsAttr.attribute.id,
-              nextRefs,
-              refsAttr.attribute.inputType
-            ) as AttributeValueInput
+            buildReferenceAttributeInput(refsAttr.attribute.id, nextRefs) as AttributeValueInput
           );
         }
 
