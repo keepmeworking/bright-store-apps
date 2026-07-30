@@ -90,6 +90,26 @@ export const getReferenceValuesBySlug = (node: AttributedNode, slug: string) =>
     .map((value) => value.reference || "")
     .filter(Boolean);
 
+/**
+ * Build Saleor AttributeValueInput for PAGE/PRODUCT REFERENCE attributes.
+ * Multi REFERENCE must always use `references` (even for 1 id). Singular `reference`
+ * is only for SINGLE_REFERENCE — using it on multi REFERENCE silently drops the value.
+ */
+export const buildReferenceAttributeInput = (
+  attributeId: string,
+  referenceIds: string[],
+  inputType?: string | null,
+): { id: string; reference?: string; references?: string[]; values?: string[] } => {
+  const refs = Array.from(new Set(referenceIds.filter(Boolean)));
+  if (refs.length === 0) {
+    return { id: attributeId, references: [] };
+  }
+  if (inputType === "SINGLE_REFERENCE") {
+    return { id: attributeId, reference: refs[0] };
+  }
+  return { id: attributeId, references: refs };
+};
+
 export const parseFileInfo = (raw: string): ShoppableVideoFileInfo | null => {
   if (!raw) return null;
   try {

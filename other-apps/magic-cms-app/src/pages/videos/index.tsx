@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import {
   type AttributeValueInput,
   GetPageTypesDocument,
+  GetWidgetsDocument,
   type GetWidgetsQuery,
   useCreateWidgetMutation,
   useDeleteWidgetMutation,
@@ -29,6 +30,7 @@ import {
   isCoreShoppableWidgetSlug,
   normalizeShoppableViewBy,
   parseFileInfo,
+  buildReferenceAttributeInput,
 } from "@/lib/shoppable-video";
 import { ensureCoreShoppableWidgets } from "@/lib/shoppable-core-widgets";
 import { extractVideoAsset, uploadFileToSaleor } from "@/lib/shoppable-video-upload";
@@ -771,13 +773,9 @@ export default function VideosPage() {
       attributes.push({ id: widgetNameAttr.id, plainText: title });
     }
     if (refAttr) {
-      if (refs.length === 0) {
-        attributes.push({ id: refAttr.id, values: [] });
-      } else if (refs.length === 1) {
-        attributes.push({ id: refAttr.id, reference: refs[0] });
-      } else {
-        attributes.push({ id: refAttr.id, references: refs });
-      }
+      attributes.push(
+        buildReferenceAttributeInput(refAttr.id, refs) as AttributeValueInput
+      );
     }
     if (viewByAttr) {
       attributes.push({ id: viewByAttr.id, plainText: normalizeShoppableViewBy(newWidgetViewBy) });
@@ -908,13 +906,13 @@ export default function VideosPage() {
     const viewBy = normalizeShoppableViewBy(selectedWidgetViewBy);
     const attributes: AttributeValueInput[] = [];
     if (videoRefAttr) {
-      if (selectedRefs.length === 0) {
-        attributes.push({ id: videoRefAttr.attribute.id, values: [] });
-      } else if (selectedRefs.length === 1) {
-        attributes.push({ id: videoRefAttr.attribute.id, reference: selectedRefs[0] });
-      } else {
-        attributes.push({ id: videoRefAttr.attribute.id, references: selectedRefs });
-      }
+      attributes.push(
+        buildReferenceAttributeInput(
+          videoRefAttr.attribute.id,
+          selectedRefs,
+          videoRefAttr.attribute.inputType
+        ) as AttributeValueInput
+      );
     }
 
     if (viewByAttr) {
@@ -952,7 +950,32 @@ export default function VideosPage() {
     }
 
     await reexecuteWidgets({ requestPolicy: "network-only" });
-    setWidgetNotice(`Updated ${selectedRefs.length} video(s) on "${selectedWidget.title}".`);
+
+    // Confirm refs actually persisted (guards against silent Saleor input mismatches).
+    const refreshed = await gqlClient
+      .query(
+        GetWidgetsDocument,
+        { pageTypeIds: widgetPageTypeIds, first: 100 },
+        { requestPolicy: "network-only" }
+      )
+      .toPromise();
+    const refreshedWidget =
+      (refreshed.data?.pages?.edges || [])
+        .map((edge) => edge.node)
+        .find((widget) => widget.id === selectedWidget.id) || null;
+    const savedCount = refreshedWidget
+      ? getReferenceValuesBySlug(refreshedWidget, SH_VIDEO_ATTR_SLUGS.widgetVideoRefs).length
+      : selectedRefs.length;
+
+    if (selectedRefs.length > 0 && savedCount === 0) {
+      setWidgetError(
+        "Saleor did not persist video links. Try Update again (or re-run One-Click Initialization)."
+      );
+      setIsSavingWidgetVideos(false);
+      return;
+    }
+
+    setWidgetNotice(`Updated ${savedCount} video(s) on "${selectedWidget.title}".`);
     setIsSavingWidgetVideos(false);
     setIsManageVideosPopupOpen(false);
     setSelectedWidgetId("");
@@ -1083,13 +1106,13 @@ export default function VideosPage() {
         const attrs: AttributeValueInput[] = [];
         const refsAttr = getAttributeBySlug(widget, SH_VIDEO_ATTR_SLUGS.widgetVideoRefs);
         if (refsAttr && refsChanged) {
-          if (nextRefs.length === 0) {
-            attrs.push({ id: refsAttr.attribute.id, values: [] });
-          } else if (nextRefs.length === 1) {
-            attrs.push({ id: refsAttr.attribute.id, reference: nextRefs[0] });
-          } else {
-            attrs.push({ id: refsAttr.attribute.id, references: nextRefs });
-          }
+          attrs.push(
+            buildReferenceAttributeInput(
+              refsAttr.attribute.id,
+              nextRefs,
+              refsAttr.attribute.inputType
+            ) as AttributeValueInput
+          );
         }
 
         const legacyRulesAttr = getAttributeBySlug(widget, SH_VIDEO_ATTR_SLUGS.legacyDisplayRules);
