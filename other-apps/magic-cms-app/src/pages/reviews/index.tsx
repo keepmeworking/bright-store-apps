@@ -1127,32 +1127,6 @@ export default function ReviewsPage() {
     }
   };
 
-  if (fetchingType) {
-    return (
-      <Box padding={8} display="flex" justifyContent="center">
-        <Spinner />
-      </Box>
-    );
-  }
-
-  if (!pageTypeId) {
-    return (
-      <Box padding={8}>
-        <Text as="h1" size={7} fontWeight="bold">
-          Review module is not initialized
-        </Text>
-        <Text as="p" color="default2" marginTop={2}>
-          Run "One-Click Initialization" on the dashboard page to create the review page type and attributes.
-        </Text>
-        <Box marginTop={4}>
-          <Button variant="secondary" onClick={() => router.push("/")}>
-            Go to Dashboard
-          </Button>
-        </Box>
-      </Box>
-    );
-  }
-
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
@@ -1181,6 +1155,32 @@ export default function ReviewsPage() {
       cancelled = true;
     };
   }, [gqlClient]);
+
+  if (fetchingType) {
+    return (
+      <Box padding={8} display="flex" justifyContent="center">
+        <Spinner />
+      </Box>
+    );
+  }
+
+  if (!pageTypeId) {
+    return (
+      <Box padding={8}>
+        <Text as="h1" size={7} fontWeight="bold">
+          Review module is not initialized
+        </Text>
+        <Text as="p" color="default2" marginTop={2}>
+          Run "One-Click Initialization" on the dashboard page to create the review page type and attributes.
+        </Text>
+        <Box marginTop={4}>
+          <Button variant="secondary" onClick={() => router.push("/")}>
+            Go to Dashboard
+          </Button>
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box padding={8} display="grid" gap={6}>
