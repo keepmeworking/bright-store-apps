@@ -68,6 +68,31 @@ query GetReviewPageType {
   }
 }
 
+query GetReviewsWidgetPageType {
+  pageTypes(filter: { slugs: ["magic-widget-reviews"] }, first: 1) {
+    edges {
+      node {
+        id
+        name
+        slug
+        attributes {
+          id
+          name
+          slug
+          inputType
+        }
+      }
+    }
+  }
+}
+
+query GetPageBySlug($slug: String!) {
+  page(slug: $slug) {
+    ...PageFragment
+    content
+  }
+}
+
 query GetVideoPageType {
   pageTypes(filter: { slugs: ["magiccms-shoppable-video"] }, first: 1) {
     edges {

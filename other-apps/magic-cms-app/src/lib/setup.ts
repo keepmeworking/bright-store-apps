@@ -33,6 +33,7 @@ const MANAGED_PAGE_TYPE_PREFIXES = [
   "magiccms-",
   "magic-shoppable-widget",
   "magic-widget-shoppable",
+  "magic-widget-reviews",
   "magic-widget-module-",
 ];
 const MANAGED_PAGE_TYPE_SLUGS = new Set(CMS_PAGE_TYPES.map((pageType) => pageType.slug));

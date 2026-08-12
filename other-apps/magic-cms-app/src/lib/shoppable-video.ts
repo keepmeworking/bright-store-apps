@@ -60,6 +60,7 @@ export type ShoppableVideoFileInfo = {
 type AttributeValue = {
   name?: string | null;
   value?: string | null;
+  plainText?: string | null;
   reference?: string | null;
   file?: { url: string; contentType?: string | null } | null;
 };
@@ -82,7 +83,12 @@ export const getFileUrlBySlug = (node: AttributedNode, slug: string) =>
 export const getTextValueBySlug = (node: AttributedNode, slug: string) => {
   const first = getAttributeBySlug(node, slug)?.values[0];
   if (!first) return "";
-  return first.value || first.name || "";
+  return (
+    (first as { plainText?: string | null }).plainText ||
+    first.value ||
+    first.name ||
+    ""
+  );
 };
 
 export const getReferenceValuesBySlug = (node: AttributedNode, slug: string) =>

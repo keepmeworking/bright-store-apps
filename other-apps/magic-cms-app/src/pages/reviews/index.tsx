@@ -8,8 +8,10 @@ import {
   useUpdateWidgetMutation,
 } from "../../../generated/graphql";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Download, Edit, Star, Upload } from "lucide-react";
+import { Check, Copy, Download, Edit, Lock, Star, Upload } from "lucide-react";
 import { parseImportReviewDateToIso } from "@/lib/review-date";
+import { ensureCoreReviewsWidget } from "@/lib/reviews-core-widgets";
+import { useClient } from "urql";
 
 type ReviewNode = NonNullable<NonNullable<GetWidgetsQuery["pages"]>["edges"][number]>["node"];
 type ReviewStatus = "pending" | "approved" | "rejected";
@@ -502,7 +504,11 @@ const STOREFRONT_QUERY_HINT = `query StorefrontReviews($pageTypeIds: [ID!], $fir
 export default function ReviewsPage() {
   const router = useRouter();
   const { appBridge, appBridgeState } = useAppBridge();
+  const gqlClient = useClient();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [coreSectionNotice, setCoreSectionNotice] = useState("");
+  const [coreSectionError, setCoreSectionError] = useState("");
+  const [isEnsuringCoreSection, setIsEnsuringCoreSection] = useState(false);
 
   const [activeStatus, setActiveStatus] = useState<ReviewTab>("pending");
   const [importStep, setImportStep] = useState<ImportStep>(1);
@@ -1147,12 +1153,86 @@ export default function ReviewsPage() {
     );
   }
 
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setIsEnsuringCoreSection(true);
+      setCoreSectionError("");
+      try {
+        const result = await ensureCoreReviewsWidget(gqlClient);
+        if (cancelled) return;
+        if (result.errors.length > 0) {
+          setCoreSectionError(result.errors[0]);
+        } else if (result.created.length > 0) {
+          setCoreSectionNotice(`Core section ready: ${result.created.join(", ")}`);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setCoreSectionError(
+            error instanceof Error ? error.message : "Failed to ensure Homepage Reviews section.",
+          );
+        }
+      } finally {
+        if (!cancelled) setIsEnsuringCoreSection(false);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [gqlClient]);
+
   return (
     <Box padding={8} display="grid" gap={6}>
       <Box display="flex" justifyContent="space-between" alignItems="center" style={{ flexWrap: "wrap", gap: 12 }}>
         <Text as="h1" size={9} fontWeight="bold">
           Product Reviews
         </Text>
+      </Box>
+
+      <Box
+        borderStyle="solid"
+        borderWidth={1}
+        borderColor="default1"
+        borderRadius={4}
+        padding={4}
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+        style={{ flexWrap: "wrap", gap: 12, background: "#f8fafc" }}
+      >
+        <Box>
+          <Box display="flex" alignItems="center" gap={2} marginBottom={1}>
+            <Lock size={16} />
+            <Text size={4} fontWeight="bold">
+              Homepage Reviews
+            </Text>
+            <Text size={2} color="default2">
+              (locked · not deletable)
+            </Text>
+          </Box>
+          <Text size={2} color="default2">
+            Select approved reviews for the homepage carousel. Empty selection keeps the default marquee.
+          </Text>
+          {isEnsuringCoreSection ? (
+            <Text size={2} color="default2" marginTop={1}>
+              Ensuring core section…
+            </Text>
+          ) : null}
+          {coreSectionNotice ? (
+            <Text size={2} color="default2" marginTop={1}>
+              {coreSectionNotice}
+            </Text>
+          ) : null}
+          {coreSectionError ? (
+            <Text size={2} color="critical1" marginTop={1}>
+              {coreSectionError} (Run Magic CMS Update if page type is missing.)
+            </Text>
+          ) : null}
+        </Box>
+        <Button variant="primary" onClick={() => router.push("/reviews/homepage")}>
+          Manage homepage reviews
+        </Button>
       </Box>
 
       <Box display="flex" gap={4} marginBottom={2} style={{ borderBottom: "1px solid #E6E6E6", flexWrap: "wrap" }}>

@@ -67,6 +67,20 @@ export const CMS_ATTRIBUTES: CmsAttributeDefinition[] = [
   { slug: "magic-linked-products", name: "Magic Linked Products", type: "REFERENCE", entity: "PRODUCT" },
   { slug: "magic-media", name: "Magic Media", type: "FILE" },
   { slug: "magic-review-images", name: "Magic Review Images", type: "PLAIN_TEXT" }, // JSON string array of image URLs
+  { slug: "magic-location", name: "Magic Location", type: "PLAIN_TEXT" },
+  {
+    slug: "magic-review-videos",
+    name: "Magic Review Videos",
+    type: "PLAIN_TEXT",
+  }, // JSON array of { url, poster?, durationSeconds? }
+  {
+    slug: "magic-review-refs",
+    name: "Magic Review Refs",
+    type: "REFERENCE",
+    entity: "PAGE",
+    referencePageTypeSlugs: ["magiccms-review"],
+  },
+  { slug: "magic-review-widget-name", name: "Magic Review Widget Name", type: "PLAIN_TEXT" },
   { slug: "magic-widget-data", name: "Magic Widget Data", type: "RICH_TEXT" },
   { slug: "magic-display-rules", name: "Magic Display Rules", type: "PLAIN_TEXT" }, // JSON string
   { slug: "magic-shoppable-video-file", name: "Magic Shoppable Video File", type: "FILE" },
@@ -178,6 +192,8 @@ export const CMS_PAGE_TYPES: CmsPageTypeDefinition[] = [
       "magic-linked-products",
       "magic-media",
       "magic-review-images",
+      "magic-location",
+      "magic-review-videos",
     ],
   },
   { 
@@ -231,6 +247,11 @@ export const CMS_PAGE_TYPES: CmsPageTypeDefinition[] = [
     slug: "magic-widget-shoppable",
     name: "MagicCMS: Shoppable Widget",
     attributes: ["magic-shoppable-widget-name", "magic-shoppable-video-refs", "magic-shoppable-view-by"],
+  },
+  {
+    slug: "magic-widget-reviews",
+    name: "MagicCMS: Reviews Widget",
+    attributes: ["magic-review-widget-name", "magic-review-refs"],
   },
   {
     slug: "magiccms-module-ty-home",
@@ -361,6 +382,15 @@ export const CMS_DEFAULT_PAGES: CmsDefaultPageDefinition[] = [
     attributeValues: {
       "magic-shoppable-widget-name": "PDP Shoppable Videos",
       "magic-shoppable-view-by": "carousel",
+    },
+  },
+  {
+    title: "Homepage Reviews",
+    slug: "magic-widget-reviews-homepage",
+    pageTypeSlug: "magic-widget-reviews",
+    isPublished: true,
+    attributeValues: {
+      "magic-review-widget-name": "Homepage Reviews",
     },
   },
   {

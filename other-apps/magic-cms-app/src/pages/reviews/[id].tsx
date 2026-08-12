@@ -1,3 +1,4 @@
+import { useAppBridge } from "@saleor/app-sdk/app-bridge";
 import { Box, Button, Text, Spinner } from "@saleor/macaw-ui";
 import { useRouter } from "next/router";
 import {
@@ -6,8 +7,15 @@ import {
   useUpdateWidgetMutation,
   useDeleteWidgetMutation,
 } from "../../../generated/graphql";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { CheckCircle, XCircle, AlertCircle, Trash2 } from "lucide-react";
+import { extractVideoAsset, uploadFileToSaleor } from "@/lib/shoppable-video-upload";
+import {
+  REVIEW_WIDGET_ATTR_SLUGS,
+  parseReviewVideoEntries,
+  serializeReviewVideoEntries,
+  type ReviewVideoEntry,
+} from "@/lib/reviews-widget";
 
 type ParsedReviewContent = {
   bodyLines: string[];
@@ -168,10 +176,51 @@ const syncAdminReplyIntoContent = (content: unknown, reply: string): string => {
   });
 };
 
+const parseReviewImageUrls = (page: {
+  attributes: ReadonlyArray<{
+    attribute: { slug?: string | null };
+    values: ReadonlyArray<{
+      plainText?: string | null;
+      name?: string | null;
+      file?: { url?: string | null } | null;
+    }>;
+  }>;
+}): string[] => {
+  const urls: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw?: string | null) => {
+    const url = String(raw || "").trim();
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    urls.push(url);
+  };
+
+  const imagesAttr = page.attributes.find((a) => a.attribute.slug === REVIEW_WIDGET_ATTR_SLUGS.images);
+  const imagesRaw = imagesAttr?.values[0]?.plainText || imagesAttr?.values[0]?.name || "";
+  if (imagesRaw) {
+    try {
+      const parsed = JSON.parse(imagesRaw) as unknown;
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) push(String(item));
+      } else {
+        push(String(parsed));
+      }
+    } catch {
+      for (const part of imagesRaw.split(/[\n,]+/)) push(part);
+    }
+  }
+
+  push(page.attributes.find((a) => a.attribute.slug === REVIEW_WIDGET_ATTR_SLUGS.media)?.values[0]?.file?.url);
+  return urls;
+};
+
 export default function ReviewDetailsPage() {
   const router = useRouter();
+  const { appBridge, appBridgeState } = useAppBridge();
   const { id } = router.query;
   const widgetId = typeof id === "string" ? id : "";
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
 
   const [{ data, fetching, error }, reexecuteGetWidget] = useGetWidgetQuery({
     variables: { id: widgetId },
@@ -185,7 +234,11 @@ export default function ReviewDetailsPage() {
   const [, deleteWidget] = useDeleteWidgetMutation();
   const [status, setStatus] = useState("pending");
   const [adminReply, setAdminReply] = useState("");
+  const [location, setLocation] = useState("");
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [videoEntries, setVideoEntries] = useState<ReviewVideoEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [mediaUploading, setMediaUploading] = useState(false);
   const [actionError, setActionError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
   const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
@@ -193,13 +246,18 @@ export default function ReviewDetailsPage() {
 
   const parsedContent = useMemo(() => parseReviewContent(data?.page?.content), [data?.page?.content]);
 
+  const pageTypeAttrs = typeData?.pageTypes?.edges[0]?.node?.attributes || [];
+
   const adminReplyAttrId = useMemo(() => {
     const fromPage = data?.page?.attributes.find((a) => a.attribute.slug === "magic-admin-reply")?.attribute
       .id;
     if (fromPage) return fromPage;
-    const pageTypeAttrs = typeData?.pageTypes?.edges[0]?.node?.attributes || [];
     return pageTypeAttrs.find((attribute) => attribute.slug === "magic-admin-reply")?.id;
-  }, [data?.page?.attributes, typeData]);
+  }, [data?.page?.attributes, pageTypeAttrs]);
+
+  const resolveAttrId = (slug: string) =>
+    data?.page?.attributes.find((a) => a.attribute.slug === slug)?.attribute.id ||
+    pageTypeAttrs.find((attribute) => attribute.slug === slug)?.id;
 
   useEffect(() => {
     if (data?.page) {
@@ -211,6 +269,16 @@ export default function ReviewDetailsPage() {
       const replyFromAttr =
         replyAttr?.values[0]?.plainText || replyAttr?.values[0]?.name || replyAttr?.values[0]?.value || "";
       setAdminReply(String(replyFromAttr || parsedContent.adminReplyLine || "").trim());
+
+      const locationAttr = data.page.attributes.find((a) => a.attribute.slug === REVIEW_WIDGET_ATTR_SLUGS.location);
+      setLocation(
+        String(locationAttr?.values[0]?.plainText || locationAttr?.values[0]?.name || "").trim(),
+      );
+      setImageUrls(parseReviewImageUrls(data.page));
+      const videosAttr = data.page.attributes.find((a) => a.attribute.slug === REVIEW_WIDGET_ATTR_SLUGS.videos);
+      setVideoEntries(
+        parseReviewVideoEntries(videosAttr?.values[0]?.plainText || videosAttr?.values[0]?.name || ""),
+      );
     }
   }, [data, parsedContent.adminReplyLine]);
 
@@ -299,6 +367,184 @@ export default function ReviewDetailsPage() {
         : "Admin reply cleared.",
     );
     reexecuteGetWidget({ requestPolicy: "network-only" });
+  };
+
+  const persistMediaAndLocation = async (nextImages: string[], nextVideos: ReviewVideoEntry[], nextLocation: string) => {
+    const attributes: Array<
+      | { id: string; plainText: string }
+      | { id: string; file: string }
+    > = [];
+
+    const locationAttrId = resolveAttrId(REVIEW_WIDGET_ATTR_SLUGS.location);
+    const imagesAttrId = resolveAttrId(REVIEW_WIDGET_ATTR_SLUGS.images);
+    const videosAttrId = resolveAttrId(REVIEW_WIDGET_ATTR_SLUGS.videos);
+    const mediaAttrId = resolveAttrId(REVIEW_WIDGET_ATTR_SLUGS.media);
+
+    if (locationAttrId) {
+      attributes.push({ id: locationAttrId, plainText: nextLocation.trim() });
+    }
+    if (imagesAttrId) {
+      attributes.push({ id: imagesAttrId, plainText: JSON.stringify(nextImages) });
+    }
+    if (videosAttrId) {
+      attributes.push({ id: videosAttrId, plainText: serializeReviewVideoEntries(nextVideos) });
+    }
+    if (mediaAttrId && nextImages[0]) {
+      attributes.push({ id: mediaAttrId, file: nextImages[0] });
+    }
+
+    if (attributes.length === 0) {
+      throw new Error(
+        "Review media/location attributes missing. Run Magic CMS One-Click Update, then retry.",
+      );
+    }
+
+    const result = await updateWidget({
+      id: widgetId,
+      input: { attributes },
+    });
+
+    if (result.error || result.data?.pageUpdate?.errors?.length) {
+      throw new Error(
+        result.error?.message ||
+          result.data?.pageUpdate?.errors?.map((e) => e.message).filter(Boolean).join(", ") ||
+          "Unable to save media/location.",
+      );
+    }
+  };
+
+  const handleSaveLocationAndMedia = async () => {
+    setLoading(true);
+    setActionError("");
+    setActionNotice("");
+    try {
+      await persistMediaAndLocation(imageUrls, videoEntries, location);
+      setActionNotice("Location and media saved.");
+      reexecuteGetWidget({ requestPolicy: "network-only" });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Save failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const uploadAuth = () => {
+    const token = appBridge?.getState().token || appBridgeState?.token || "";
+    const saleorApiUrl = appBridgeState?.saleorApiUrl || "";
+    if (!token || !saleorApiUrl) {
+      throw new Error("Saleor auth missing. Re-open Magic CMS from the dashboard.");
+    }
+    return { token, saleorApiUrl };
+  };
+
+  const handleImageUpload = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setMediaUploading(true);
+    setActionError("");
+    setActionNotice("");
+    try {
+      const { token, saleorApiUrl } = uploadAuth();
+      const uploaded: string[] = [];
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith("image/")) {
+          throw new Error(`Skipped non-image file: ${file.name}`);
+        }
+        const result = await uploadFileToSaleor({ saleorApiUrl, token, file });
+        uploaded.push(result.url);
+      }
+      const nextImages = [...imageUrls];
+      for (const url of uploaded) {
+        if (!nextImages.includes(url)) nextImages.push(url);
+      }
+      setImageUrls(nextImages);
+      await persistMediaAndLocation(nextImages, videoEntries, location);
+      setActionNotice(`Uploaded ${uploaded.length} image(s).`);
+      reexecuteGetWidget({ requestPolicy: "network-only" });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Image upload failed.");
+    } finally {
+      setMediaUploading(false);
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    }
+  };
+
+  const handleVideoUpload = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setMediaUploading(true);
+    setActionError("");
+    setActionNotice("");
+    try {
+      const { token, saleorApiUrl } = uploadAuth();
+      const uploaded: ReviewVideoEntry[] = [];
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith("video/")) {
+          throw new Error(`Skipped non-video file: ${file.name}`);
+        }
+        const asset = await extractVideoAsset(file);
+        const videoUpload = await uploadFileToSaleor({ saleorApiUrl, token, file });
+        let poster = "";
+        if (asset.thumbnail) {
+          const posterUpload = await uploadFileToSaleor({
+            saleorApiUrl,
+            token,
+            file: asset.thumbnail,
+          });
+          poster = posterUpload.url;
+        }
+        uploaded.push({
+          url: videoUpload.url,
+          ...(poster ? { poster } : {}),
+          ...(asset.durationSeconds > 0
+            ? { durationSeconds: Math.round(asset.durationSeconds) }
+            : {}),
+        });
+      }
+      const nextVideos = [...videoEntries];
+      for (const entry of uploaded) {
+        if (!nextVideos.some((v) => v.url === entry.url)) nextVideos.push(entry);
+      }
+      setVideoEntries(nextVideos);
+      await persistMediaAndLocation(imageUrls, nextVideos, location);
+      setActionNotice(`Uploaded ${uploaded.length} video(s).`);
+      reexecuteGetWidget({ requestPolicy: "network-only" });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Video upload failed.");
+    } finally {
+      setMediaUploading(false);
+      if (videoInputRef.current) videoInputRef.current.value = "";
+    }
+  };
+
+  const removeImage = async (url: string) => {
+    const nextImages = imageUrls.filter((item) => item !== url);
+    setImageUrls(nextImages);
+    setLoading(true);
+    setActionError("");
+    try {
+      await persistMediaAndLocation(nextImages, videoEntries, location);
+      setActionNotice("Image removed.");
+      reexecuteGetWidget({ requestPolicy: "network-only" });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to remove image.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const removeVideo = async (url: string) => {
+    const nextVideos = videoEntries.filter((item) => item.url !== url);
+    setVideoEntries(nextVideos);
+    setLoading(true);
+    setActionError("");
+    try {
+      await persistMediaAndLocation(imageUrls, nextVideos, location);
+      setActionNotice("Video removed.");
+      reexecuteGetWidget({ requestPolicy: "network-only" });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to remove video.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -611,79 +857,165 @@ export default function ReviewDetailsPage() {
                 </Box>
               )}
 
-              <Box style={{ borderTop: "1px solid #eee" }} paddingTop={4}>
-                <Text as="h3" size={3} fontWeight="bold" marginBottom={2}>
-                  Attached documents
-                </Text>
-                {(() => {
-                  const urls: string[] = [];
-                  const seen = new Set<string>();
-                  const push = (raw?: string | null) => {
-                    const url = String(raw || "").trim();
-                    if (!url || seen.has(url)) return;
-                    seen.add(url);
-                    urls.push(url);
-                  };
+              <Box style={{ borderTop: "1px solid #eee" }} paddingTop={4} display="grid" gap={4}>
+                <Box>
+                  <Text as="h3" size={3} fontWeight="bold" marginBottom={2}>
+                    Location
+                  </Text>
+                  <input
+                    value={location}
+                    onChange={(event) => setLocation(event.target.value)}
+                    placeholder="e.g. Lucknow, Uttar Pradesh"
+                    disabled={loading || mediaUploading}
+                    style={{
+                      width: "100%",
+                      border: "1px solid #D1D5DB",
+                      borderRadius: 8,
+                      padding: "10px 12px",
+                      fontFamily: "inherit",
+                      fontSize: 14,
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </Box>
 
-                  const imagesAttr = data.page.attributes.find(
-                    (a) => a.attribute.slug === "magic-review-images",
-                  );
-                  const imagesRaw =
-                    imagesAttr?.values[0]?.plainText || imagesAttr?.values[0]?.name || "";
-                  if (imagesRaw) {
-                    try {
-                      const parsed = JSON.parse(imagesRaw) as unknown;
-                      if (Array.isArray(parsed)) {
-                        for (const item of parsed) push(String(item));
-                      } else {
-                        push(String(parsed));
-                      }
-                    } catch {
-                      for (const part of imagesRaw.split(/[\n,]+/)) push(part);
-                    }
-                  }
-
-                  push(
-                    data.page.attributes.find((a) => a.attribute.slug === "magic-media")?.values[0]
-                      ?.file?.url,
-                  );
-
-                  if (urls.length === 0) {
-                    return (
-                      <Box
-                        padding={10}
-                        borderStyle="solid"
-                        borderWidth={1}
-                        borderColor="default1"
-                        borderRadius={4}
-                        display="flex"
-                        justifyContent="center"
-                      >
-                        <Text color="default2">No media files attached to this review.</Text>
-                      </Box>
-                    );
-                  }
-
-                  return (
+                <Box>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" marginBottom={2}>
+                    <Text as="h3" size={3} fontWeight="bold">
+                      Images
+                    </Text>
+                    <Button
+                      variant="secondary"
+                      size="small"
+                      disabled={loading || mediaUploading}
+                      onClick={() => imageInputRef.current?.click()}
+                    >
+                      {mediaUploading ? "Uploading..." : "Upload images"}
+                    </Button>
+                    <input
+                      ref={imageInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      style={{ display: "none" }}
+                      onChange={(event) => void handleImageUpload(event.target.files)}
+                    />
+                  </Box>
+                  {imageUrls.length === 0 ? (
+                    <Text size={2} color="default2">
+                      No images attached.
+                    </Text>
+                  ) : (
                     <Box display="flex" style={{ gap: 12, flexWrap: "wrap" }}>
-                      {urls.map((url) => (
-                        <a key={url} href={url} target="_blank" rel="noreferrer">
-                          <img
-                            src={url}
-                            alt="Review attachment"
+                      {imageUrls.map((url) => (
+                        <Box key={url} style={{ position: "relative" }}>
+                          <a href={url} target="_blank" rel="noreferrer">
+                            <img
+                              src={url}
+                              alt="Review attachment"
+                              style={{
+                                width: 140,
+                                height: 140,
+                                borderRadius: 8,
+                                border: "1px solid #eee",
+                                objectFit: "cover",
+                                display: "block",
+                              }}
+                            />
+                          </a>
+                          <Button
+                            variant="tertiary"
+                            size="small"
+                            onClick={() => void removeImage(url)}
+                            disabled={loading || mediaUploading}
+                            style={{ marginTop: 6 }}
+                          >
+                            Remove
+                          </Button>
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+
+                <Box>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" marginBottom={2}>
+                    <Text as="h3" size={3} fontWeight="bold">
+                      Videos
+                    </Text>
+                    <Button
+                      variant="secondary"
+                      size="small"
+                      disabled={loading || mediaUploading}
+                      onClick={() => videoInputRef.current?.click()}
+                    >
+                      {mediaUploading ? "Uploading..." : "Upload videos"}
+                    </Button>
+                    <input
+                      ref={videoInputRef}
+                      type="file"
+                      accept="video/mp4,video/webm,video/*"
+                      multiple
+                      style={{ display: "none" }}
+                      onChange={(event) => void handleVideoUpload(event.target.files)}
+                    />
+                  </Box>
+                  <Text size={2} color="default2" marginBottom={2}>
+                    Preview uses controls only — no autoplay.
+                  </Text>
+                  {videoEntries.length === 0 ? (
+                    <Text size={2} color="default2">
+                      No videos attached.
+                    </Text>
+                  ) : (
+                    <Box display="flex" style={{ gap: 12, flexWrap: "wrap" }}>
+                      {videoEntries.map((entry) => (
+                        <Box key={entry.url} style={{ width: 220 }}>
+                          <video
+                            src={entry.url}
+                            poster={entry.poster || undefined}
+                            controls
+                            playsInline
+                            preload="metadata"
                             style={{
-                              maxWidth: 220,
-                              maxHeight: 280,
+                              width: "100%",
+                              height: 140,
                               borderRadius: 8,
                               border: "1px solid #eee",
+                              background: "#111",
                               objectFit: "cover",
                             }}
                           />
-                        </a>
+                          {typeof entry.durationSeconds === "number" ? (
+                            <Text size={2} color="default2">
+                              {Math.floor(entry.durationSeconds / 60)}:
+                              {String(Math.floor(entry.durationSeconds % 60)).padStart(2, "0")}
+                            </Text>
+                          ) : null}
+                          <Button
+                            variant="tertiary"
+                            size="small"
+                            onClick={() => void removeVideo(entry.url)}
+                            disabled={loading || mediaUploading}
+                            style={{ marginTop: 6 }}
+                          >
+                            Remove
+                          </Button>
+                        </Box>
                       ))}
                     </Box>
-                  );
-                })()}
+                  )}
+                </Box>
+
+                <Box display="flex" justifyContent="flex-end">
+                  <Button
+                    variant="primary"
+                    onClick={() => void handleSaveLocationAndMedia()}
+                    disabled={loading || mediaUploading}
+                  >
+                    {loading ? "Saving..." : "Save location & media"}
+                  </Button>
+                </Box>
               </Box>
             </Box>
           </Box>
