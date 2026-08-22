@@ -201,6 +201,46 @@ export function buildInvoiceRows(order: OrderPayloadFragment, currency: string, 
   };
 }
 
+export function resolveTaxPercent(order: OrderPayloadFragment): number | null {
+  const lineRates = (order.lines ?? [])
+    .filter((line) => (line.quantity ?? 0) > 0)
+    .map((line) => line.taxRate)
+    .filter((rate): rate is number => typeof rate === "number" && Number.isFinite(rate));
+
+  const sharedRate =
+    lineRates.length > 0 && lineRates.every((rate) => Math.abs(rate - lineRates[0]) < 0.005)
+      ? lineRates[0]
+      : null;
+
+  if (sharedRate !== null && sharedRate > 0) {
+    return sharedRate;
+  }
+
+  const netAmount = order.total?.net?.amount ?? 0;
+  const taxAmount = order.total?.tax?.amount ?? 0;
+
+  if (netAmount <= 0 || taxAmount <= 0) {
+    return null;
+  }
+
+  return (taxAmount / netAmount) * 100;
+}
+
+export function formatTaxLabel(taxPercent: number | null) {
+  if (taxPercent === null || !Number.isFinite(taxPercent)) {
+    return "Tax";
+  }
+
+  const rounded = Math.round(taxPercent * 100) / 100;
+  if (rounded <= 0) {
+    return "Tax";
+  }
+
+  const display = rounded.toFixed(2).replace(/\.?0+$/, "");
+
+  return `Tax (${display}%)`;
+}
+
 export function buildInvoiceSummaryRows(
   order: OrderPayloadFragment,
   invoiceRows: ReturnType<typeof buildInvoiceRows>,
@@ -210,11 +250,12 @@ export function buildInvoiceSummaryRows(
   const shippingAmount = order.shippingPrice?.gross?.amount ?? 0;
   const totalAmount = resolveFinalAmount(order);
   const taxAmount = order.total?.tax?.amount ?? 0;
+  const taxLabel = formatTaxLabel(resolveTaxPercent(order));
 
   return [
     { label: "Subtotal", value: formatMoney(invoiceRows.subtotalAmount, currency, locale) },
     { label: "Shipping", value: formatMoney(shippingAmount, currency, locale) },
-    { label: "Tax", value: formatMoney(taxAmount, currency, locale) },
+    { label: taxLabel, value: formatMoney(taxAmount, currency, locale) },
     { label: "TOTAL", value: formatMoney(totalAmount, currency, locale), bold: true, tall: true },
   ];
 }

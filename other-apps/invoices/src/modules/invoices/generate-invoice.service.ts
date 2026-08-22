@@ -99,6 +99,7 @@ const OrderQuery = gql`
       productName
       variantName
       quantity
+      taxRate
       metadata {
         key
         value
@@ -210,6 +211,7 @@ const OrdersByNumberQuery = gql`
       productName
       variantName
       quantity
+      taxRate
       metadata {
         key
         value
@@ -321,6 +323,7 @@ const OrdersBySearchQuery = gql`
       productName
       variantName
       quantity
+      taxRate
       metadata {
         key
         value

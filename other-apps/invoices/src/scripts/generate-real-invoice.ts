@@ -85,6 +85,7 @@ const OrderQuery = gql`
       productName
       variantName
       quantity
+      taxRate
       metadata {
         key
         value

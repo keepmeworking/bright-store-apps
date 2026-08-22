@@ -195,7 +195,7 @@ describe("MicroinvoiceInvoiceGenerator", () => {
     expect(summaryRows).toEqual([
       { label: "Subtotal", value: "24,398.00 INR" },
       { label: "Shipping", value: "0.00 INR" },
-      { label: "Tax", value: "3,721.73 INR" },
+      { label: "Tax (18%)", value: "3,721.73 INR" },
       { label: "TOTAL", value: "24,398.00 INR", bold: true, tall: true },
     ]);
     expect(summaryRows.map((row: { label: string }) => row.label)).not.toContain("Goods Subtotal");
@@ -269,5 +269,61 @@ describe("MicroinvoiceInvoiceGenerator", () => {
 
   it("reads customer gstin from billing address metadata", () => {
     expect(readGstinFromAddress(mockOrder.billingAddress)).toBe("07ABCDE1234F1Z5");
+  });
+
+  it("shows the shared line tax rate in the summary label", () => {
+    const buildInvoiceRows = (invoiceGeneratorModule as any).buildInvoiceRows;
+    const buildInvoiceSummaryRows = (invoiceGeneratorModule as any).buildInvoiceSummaryRows;
+
+    const invoiceRows = buildInvoiceRows(mockOrder, "INR", "en-US");
+    const summaryRows = buildInvoiceSummaryRows(mockOrder, invoiceRows, "INR", "en-US");
+
+    expect(summaryRows.find((row: { label: string }) => row.label.startsWith("Tax"))).toEqual({
+      label: "Tax (18%)",
+      value: "7,626.81 INR",
+    });
+  });
+
+  it("formats fractional tax rates without trailing zeros", () => {
+    const formatTaxLabel = (invoiceGeneratorModule as any).formatTaxLabel;
+
+    expect(formatTaxLabel(18)).toBe("Tax (18%)");
+    expect(formatTaxLabel(18.5)).toBe("Tax (18.5%)");
+    expect(formatTaxLabel(5.25)).toBe("Tax (5.25%)");
+    expect(formatTaxLabel(0)).toBe("Tax");
+    expect(formatTaxLabel(null)).toBe("Tax");
+  });
+
+  it("falls back to blended rate from totals when line rates are mixed", () => {
+    const resolveTaxPercent = (invoiceGeneratorModule as any).resolveTaxPercent;
+    const orderWithMixedRates = {
+      ...mockOrder,
+      total: {
+        ...mockOrder.total,
+        net: { amount: 1000, currency: "INR" },
+        tax: { amount: 150, currency: "INR" },
+      },
+      lines: [
+        { ...mockOrder.lines[0], quantity: 1, taxRate: 18 },
+        { ...mockOrder.lines[0], quantity: 1, taxRate: 12 },
+      ],
+    };
+
+    expect(resolveTaxPercent(orderWithMixedRates)).toBe(15);
+  });
+
+  it("falls back to plain Tax label when no tax data is available", () => {
+    const resolveTaxPercent = (invoiceGeneratorModule as any).resolveTaxPercent;
+    const orderWithoutRates = {
+      ...mockOrder,
+      total: {
+        ...mockOrder.total,
+        net: { amount: 0, currency: "INR" },
+        tax: { amount: 0, currency: "INR" },
+      },
+      lines: [{ ...mockOrder.lines[0], taxRate: undefined as unknown as number }],
+    };
+
+    expect(resolveTaxPercent(orderWithoutRates)).toBeNull();
   });
 });

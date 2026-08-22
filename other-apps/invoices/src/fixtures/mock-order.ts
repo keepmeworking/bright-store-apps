@@ -82,6 +82,7 @@ export const mockOrder: OrderPayloadFragment = {
         "daikcell 10 KVA Copper 90V-270V Single Phase Air Cooled Servo Voltage Corrector - 2 Year Repair Warranty",
       variantName: "Customize Size Available As per your requirement",
       quantity: 1,
+      taxRate: 18,
       totalPrice: {
         currency: "INR",
         gross: {

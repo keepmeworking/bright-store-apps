@@ -86,6 +86,7 @@ const OrderPayload = gql`
       productName
       variantName
       quantity
+      taxRate
       totalPrice {
         ...TaxedMoney
       }
