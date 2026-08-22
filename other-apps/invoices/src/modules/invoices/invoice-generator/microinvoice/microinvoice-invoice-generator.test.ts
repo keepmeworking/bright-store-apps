@@ -284,6 +284,14 @@ describe("MicroinvoiceInvoiceGenerator", () => {
     });
   });
 
+  it("normalizes fraction tax rates returned by Saleor to percentages", () => {
+    const resolveTaxPercent = (invoiceGeneratorModule as any).resolveTaxPercent;
+
+    expect(resolveTaxPercent(mockOrder)).toBe(18);
+    expect(resolveTaxPercent({ ...mockOrder, lines: [{ ...mockOrder.lines[0], taxRate: 18 }] })).toBe(18);
+    expect(resolveTaxPercent({ ...mockOrder, lines: [{ ...mockOrder.lines[0], taxRate: 0.0525 }] })).toBe(5.25);
+  });
+
   it("formats fractional tax rates without trailing zeros", () => {
     const formatTaxLabel = (invoiceGeneratorModule as any).formatTaxLabel;
 
@@ -304,8 +312,8 @@ describe("MicroinvoiceInvoiceGenerator", () => {
         tax: { amount: 150, currency: "INR" },
       },
       lines: [
-        { ...mockOrder.lines[0], quantity: 1, taxRate: 18 },
-        { ...mockOrder.lines[0], quantity: 1, taxRate: 12 },
+        { ...mockOrder.lines[0], quantity: 1, taxRate: 0.18 },
+        { ...mockOrder.lines[0], quantity: 1, taxRate: 0.12 },
       ],
     };
 

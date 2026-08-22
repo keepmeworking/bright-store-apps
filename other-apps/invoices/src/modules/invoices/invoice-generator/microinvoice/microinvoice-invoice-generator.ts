@@ -201,11 +201,16 @@ export function buildInvoiceRows(order: OrderPayloadFragment, currency: string, 
   };
 }
 
+function normalizeTaxRate(rate: number): number {
+  return rate > 0 && rate < 1 ? rate * 100 : rate;
+}
+
 export function resolveTaxPercent(order: OrderPayloadFragment): number | null {
   const lineRates = (order.lines ?? [])
     .filter((line) => (line.quantity ?? 0) > 0)
     .map((line) => line.taxRate)
-    .filter((rate): rate is number => typeof rate === "number" && Number.isFinite(rate));
+    .filter((rate): rate is number => typeof rate === "number" && Number.isFinite(rate))
+    .map(normalizeTaxRate);
 
   const sharedRate =
     lineRates.length > 0 && lineRates.every((rate) => Math.abs(rate - lineRates[0]) < 0.005)
