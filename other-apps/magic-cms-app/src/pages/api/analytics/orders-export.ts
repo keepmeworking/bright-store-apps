@@ -8,6 +8,7 @@ import {
   type GetOrdersExportPageQueryVariables,
 } from "../../../../generated/graphql";
 import { createClient as createSafeGraphQLClient } from "@/lib/create-graphql-client";
+import { resolveCustomerGstin } from "@/lib/orders-export-gstin";
 import { resolveLastInvoiceUrl } from "@/lib/orders-export-invoice";
 import { resolvePaymentId, resolvePaymentProvider } from "@/lib/orders-export-payment";
 import {
@@ -46,6 +47,7 @@ type ExportRow = {
   "Customer Name": string;
   "Customer Email": string;
   "Customer Phone": string;
+  "Customer GSTIN": string;
   "Billing Name": string;
   "Billing Phone": string;
   "Billing Address": string;
@@ -253,6 +255,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         "Customer Email": order.userEmail || "",
         "Customer Phone":
           order.billingAddress?.phone || order.shippingAddress?.phone || "",
+        "Customer GSTIN": resolveCustomerGstin(order.billingAddress),
         "Billing Name":
           [order.billingAddress?.firstName, order.billingAddress?.lastName]
             .filter(Boolean)
@@ -380,6 +383,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     "Customer Name": "",
     "Customer Email": "",
     "Customer Phone": "",
+    "Customer GSTIN": "",
     "Billing Name": "",
     "Billing Phone": "",
     "Billing Address": "",

@@ -94,6 +94,10 @@ query GetOrdersExportPage(
             country
             code
           }
+          metadata {
+            key
+            value
+          }
         }
         shippingAddress {
           firstName
